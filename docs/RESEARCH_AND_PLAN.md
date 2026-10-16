@@ -14,10 +14,12 @@ Status: research only, no code written yet. Date: 2026-10-16.
   and it keeps an evidence trail. It can't load PS1 executables directly, but its source shows a
   supported path (an ELF wrapper plus the `PSX:LE:32:default` language from ghidra_psx_ldr). It never
   runs code, so the PCSX-Redux emulator/debugger covers the dynamic half.
-- **No game assets in this repo** (it is public). The app imports art and audio from the player's
-  own disc image at runtime ("bring your own disc").
-- **What I need from you to start:** the disc image (BIN/CUE, all tracks) via private storage, a
-  few network allowlist entries, and approval for a toolchain setup script. See §9.
+- **Private repo, playable from a private URL.** The repo goes private and the game's extracted art,
+  music and stage data are committed to it. The built site is hosted behind a login (Cloudflare
+  Pages + Cloudflare Access), so it opens from anywhere with no import step. The raw disc image
+  stays out of git (too big) and lives in private storage.
+- **What I need from you to start:** make the repo private, upload the disc image and pass me its
+  link through an environment variable, and open up network access. See §9.
 
 ---
 
@@ -34,6 +36,7 @@ Status: research only, no code written yet. Date: 2026-10-16.
 - Original behaviours that players know, such as the stage-select password and holding R2 after a
   clear to make the professor walk faster
 - Whatever progress the original saves, persisted in the browser
+- Playable from a private, login-protected URL in any modern browser
 
 **Out of scope for now:** Classic, Versus and Edit modes. The architecture keeps the stage format and
 mechanics reusable so they can be added later. Edit Mode uses the same stage format, and Versus is
@@ -222,7 +225,8 @@ anything suspicious.
 - **dumpsxiso** ([mkpsxiso](https://github.com/Lameguy64/mkpsxiso) v2.30) reads a `.cue`, extracts
   every file and records the exact on-disc layout, including XA attributes. It also extracts CD audio
   tracks as WAV or FLAC.
-- **Format decoders, written in TypeScript** so dev tools and the in-browser importer share them:
+- **Format decoders, written in TypeScript** so the build pipeline and any future in-browser
+  importer share them:
   - TIM images (4/8/16/24-bit with palettes)
   - VAB/VAG sound banks (SPU ADPCM)
   - SEQ/SEP sequences if present
@@ -313,15 +317,19 @@ reachable from here even though the website isn't. Relevant parts:
 | `render/` | PS1-faithful software compositor at native resolution. It implements only the GPU primitives the game actually uses, found with the GPU logger. A 15-bit framebuffer goes to a WebGL2 presenter for integer/aspect scaling and an optional CRT shader. Software rendering is what makes pixel-exact matching realistic; at 320×240 it costs about a millisecond per frame |
 | `audio/` | Web Audio. A CD-audio track player with sample-accurate loops. An AudioWorklet "mini-SPU" handles SFX: ADPCM-decoded samples, pitch, ADSR, volume and reverb if used |
 | `input/` | Keyboard and Gamepad API mapped to the PS1 digital pad bitmask; remappable |
-| `assets/` | The "bring your own disc" importer. A Web Worker parses CUE/BIN and checks the hash to confirm the right version. It extracts and decodes only Puzzle Mode assets, then stores them in IndexedDB once |
-| `ui/` | A thin shell around the game: disc import, settings (controls, volume, display) and fullscreen. Before import it is a clean neutral page; after import it uses the game's own font so it doesn't clash |
+| `assets/` + `tools/extract/` | Build-time asset pipeline. A Node script reads the disc image and checks its hash to confirm the right version. It converts only Puzzle Mode assets into web-ready files (sprite sheets, compressed music, stage data as JSON) under `web/public/assets/`, which are committed to the private repo. The decoders are written so an in-browser importer could reuse them if an asset-free public version is ever wanted |
+| `ui/` | A thin shell around the game: settings (controls, volume, display) and fullscreen, drawn with the game's own font so it doesn't clash |
 
 - **Main loop:** `requestAnimationFrame` plus a fixed-step accumulator at the original rate. The
   game runs at the same speed on 60, 120 and 144 Hz displays.
 - **Persistence:** progress, passwords and settings in localStorage/IndexedDB, mirroring what the
   original keeps.
-- **Stack and hosting:** Vite, strict TypeScript, Vitest and Playwright; output is a static site
-  (PWA-capable). GitHub Pages works because no assets ship.
+- **Stack:** Vite, strict TypeScript, Vitest and Playwright. The output is a static site (PWA-capable).
+- **Hosting:** Cloudflare Pages, auto-deployed from the private repo, with Cloudflare Access in
+  front so only invited emails can open it (free for up to 50 people).
+- **Why not GitHub Pages:** its sites are public even when the repo is private.
+- **Size limits:** 100 MB per file in git, 25 MiB per file on Cloudflare Pages. Music is split
+  per track, so neither limit is a problem.
 
 ## 8. Verification
 
@@ -353,66 +361,76 @@ reachable from here even though the website isn't. Relevant parts:
 module, fixtures and a verifier. It closes only when its verifier passes. This uses REA's
 `build_reconstruction_obligation_ledger`, or a Markdown ledger if that tool proves too rigid.
 
-**CI split.** Public CI runs unit tests with synthetic fixtures. Anything derived from game data
-(traces with real stage layouts, reference frames, audio captures) stays private and runs in sessions
-where the disc is available.
+**Where test data lives.** Because the repo is private, game-derived fixtures can be committed:
+traces with real stage layouts, reference frames and audio-event logs. Every verification layer
+can therefore run in CI and in any session. Bulky raw material (RAM/VRAM dumps, save states)
+stays out of git unless it's small and compressed.
 
 ## 9. What I need from you
 
-**Blocking**
+**Now, before any reverse-engineering work**
 
-1. **Disc image.**
-   - What: Tetris Plus (USA), SLUS-00338, as BIN/CUE with all audio tracks. Make it from your own
-     disc, plus its hashes if you have them.
-   - Where: private storage, never this public repo and never pasted in chat. For example a private
-     Google Cloud Storage bucket (`gsutil` is preinstalled here) or any host with a direct download
-     link.
-   - Access: put a read-only credential or the URL in the environment's settings (Network secrets,
-     or an env var such as `TETRIS_DISC_URL`) and allow that host.
-2. **Network allowlist.** Environment settings → Network access → Allowed domains; keep "Allow
-   package managers" ticked.
-   - `distrib.app` for the prebuilt PCSX-Redux. Without it I build it from source every session,
-     which is slower.
-   - For research: `tetris.wiki`, `harddrop.com`, `gamefaqs.gamespot.com`, `tcrf.net`,
-     `retroachievements.org`, `redump.org`, `en.wikipedia.org`.
-   - Your storage host from item 1.
-3. **Setup script.** I'll write `scripts/setup-toolchain.sh`, which installs Ghidra 12.1.4,
-   ghidra_psx_ldr, REA 6.5.0, PCSX-Redux, mkpsxiso, Unicorn and m2c with pinned versions. Either you
-   paste it into the environment's Setup script, or you approve me committing it as a SessionStart
-   hook together with a project `.mcp.json` for REA.
+1. **Make the repo private.** GitHub → `norbert586/Tetris-Plus` → Settings → General → Danger
+   Zone → Change repository visibility → Make private. If my GitHub access breaks afterwards,
+   reconnect at https://claude.ai/connect-github and check that the Claude GitHub App is installed
+   on the repo.
+2. **Check the disc image** (reference version: Tetris Plus (USA), SLUS-00338). Send me the file
+   names and sizes.
+   - Complete: a `.cue` with `.bin` track files, or an `.iso` plus audio files.
+   - Probably missing the 51 music tracks: a lone `.iso` much smaller than several hundred MB.
+3. **Upload it.** Zip the image folder, upload it to Google Drive and set sharing to "Anyone with
+   the link". Don't commit it (GitHub rejects files over 100 MB) and don't paste the link in chat.
+4. **Configure this environment** (environment menu in the session title bar → Edit):
+   - **Environment variable:** `TETRIS_DISC_URL` = the Drive link.
+   - **Network access, simplest option:** switch to the broadest access level.
+   - **Network access, if you keep it limited:** keep "Allow package managers" ticked and add
+     these Allowed domains:
+     - disc download: `drive.google.com`, `drive.usercontent.google.com`
+     - prebuilt PCSX-Redux: `distrib.app` (without it I compile it every session)
+     - research: `tetris.wiki`, `harddrop.com`, `gamefaqs.gamespot.com`, `tcrf.net`,
+       `retroachievements.org`, `redump.org`, `en.wikipedia.org`
 
-**Helpful**
+**Later (I'll say when a playable build exists)**
 
-4. Your console's BIOS dump (for example SCPH-1001), for a second-emulator cross-check.
-5. RetroAchievements code notes for game 3145, or allowlist the site. They speed up finding RAM
-   addresses.
-6. The Japanese disc (SLPS-00466), only if you want a Japanese option later.
+5. **Hosting.** Create a free Cloudflare account. When it's time, connect the repo under Workers &
+   Pages and put Cloudflare Access in front of the site. Access lets in only the emails you allow,
+   via a one-time code. I'll give the exact build settings then.
+
+**Optional**
+
+6. Your console's BIOS dump (for example SCPH-1001), for a second-emulator cross-check.
+7. The Japanese disc (SLPS-00466), only if you want a Japanese option later.
+
+**Not needed from you: tool installation.** I'll commit a setup script that installs Ghidra 12.1.4,
+ghidra_psx_ldr, REA 6.5.0, PCSX-Redux, mkpsxiso, Unicorn and m2c, with pinned versions, at the
+start of each session. If a later session asks you to approve a tool server called `rea`, approve it.
 
 **Decisions (my recommendation in bold)**
 
 - Reference version: **NTSC-U SLUS-00338**.
-- Asset strategy: **bring-your-own-disc importer, no assets hosted anywhere**.
+- Asset strategy: **decided: private repo with extracted assets committed, site behind a login**.
 - Menus: **original title and mode-select screens, with non-Puzzle modes visible but disabled**
   (or hidden).
 - Display defaults: **pixel-perfect integer scaling, 4:3, CRT filter off but available**.
 - Loading pauses and slowdown: **don't reproduce loading pauses; reproduce gameplay timing exactly**.
-- Platforms: **desktop browsers with keyboard and gamepad first; touch controls later**.
+- Platforms: **open.** If "play wherever" includes phones and tablets, touch controls become core
+  work rather than a later extra.
 
 ## 10. Phased plan
 
 | Phase | Work | Deliverable | Exit criteria | Size |
 |---|---|---|---|---|
 | 0. Setup and spike | Toolchain via setup script. Disc fetched and hash-checked. `psxexe2elf` built; REA opens the main EXE in the PSX language. PsyQ names bootstrapped. PCSX-Redux boots headless and Lua can dump RAM and inject inputs | Setup script, `.mcp.json`, `seeds.tsv` v0, oracle smoke test | All four tools work end to end on the real disc; REA fallback decided | S–M |
-| 1. Disc inventory | dumpsxiso; classify every file; find overlays and compression; list CD tracks with durations; identify the Puzzle Mode working set | `docs/re/disc-inventory.md` (no game data) | Every file has a format/role or an explicit "unknown" | S |
+| 1. Disc inventory | dumpsxiso; classify every file; find overlays and compression; list CD tracks with durations; identify the Puzzle Mode working set | `docs/re/disc-inventory.md` | Every file has a format/role or an explicit "unknown" | S |
 | 2. Static bootstrap | Main loop, VSync, pad reading, mode dispatcher, Puzzle Mode entry; library calls named | `seeds.tsv` v1, call-graph notes | Puzzle Mode code region bounded | M |
 | 3. Dynamic map | Memory scanner and watchpoints find board, piece, queue, RNG, timers, professor, ceiling, score and state machine, each linked to the code that writes it | `docs/re/ram-map.md` | Every gameplay variable has address, type and writer | M |
-| 4. Spec extraction | Decompile and document each subsystem. Extract tables: pieces, rotations, gravity, timings, the 100 stage layouts, animation and layout tables, password codec | `docs/spec/*.md` + private data files | Every ledger mechanic has evidence | **L (critical path)** |
-| 5. Oracle harness | Input-movie format, Lua tracer, deterministic replays, edge-case movie corpus | `re/lua/*`, private trace corpus | Same movie gives identical traces on repeated runs | M |
+| 4. Spec extraction | Decompile and document each subsystem. Extract tables: pieces, rotations, gravity, timings, the 100 stage layouts, animation and layout tables, password codec | `docs/spec/*.md` + extracted data files | Every ledger mechanic has evidence | **L (critical path)** |
+| 5. Oracle harness | Input-movie format, Lua tracer, deterministic replays, edge-case movie corpus | `re/lua/*`, trace corpus | Same movie gives identical traces on repeated runs | M |
 | 6. Core port | TypeScript core, Unicorn function tests, golden-trace equality | `web/src/core` | 100% trace equality on the corpus | M |
-| 7. Renderer and importer | Bring-your-own-disc importer, decoders, PS1 compositor, every Puzzle Mode screen | `web/src/render`, `web/src/assets` | Pixel-identical to reference frames | L |
+| 7. Renderer and assets | Asset pipeline and decoders, committed web assets, PS1 compositor, every Puzzle Mode screen | `web/src/render`, `tools/extract`, `web/public/assets` | Pixel-identical to reference frames | L |
 | 8. Audio | CD-audio player and loops, mini-SPU SFX, mix levels | `web/src/audio` | Audio-event traces match; mix measured | M |
 | 9. Flow and shell | Title → zones → 100 stages → endings; passwords; persistence; settings; gamepad; fullscreen | Playable build | A complete run on the port | M |
-| 10. Proof and polish | 100-stage solver replays on the original; performance in Chrome, Firefox and Safari; PWA build | Release candidate + verification report | 100/100 stage equivalence; steady frame rate | M |
+| 10. Proof, polish and deploy | 100-stage solver replays on the original; performance in Chrome, Firefox and Safari; PWA build; deploy to Cloudflare Pages behind Cloudflare Access | Live private URL + verification report | 100/100 stage equivalence; steady frame rate; uninvited visitors are refused | M |
 
 **Parallel work:** Phase 5 can start once Phase 3 is done; Phase 7's decoders once Phase 1 is done;
 Phase 8 once Phases 1 and 4 are done.
@@ -429,22 +447,22 @@ Phase 8 once Phases 1 and 4 are done.
 | SPU detail (ADSR, reverb) slightly off | Implement psx-spx's documented algorithms; compare against emulator SPU captures |
 | Browser audio unlock and latency | Unlock audio on "Press Start"; schedule sound through AudioWorklet |
 | Network policy and throwaway containers | Pinned setup script; allowlist |
-| Intellectual property | Bring-your-own-disc design; no game data in the public repo; private fixtures |
+| Intellectual property | Private repo, invite-only collaborators, site behind Cloudflare Access; never make the repo or site public while the assets are in it |
+| Site reachable without login (for example through preview deployments) | The Access policy covers the production domain and preview deployments; checked in Phase 10 |
 
 ## 12. Ground rules (IP and repo hygiene)
 
-- **This repo is public.** Commit code, docs, specs in our own words, addresses and names
-  (`seeds.tsv`) and synthetic test data.
-- **Never commit:**
-  - disc images
-  - extracted assets: art, audio, stage layouts
-  - RAM/VRAM dumps, save states, reference screenshots
-  - raw decompiler output
-
-  These live in `private/` (gitignored) or in private storage.
+- **The repo is private and stays private.** Collaborators are invite-only, and the site is only
+  reachable through Cloudflare Access.
+- **Commit:** code, docs and specs, `seeds.tsv`, extracted web-ready assets (sprites, compressed
+  music, stage data), trace fixtures and reference frames.
+- **Don't commit:** the disc image (over GitHub's 100 MB limit; it stays in private storage), or
+  bulky raw dumps (RAM/VRAM dumps, save states) unless they're small and compressed.
 - **IP.** "Tetris" is a trademark of The Tetris Company, and the game's art, music and levels belong
-  to their rights holders. Shipping the code without content, with players supplying their own
-  disc, is what keeps a project like this distributable.
+  to their rights holders. A private, invite-only repo and site keeps the risk low, but everyone
+  with access gets copies of that content. Don't make either public while the assets are in the
+  repo. The asset pipeline stays separate from the code, so an asset-free public version (players
+  import their own disc) remains possible.
 
 ## 13. Sources
 
