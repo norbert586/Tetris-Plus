@@ -60,6 +60,47 @@ Puzzle Mode plus garbage lines.
 | 12 | RetroAchievements has a PS1 set (game 3145, 31 achievements). Its code notes usually label key RAM addresses | RetroAchievements | Set confirmed; notes not yet seen |
 | 13 | No existing decompilation, disassembly project or faithful remake was found | Web searches | Medium |
 
+## 2a. Verified facts from your disc image (2026-10-16)
+
+- **Image:** Redump-style BIN/CUE with 52 tracks. Track 01 is the data track (MODE2/2352,
+  52,148,544 bytes). Tracks 02–52 are CD audio, about 58.8 minutes in total, each file including its
+  2-second pregap.
+- **Version:** Track 01 matches Redump "Tetris Plus (USA)", SLUS-00338 (the Greatest Hits release
+  has the same data track):
+  - CRC32 `2C9426B6`
+  - MD5 `4808ABA3DE7C43EFBC84DF44278040AC`
+  - SHA-1 `7A300536E37708B791B72433DCAFAC8D0E5069EB`
+
+  The audio tracks haven't been checked against Redump yet, because the full Redump database
+  wasn't reachable.
+- **Volume:** `TETRIS_PLUS`, publisher JALECO, mastered 1996-08-22; boots `SLUS_003.38`.
+- **Structure:** the game is split into one program per mode, each with its own data file:
+
+| File(s) | Size | Likely role |
+|---|---|---|
+| `SLUS_003.38` | 116 KB | Boot program; probably loads and chains the mode programs below |
+| `EF.VH` / `EF.VB` | 10 KB / 460 KB | Global sound-effect bank (VAB) |
+| `JLOGO.EXE` + `J_PS.STR` | 166 KB + 1.2 MB | Jaleco logo video |
+| `SW_ON.EXE` + `SW_ONE.BIN` | 138 KB + 25 KB | Startup screen |
+| `TIT_DEMO.EXE` + `TDEMOE.BIN` | 138 KB + 82 KB | Title demo |
+| `TITLE.EXE` + `TITLEE.BIN` | 132 KB + 386 KB | Title and mode select |
+| `SELECT.EXE` + `SELECTE.BIN` | 152 KB + 133 KB | Selection screen (probably Puzzle zone select) |
+| **`PAZLE.EXE` + `PAZLEE.BIN`** | **360 KB + 928 KB** | **Puzzle Mode** |
+| `HOW_P.EXE` + `HOWPE.BIN` | 256 KB + 197 KB | Puzzle how-to-play |
+| `RANKING.EXE` + `RANKINGE.BIN` | 124 KB + 62 KB | Rankings |
+| `NOMAL.*`, `VSPUZ.*`, `EDIT.*`, `HOW_N.*`, `HOW_VS.*` | — | Classic, Versus, Edit and their how-to-play screens (out of scope) |
+| `DM3M30S.DA` | 35 MB | Filler (exactly 3 min 30 s worth of sectors) |
+
+**What this means for the plan:**
+
+- **The reverse-engineering target is bounded.** Gameplay lives in `PAZLE.EXE`. The boot program's
+  hand-off between programs, plus `SELECT` and `TITLE`, cover the flow around it. Each is a
+  standalone PS-X EXE, which suits the per-executable REA approach in §5.1.
+- **Music:** many tracks come in same-length pairs (for example 2/3, 14/37, 28/48). That suggests
+  two versions of each tune, or duplicates. Which plays when is a Phase 1/4 question.
+- **Data files:** the `E` suffix (`TITLEE`, `PAZLEE`, …) probably marks English data. Their
+  container format is custom and still unidentified.
+
 ## 3. Why community info isn't enough
 
 The wikis describe what a player sees, often vaguely, and they contradict each other on the
@@ -367,6 +408,10 @@ can therefore run in CI and in any session. Bulky raw material (RAM/VRAM dumps, 
 stays out of git unless it's small and compressed.
 
 ## 9. What I need from you
+
+**Status (2026-10-16):** steps 1–4 are done. The repo is private, network access is set to full,
+and the image is uploaded and verified (§2a). `TETRIS_DISC_URL` isn't needed: sessions find the
+file by name through your connected Google Drive.
 
 **Now, before any reverse-engineering work**
 
