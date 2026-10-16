@@ -218,8 +218,10 @@ and JDK 21.
   `REA_GHIDRA_SEED_FILE`, `GHIDRA_HEADLESS_MAXMEM=4G`.
 - Registration: a project `.mcp.json` running `npx -y rea-agents@6.5.0 mcp`.
 
-**Still untested (first thing in Phase 0):** whether Ghidra's ELF loader accepts a non-"MIPS"
-processor for an `EM_MIPS` file. Fallbacks, in order:
+**Tested in Phase 0 (2026-10-16):** REA 6.5.0 refuses `REA_GHIDRA_LANGUAGE_ID=PSX:LE:32:default`
+for MIPS targets, because an override must equal its pinned `MIPS:LE:32:default`. Fallback 1 is in
+use, and the PsyQ library names come in through the seed file. See `docs/re/phase0.md`.
+The fallbacks, in order:
 
 1. Use Ghidra's built-in `MIPS:LE:32:default`. Game logic is integer code; only GTE (3D maths)
    instructions would lose readability.
@@ -462,6 +464,8 @@ start of each session. If a later session asks you to approve a tool server call
   work rather than a later extra.
 
 ## 10. Phased plan
+
+**Status:** Phase 0 is complete (2026-10-16; see `docs/re/phase0.md`). Phase 1 is next.
 
 | Phase | Work | Deliverable | Exit criteria | Size |
 |---|---|---|---|---|
