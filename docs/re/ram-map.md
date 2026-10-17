@@ -74,7 +74,7 @@ checks the stage flags: `stage_flags & 4` → screen 9 (clear), `lose_flags & 2`
 | `0x800EDCA0` | `s32[2][21][10]` | `board` | `piece_lock`, `lines_*`, `ceiling_crush`, `board_reset`, `board_clear_rows`, `stage_load_layout` | Index `row*10 + col`, player stride `0x348`. 0 empty, 1–7 piece kind (its colour), stage blocks their own value (5 on Egypt 1). Row 0 holds `0xFFFF` in columns 0–2 and 7–9: walls either side of the four spawn columns |
 | `0x800EEBB0` | `s32[2]` | `zone` | menu and map screens | 0 = Egypt |
 | `0x800EEB04` | `s32[2]` | `stage` | `stage_number_advance`, menu, map, password | 0–19 within the zone. E: 0 → 1 after the clear |
-| `0x800F35C8` | `u8[2]` | `zones_cleared` | not traced | Bit mask. After a zone's 20th stage: zone-clear screen unless all five bits are set |
+| `0x800F35C8` | `s32[2]` | `zones_cleared` | zone-clear step | Bit mask. After a zone's 20th stage: zone-clear screen unless all five bits are set. (Phase 4: an s32 per player, not u8; `docs/spec/stages.md` §5) |
 | `0x800EE394` | `s32[2]` | `level` | menu screens | Always 0 in Puzzle Mode (§4) |
 
 **Stage data, found while tracing the loaders (Phase 4 extracts it):**

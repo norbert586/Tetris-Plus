@@ -112,3 +112,51 @@
 0x800a156c	function	prof_check_goal	S/E: row 15 -> goal, music 0x2c
 0x800a7a64	function	stage_number_advance	S/E: stage + 1; after 20, zone clear or next zone
 0x800a2150	function	intro_setup	S/E: scr04 step 0; board and professor reset for the stage
+# Phase 4 (docs/spec/). S = decompiled code; E = run p4-stage87.
+0x8009dddc	function	prof_state0_place	S: prof_place, state 1
+0x8009de24	function	prof_state1_gate	S: action 0x17 on channel 1, state 2
+0x8009e010	function	prof_lost_dispatch	S: prof state 4, substate table 0x80094260
+0x8009e204	function	prof_goal_dispatch	S: prof state 5, 16 substates at 0x80094270
+0x800a07f4	function	prof_script_run	S/E: runs opcodes until wait, end or null script
+0x800a0900	function	prof_script_op	S: opcode dispatch, table 0x800942c0
+0x800a09b8	function	prof_op_end	S: opcode 0: action done, pop channel
+0x800a0a24	function	prof_op_image	S: opcode 1: sprite image and flip
+0x800a0c1c	function	prof_op_wait	S/E: opcode 2: wait n (+1) frames; 1 when prof_fast
+0x800a0d74	function	prof_op_jump	S: opcode 4: restart or jump back
+0x800a0e60	function	prof_op_sound	S: opcode 5: se_play
+0x800a0f0c	function	prof_op_nudge	S: opcode 6: move sprite by pixels
+0x800a0fe4	function	prof_op_hide	S: opcode 7: clear sprite images
+0x800a10c8	function	prof_channel_pop	S/E: clears the channel, steps down to one with a script
+0x800a164c	function	prof_fast_check	S: prof_fast = any face/shoulder button held
+0x800ae390	function	piece_draw	S: one sprite per solid cell of the falling piece
+0x800af07c	function	debris_find_slot	S: first free debris slot of 20, else 0 (then no rand())
+0x800afc44	function	debris_step	S: debris state dispatch, table 0x800947f4
+0x800afcac	function	debris_shrink	S: debris state 0, 16 frames
+0x800afd4c	function	debris_fall	S: debris state 1, 49 frames, then freed
+0x800af15c	function	ceiling_draw_chain	S: chain sprites above the ceiling
+0x800b1974	function	debris_clear_all	S: frees all 20 debris slots
+0x800b58e8	function	best_time_draw	S: HUD best time for the stage (Phase 3 question 4)
+0x800accec	function	board_sprites_build	S: block sprite per non-empty cell
+0x800b0824	function	stage_art_load_31	S: stage record +0x24 item into sprite slot 31
+0x800b091c	function	stage_art_load_30	S: stage record +0x20 item into sprite slot 30
+0x800a2430	function	intro_stage_load	S/E: intro step 1: HUD, timer, queue, layout, ceiling
+0x800a2878	function	intro_banner_wait	S: intro step 2
+0x800a2948	function	intro_rules_panel	S: intro step 3 (first stage of a new game)
+0x800a2c6c	function	intro_prof_enter	S/E: intro step 4: professor states 0-2, 64-frame countdown
+0x800a2d60	function	intro_rules_panel2	S: intro step 5, clears prof_hold
+0x800a2dd4	function	intro_wait_entered	S/E: intro step 6: until stage_flags & 1
+0x800a2ea0	function	intro_to_play	S/E: intro step 8: screen 5
+0x800a3a74	function	continue_start	S: continue countdown 9, music 0x2e
+0x800a3bd0	function	continue_countdown	S: Start continues (score + 1), Cross skips a digit
+0x800a9c2c	function	zone_clear_mark	S: zones_cleared |= 1 << zone
+0x800aa004	function	zone_clear_next	S: 0x1f ending, 0x0f last zone's story, else map
+0x800b35a8	function	password_step_dispatch	S: menu step 3, password entry
+0x800b362c	function	password_entry_init	S
+0x800b37c4	function	password_entry	S: symbol and cursor input
+0x800b3ad8	function	password_decode	S: docs/spec/password.md
+0x800b3e10	function	password_error	S: error sprite, 120 frames
+0x800b3f28	function	password_show	S: draws the six symbols
+0x800b401c	function	password_encode	S: docs/spec/password.md
+0x800b41e0	function	password_scramble	S: xor 0x2aaa
+0x800b552c	function	menu_dpad_repeat	S: up/down/left/right deltas with auto-repeat 20/4
+0x800b43e4	function	pause_stage_select	S: hidden stage select in pause step 4

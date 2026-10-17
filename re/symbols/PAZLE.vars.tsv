@@ -9,7 +9,7 @@
 0x800edca0	s32[2][21][10]	board	piece_lock lines_remove lines_collapse lines_clear_cells ceiling_crush board_reset board_clear_rows stage_load_layout	S/E	0 empty; 1-7 piece kind (colour); stage blocks use their own values (5 on Egypt 1); 0xffff = row-0 wall cells (cols 0-2 and 7-9). Rows 0-15 used, 16-20 never touched. Player stride 0x348
 0x800eebb0	s32[2]	zone	menu/map screens	S/E	0 = Egypt; indexes the stage table 0x800d780c (zone*20 + stage)
 0x800eeb04	s32[2]	stage	stage_number_advance and menu/map/password screens	S/E	0-19 within the zone; +1 on stage clear (E: 0->1 at frame 14488)
-0x800f35c8	u8[2]	zones_cleared	(not traced; read by stage_number_advance)	S	bit mask; after stage 20 of a zone, screen 10 (zone clear) unless all five bits are set
+0x800f35c8	s32[2]	zones_cleared	zone-clear step 0x800a9c2c (|= 1<<zone), password decode, menu	S	bit z = zone z cleared; 0x1f = all, 100-stage mode. Phase 4: s32 per player (lw/sw, stride 4), not u8
 0x800ee394	s32[2]	level	menu screens (always 0)	S	index into the 31-entry level table 0x800d61c4 {gravity, lock, score 1-4 lines}; Puzzle Mode only writes 0
 #
 # --- Falling piece
@@ -87,3 +87,12 @@
 0x800ee580	s32[2]	stage_time	stage_timer_reset stage_timer_tick	S/E	tenths of a second, capped 9999; +1 every 7 frames (E: 880 after 6,160 frames)
 0x800ee6c0	s32[2]	stage_time_sub	stage_timer_tick	S/E	counts 6..-1
 0x8003e668+0x4ad84	u16[100]	best_times	best_times_reset prof_goal_record_time (pc 0x8009e6e4)	S/E	per stage, tenths; 9999 = none (E: stage 0 9999->880)
+# Phase 4 (docs/spec/)
+0x800ee8d0	s32[2]	prof_prev_action	prof_set_action, channel pop 0x800a10c8	S/E	stride 0x10; the action before the last change; landing rules test it
+0x800ee570	s32[2]	prof_fast	0x800a164c	S	1 while a face/shoulder button is held during the goal/lost sequences; every script wait then lasts 2 frames
+0x800ee7d4	s32[2]	prof_fake_ground	prof_reset	S	never set non-zero; would make foot sensors read 8
+0x800f2ae0	s32[2]	password_value	password encode/decode	S	18-bit packed password, see docs/spec/password.md
+0x800ee58c	s32[2][6]	password_symbols	password entry	S	stride 0x18; symbols 0-7 (7 = blank)
+0x800f0bbc	s32[2]	password_cursor	password entry	S	0-5
+0x800eeae4	s32[2]	intro_countdown	intro step 1 (64), step 4	S	frames before the professor's gate animation may end the intro
+0x800ee38c	s32[2]	hundred_stage_mode	menu, password decode	S	1 when zones_cleared == 0x1f: stages run through all zones, numbered 1-100
