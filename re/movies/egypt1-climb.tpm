@@ -1,0 +1,46 @@
+tpm 1
+boot puzzle
+end 5108
+# egypt1-climb: Egypt stage 1 solved by climbing. The first piece is dropped into the
+# professor's pocket (columns 0-1), into his cells; he climbs on top of it, walks right over the
+# step and drops to the floor, row 15: the goal. Later pieces fall at normal speed (he climbs a
+# row in about 70 ticks) and are stacked in columns 7-9, out of his way. Then the stage advance
+# and stage 2's intro.
+100 4 CROSS
+220 4 CROSS
+340 4 CROSS
+460 4 CROSS
+580 4 CROSS
+700 4 CROSS
+820 4 CROSS
+940 4 CROSS
+1060 4 CROSS
+1180 4 CROSS
+1300 4 CROSS
+1420 4 CROSS
+1540 4 CROSS
+1660 4 CROSS
+1780 4 CROSS
+1900 4 CROSS
+2020 4 CROSS
+2140 4 CROSS
+2260 4 CROSS
+2380 4 CROSS
+2500 4 CROSS
+2620 4 CROSS
+2740 4 CROSS
+2860 4 CROSS
+2980 4 CROSS
+3071 1 CROSS+DOWN
+3072 2 DOWN
+3074 1 DOWN+LEFT
+3075 1 DOWN
+3076 1 DOWN+LEFT
+3077 1 DOWN
+3078 1 DOWN+LEFT
+3079 1 DOWN
+3080 1 DOWN+LEFT
+3081 38 DOWN
+3181 1 RIGHT
+3183 1 RIGHT
+3185 1 RIGHT

@@ -1,0 +1,54 @@
+tpm 1
+boot puzzle
+end 5400
+# pause-retire: Egypt stage 1 route (Cross every 120 ticks to tick 2980; play from 3061), then the
+# pause menu. Start pauses; Select opens the menu; option 1 shows the password (Cross returns);
+# option 2 asks to retire (Right on "no" does nothing; Left; Cross: retire). The professor loses;
+# Start on the continue countdown continues (score +1) and the stage restarts. On the second try:
+# pause, Select, option 3 (quit), Left, Cross: player 1 quits and, with player 2 idle, Puzzle Mode
+# exits to the title (tick 5390).
+100 4 CROSS
+220 4 CROSS
+340 4 CROSS
+460 4 CROSS
+580 4 CROSS
+700 4 CROSS
+820 4 CROSS
+940 4 CROSS
+1060 4 CROSS
+1180 4 CROSS
+1300 4 CROSS
+1420 4 CROSS
+1540 4 CROSS
+1660 4 CROSS
+1780 4 CROSS
+1900 4 CROSS
+2020 4 CROSS
+2140 4 CROSS
+2260 4 CROSS
+2380 4 CROSS
+2500 4 CROSS
+2620 4 CROSS
+2740 4 CROSS
+2860 4 CROSS
+2980 4 CROSS
+3100 1 START
+3130 1 SELECT
+3160 1 DOWN
+3190 1 CROSS
+3260 1 CROSS
+3290 1 DOWN
+3310 1 DOWN
+3340 1 CROSS
+3370 1 RIGHT
+3390 1 LEFT
+3420 1 CROSS
+3800 1 START
+5200 1 START
+5230 1 SELECT
+5260 1 DOWN
+5280 1 DOWN
+5300 1 DOWN
+5330 1 CROSS
+5360 1 LEFT
+5390 1 CROSS

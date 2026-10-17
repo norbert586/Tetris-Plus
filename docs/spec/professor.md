@@ -276,8 +276,9 @@ time display, the best-time record, [stages.md](stages.md) §5); these substates
 
 ### 6.3 Retiring
 
-The pause menu's first option sets `retire = 1` ([stages.md](stages.md) §6); the next
-`prof_walk` makes him lose as above.
+The pause menu's "retire" option (Select, then option 2, then yes) sets `retire = 1`
+([stages.md](stages.md) §6); the next `prof_walk` makes him lose as above (E `pause-retire`:
+retire on tick 3420, `lose_flags = 1` on 3422).
 
 ## 7. Emulator check: stage 87 (run `p4-stage87`)
 

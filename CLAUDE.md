@@ -4,8 +4,10 @@ A faithful browser version of Tetris Plus's Puzzle Mode (the professor mode), re
 original PS1 game (US, SLUS-00338) and verified against it in an emulator.
 
 - **Plan:** `docs/RESEARCH_AND_PLAN.md` (phases, fidelity rules, verification layers, ground rules).
-- **Latest results:** `docs/spec/` (Phase 4: the gameplay specification, one page per subsystem,
-  the mechanics ledger in `docs/spec/ledger.md`, every table extracted to `docs/spec/data/`).
+- **Latest results:** `docs/re/oracle-harness.md` (Phase 5: input movies, the per-tick tracer,
+  determinism checks, the movie corpus in `re/movies/` and its traces in `re/traces/`).
+  `docs/spec/` (Phase 4: the gameplay specification, one page per subsystem, the mechanics ledger
+  in `docs/spec/ledger.md`, every table extracted to `docs/spec/data/`).
   Earlier: `docs/re/ram-map.md` (Phase 3: every gameplay variable with its writer;
   machine-readable in `re/symbols/PAZLE.vars.tsv`), `docs/re/static-bootstrap.md`
   (Phase 2: main loop, screens; tree in `docs/re/dispatch-tree.txt`), `docs/re/disc-inventory.md`
@@ -25,6 +27,20 @@ original PS1 game (US, SLUS-00338) and verified against it in an emulator.
    - Both are outside the repo; keep game data there.
 
 ## Common commands
+
+- **Play a movie on the original and trace it** (one row per logic tick; format and fields in
+  `docs/re/oracle-harness.md`):
+  `bash scripts/run-movie.sh re/movies/egypt1-idle.tpm ../tp-private/runs/<name>`
+  - Read the trace: `python3 re/tools/tptrace.py events|rows|board|diff <dir>/trace.jsonl ...`
+    (`re/traces/*.jsonl.gz` work too).
+  - Start from a save state instead of booting (75 s saved): add `TP_SAVE_AT=<tick>` to one run,
+    then `TP_LOAD=<dir>/state_<tick>.sstate` (the trace resumes at tick + 2). `TP_UNTIL='pieces>=5,scr!=5'`
+    stops early; `TP_SHOTS=<ticks>` takes screenshots.
+  - Determinism check (two runs, traces and RAM compared): `bash scripts/check-determinism.sh <movie> <out>`.
+    Re-record every corpus trace: `bash scripts/record-corpus.sh`.
+  - Build a movie that places pieces (closed loop with the emulator):
+    `python3 re/tools/tpplan.py re/movies/plans/<scenario>.py`.
+  - Don't run more than about 3 emulators at once.
 
 - **Wrap Puzzle Mode for REA:**
   `python3 re/tools/psxexe2elf.py ../tp-private/work/PAZLE.elf ../tp-private/files/SLUS_003.38 ../tp-private/files/PAZLE.EXE`

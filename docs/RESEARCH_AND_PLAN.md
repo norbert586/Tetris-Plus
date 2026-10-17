@@ -472,11 +472,12 @@ start of each session. If a later session asks you to approve a tool server call
 
 ## 10. Phased plan
 
-**Status:** Phases 0–4 are complete (Phase 0 on 2026-10-16, see `docs/re/phase0.md`; Phase 1
+**Status:** Phases 0–5 are complete (Phase 0 on 2026-10-16, see `docs/re/phase0.md`; Phase 1
 on 2026-10-17, see `docs/re/disc-inventory.md`; Phase 2 on 2026-10-17, see
 `docs/re/static-bootstrap.md`; Phase 3 on 2026-10-17, see `docs/re/ram-map.md`; Phase 4 on
-2026-10-17, see `docs/spec/README.md` and `docs/spec/ledger.md`). Phase 5 is next; Phase 7's
-decoders and Phase 8 can start in parallel.
+2026-10-17, see `docs/spec/README.md` and `docs/spec/ledger.md`; Phase 5 on 2026-10-17, see
+`docs/re/oracle-harness.md`). Phase 6 is next; Phase 7's decoders and Phase 8 can start in
+parallel.
 
 | Phase | Work | Deliverable | Exit criteria | Size |
 |---|---|---|---|---|

@@ -226,7 +226,7 @@ The player index lives at `0x800EEAD0`. Per-player arrays are indexed by it thro
 | 9 | `scr09_stage_clear` | `0x2C` | | 3, 10, 11 | Stage clear. Track 24 is probably its jingle |
 | 10 | `scr10_zone_clear` | `0x32`/`0x33` | | 11, 2, 1 | Zone cleared; zone 4 (Atlantis?) uses tracks 32/33 |
 | 11 | `scr11_zone_end` | stop | | 6, 7 | |
-| 12 | `scr12_pause` | stop | yes | saved, 8, exit | Pause. A two-option menu (Left/Right, Cross); option 0 quits (§5) |
+| 12 | `scr12_pause` | stop | yes | saved, 8, exit | Pause. Select opens a four-option menu; retire and quit ask yes/no with Left/Right (§5; corrected in Phase 5, `docs/spec/stages.md` §6) |
 | 13 | `scr13_save` | `0x2F` | | 1, 8 | Save / password screen |
 
 "Seen" means it was reached in the traced run. "Leads to" comes from the code: every write of a

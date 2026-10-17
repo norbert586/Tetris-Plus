@@ -137,10 +137,23 @@ map (the `zone += 1` branch above).
 - Countdown expires: game over, music `0x2D`, then name entry if the score ranks
   (screen 7) and the save/password screen (screen 13).
 
-**Pause** (screen 12, Start during play): a two-option menu. Option 0 ("retire") sets
-`retire = 1` and resumes; the professor then loses on the next frame ([professor.md](professor.md)
-§6.3), which leads to screen 6 like any loss.
+**Pause** (screen 12, Start during play; steps `0x800946A8`). Corrected in Phase 5
+(`docs/re/oracle-harness.md` §5.1; E `pause-retire`):
 
-**Hidden stage select.** Pause step 4 (`0x800ABB58` → `0x800B43E4`) contains a stage select
-that sets `zone`/`stage` from a 1–100 number (`0x800F2CF8`), reloads the layout and redraws
-(`0x800B4780`). How the pause menu reaches step 4 is not yet known (ledger open item).
+- Step 0 (`0x800AB198`) shows "PAUSE" and waits. Start resumes. Select opens the menu, sound 0.
+  Cross does nothing, except in 100-stage mode (below).
+- The menu (steps 2–3): four options, Up/Down (sound 3), Cross picks (sound 0), Circle returns to
+  step 0 (sound `0x12`).
+  - 0: resume.
+  - 1: shows the password (step 9); Cross or Circle returns to the menu.
+  - 2: "retire?" (steps 5–6): Left/Right between yes and no, starting on no. Yes sets
+    `retire = 1` and resumes; the professor then loses on the next frame
+    ([professor.md](professor.md) §6.3), which leads to screen 6 like any loss.
+  - 3: "quit?" (steps 7–8), the same yes/no. Yes: music `0x34`, then screen 8 for this player;
+    if the other player is already on screen 8, Puzzle Mode exits to the title (program 3,
+    phase 9).
+
+**Hidden stage select.** Pause step 4 (`0x800ABB58` → `0x800B43E4`) is a stage select that sets
+`zone`/`stage` from a 1–100 number (`0x800F2CF8`), reloads the layout and redraws
+(`0x800B4780`). It is reached by **Cross on the pause screen in 100-stage mode**
+(`zones_cleared == 0x1F`; S `0x800AB198`, not yet played).

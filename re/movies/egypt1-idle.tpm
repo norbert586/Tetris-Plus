@@ -1,0 +1,32 @@
+tpm 1
+boot puzzle
+end 17600
+# egypt1-idle: the Egypt stage 1 route (Cross every 120 ticks to tick 2980; play from 3061), then no
+# input: pieces fall and lock untouched, the ceiling drops 11 times and crushes them, the professor
+# sleeps, then is crushed (tick 15583); the continue countdown runs out, game over, and the save
+# screen (13) waits.
+100 4 CROSS
+220 4 CROSS
+340 4 CROSS
+460 4 CROSS
+580 4 CROSS
+700 4 CROSS
+820 4 CROSS
+940 4 CROSS
+1060 4 CROSS
+1180 4 CROSS
+1300 4 CROSS
+1420 4 CROSS
+1540 4 CROSS
+1660 4 CROSS
+1780 4 CROSS
+1900 4 CROSS
+2020 4 CROSS
+2140 4 CROSS
+2260 4 CROSS
+2380 4 CROSS
+2500 4 CROSS
+2620 4 CROSS
+2740 4 CROSS
+2860 4 CROSS
+2980 4 CROSS

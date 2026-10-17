@@ -43,7 +43,7 @@
 0x800a1d44	function	scr09_stage_clear	S: -> 3 (next stage), 10 or 11
 0x800a1d64	function	scr10_zone_clear	S: music 0x32/0x33 (zone 4: tracks 32/33); -> 11, 2 or 1
 0x800a1d84	function	scr11_zone_end	S: stops music; -> 6 or 7
-0x800a1da4	function	scr12_pause	S/E: entered by Start on a pausable screen; two-option menu, option 0 quits
+0x800a1da4	function	scr12_pause	S/E: entered by Start on a pausable screen; Select opens resume/password/retire/quit, each yes/no on Left/Right (E: pause-retire)
 0x800a1dc4	function	scr13_save	S: save or password screen; music 0x2f; -> 1 or 8
 0x800a2ef8	function	play_step_dispatch	S/E: table 0x8009436c (8) on state+0x4b510; steps 0,1,2,5 cycle per piece
 0x800a38b4	function	continue_step_dispatch	S: table 0x8009439c (10)
@@ -159,4 +159,4 @@
 0x800b401c	function	password_encode	S: docs/spec/password.md
 0x800b41e0	function	password_scramble	S: xor 0x2aaa
 0x800b552c	function	menu_dpad_repeat	S: up/down/left/right deltas with auto-repeat 20/4
-0x800b43e4	function	pause_stage_select	S: hidden stage select in pause step 4
+0x800b43e4	function	pause_stage_select	S: hidden stage select in pause step 4; Cross on the pause screen in 100-stage mode
