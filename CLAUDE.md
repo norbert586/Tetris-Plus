@@ -4,9 +4,10 @@ A faithful browser version of Tetris Plus's Puzzle Mode (the professor mode), re
 original PS1 game (US, SLUS-00338) and verified against it in an emulator.
 
 - **Plan:** `docs/RESEARCH_AND_PLAN.md` (phases, fidelity rules, verification layers, ground rules).
-- **Latest results:** `docs/re/static-bootstrap.md` (Phase 2: main loop, screens, code map;
-  full tree in `docs/re/dispatch-tree.txt`). Earlier: `docs/re/disc-inventory.md` (Phase 1),
-  `docs/re/phase0.md`.
+- **Latest results:** `docs/re/ram-map.md` (Phase 3: every gameplay variable with its writer;
+  machine-readable in `re/symbols/PAZLE.vars.tsv`). Earlier: `docs/re/static-bootstrap.md`
+  (Phase 2: main loop, screens; tree in `docs/re/dispatch-tree.txt`), `docs/re/disc-inventory.md`
+  (Phase 1), `docs/re/phase0.md`.
 - **Repo:** private; extracted web-ready assets may be committed. Never commit the disc image or
   bulky raw dumps.
 
@@ -44,12 +45,19 @@ original PS1 game (US, SLUS-00338) and verified against it in an emulator.
     with `state` = `0x8003e668`.
   - Route into Egypt stage 1: `TP_TAP=START:300:3000:90,CROSS:4200:9000:120 TP_INPUTS=3400:RIGHT:4,3500:CROSS:4,3700:CROSS:4`
     (play starts at frame 7642).
+  - To find the code that writes a variable, add `TP_WRITERS='name=0x800ee3b4:4'` (each writing
+    PC is logged once). `TP_SNAPS=8000,9000-12000:500` dumps RAM at those frames; scan the dumps
+    with `python3 re/tools/ramscan.py changed|same|inc|eq|seq|diff <dir>/ram_*.bin`.
+  - Scenario scripts (RAM pokes, extra breakpoints): `TP_EXTRA=$PWD/re/lua/p3_lines.lua` (forced
+    line clears and a stage clear) or `re/lua/rand_trace.lua` (every `rand()` call).
   - To trace CD reads and music, add `TP_CD_HOOKS=$PWD/re/lua/cd_hooks.txt`, then run
     `python3 re/tools/cd_trace.py <dir>/run.log "../tp-private/disc/Tetris Plus.cue" "../tp-private/disc/Tetris Plus (Track 01).bin"`.
 - **Decompile a whole EXE to one greppable file**, plus its call graph (real PSX loader and PsyQ
   names; absolute paths). Keep the `DefineTableFunctions.java` pre-pass, or ~500 table-dispatched
   functions are missing:
   `$GHIDRA_INSTALL_DIR/support/analyzeHeadless /home/user/tp-private/work/ghidra p -import /home/user/tp-private/files/PAZLE.EXE -loader PsxLoader -scriptPath re/ghidra -postScript DefineTableFunctions.java 0x800955d4 0x800d4fb0 /home/user/tp-private/work/decomp/PAZLE.EXE.ptr.tsv -postScript ExportDecompiled.java /home/user/tp-private/work/decomp/PAZLE.EXE.c -postScript ExportCallGraph.java /home/user/tp-private/work/decomp/PAZLE.EXE.cg.tsv -deleteProject`
+- **Who writes a global (static):** `python3 re/tools/global_xrefs.py <decompiled.c> --names re/symbols/PAZLE.seeds.tsv`.
+  Misses writes through pointers; confirm with `TP_WRITERS`.
 - **State-machine tree:** `python3 re/tools/dispatch_tree.py <EXE> <decompiled.c> <root> --names re/symbols/PAZLE.seeds.tsv`
   (Puzzle Mode root `800a16c4`, boot `80022e60`).
 - **Read a table out of an EXE:** `python3 re/tools/exeread.py <EXE> <address> [count] [--size 1|2|4] [--string]`.

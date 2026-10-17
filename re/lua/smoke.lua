@@ -17,6 +17,14 @@
 --   TP_WATCH    values to log whenever they change, as name=ADDRESS:BYTES (1, 2 or 4, little
 --               endian), comma separated. A name starting with '!' also takes a screenshot on
 --               change. Logged as "frame N: watch NAME OLD -> NEW" (decimal).
+--   TP_WRITERS  addresses to put write watchpoints on, as name=ADDRESS:BYTES (the range written
+--               to), comma separated. Each distinct writing PC is logged once, as
+--               "frame N: writer NAME pc=0x... ra=0x... addr=0x...", and a per-PC count is
+--               printed at the end ("writers NAME pc=0x... count=N").
+--   TP_SNAPS    frames at which to dump main RAM to ram_FRAME.bin, comma separated; a range
+--               first-last:every dumps every N frames
+--   TP_EXTRA    a Lua file returning function(frame, mem, log), called every frame after the
+--               inputs are applied: scenario scripts that poke RAM (see re/lua/p3_lines.lua)
 
 local outDir = os.getenv('TP_OUT') or '.'
 local maxFrames = tonumber(os.getenv('TP_FRAMES') or '3600')
@@ -135,7 +143,52 @@ local function checkWatches()
     end
 end
 
+-- Write watchpoints. Global, so Redux keeps the breakpoints alive.
+TpWriterBreakpoints = {}
+local writerCounts, writerOrder = {}, {}
+for entry in (os.getenv('TP_WRITERS') or ''):gmatch('[^,]+') do
+    local name, address, size = entry:match('^([%w_]+)=0x(%x+):(%d+)$')
+    if not name then error('bad TP_WRITERS entry: ' .. entry) end
+    table.insert(TpWriterBreakpoints, PCSX.addBreakpoint(tonumber(address, 16), 'Write', tonumber(size), name,
+                                                         function(address)
+        local regs = PCSX.getRegisters()
+        local key = string.format('%s pc=0x%08x', name, regs.pc)
+        if not writerCounts[key] then
+            writerCounts[key] = 0
+            table.insert(writerOrder, key)
+            print(string.format('frame %d: writer %s ra=0x%08x addr=0x%08x', frame, key, regs.GPR.n.ra,
+                                address or 0))
+        end
+        writerCounts[key] = writerCounts[key] + 1
+        return true
+    end))
+end
+
+local snaps = {}
+for entry in (os.getenv('TP_SNAPS') or ''):gmatch('[^,]+') do
+    local first, last, every = entry:match('^(%d+)-(%d+):(%d+)$')
+    if first then
+        for f = tonumber(first), tonumber(last), tonumber(every) do snaps[f] = true end
+    else
+        snaps[tonumber(entry)] = true
+    end
+end
+
+TpExtra = nil
+if os.getenv('TP_EXTRA') then
+    TpExtra = dofile(os.getenv('TP_EXTRA'))
+end
+
+local function dumpRamTo(name)
+    local file = Support.File.open(outDir .. '/' .. name, 'TRUNCATE')
+    file:write(mem, 0x200000)
+    file:close()
+end
+
 local function dumpRam()
+    for _, key in ipairs(writerOrder) do
+        print(string.format('writers %s count=%d', key, writerCounts[key]))
+    end
     local file = Support.File.open(outDir .. '/ram_end.bin', 'TRUNCATE')
     file:write(mem, 0x200000)
     file:close()
@@ -155,7 +208,14 @@ TpSmokeListener = PCSX.Events.createEventListener('GPU::Vsync', function()
         screenshot('periodic')
     end
 
+    if TpExtra then
+        TpExtra(frame, mem, function(text)
+            print(string.format('frame %d: extra %s', frame, text))
+            screenshot('extra')
+        end)
+    end
     checkWatches()
+    if snaps[frame] then dumpRamTo(string.format('ram_%05d.bin', frame)) end
 
     if frame >= maxFrames then
         dumpRam()
