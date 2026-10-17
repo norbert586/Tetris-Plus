@@ -463,6 +463,12 @@ start of each session. If a later session asks you to approve a tool server call
 - Display defaults: **pixel-perfect integer scaling, 4:3, CRT filter off but available**.
 - Loading pauses and slowdown: **don't reproduce loading pauses; reproduce gameplay timing exactly**.
 - Platforms: **decided: desktop web browsers only, with keyboard and gamepad. No touch controls.**
+- Player 2's side of the play screen: **decided (2026-10-17): hidden until two-player mode is
+  built.** The port doesn't draw player 2's sprites (the "PRESS START" panel and its character);
+  the brick-wall background stays, so the screen keeps the original 4:3 layout. Pixel comparisons
+  mask player 2's sprites as an approved deviation. Player 2's idle logic still runs invisibly,
+  because its animation calls `rand()` and changes player 1's pieces (`docs/spec/frame.md` §4).
+  Joining with Start on pad 2 is turned off until then.
 
 ## 10. Phased plan
 
