@@ -36,7 +36,7 @@ Status: research only, no code written yet. Date: 2026-10-16.
 - Original behaviours that players know, such as the stage-select password and holding R2 after a
   clear to make the professor walk faster
 - Whatever progress the original saves, persisted in the browser
-- Playable from a private, login-protected URL in any modern browser
+- Playable from a private, login-protected URL in desktop browsers, with keyboard or gamepad
 
 **Out of scope for now:** Classic, Versus and Edit modes. The architecture keeps the stage format and
 mechanics reusable so they can be added later. Edit Mode uses the same stage format, and Versus is
@@ -460,8 +460,7 @@ start of each session. If a later session asks you to approve a tool server call
   (or hidden).
 - Display defaults: **pixel-perfect integer scaling, 4:3, CRT filter off but available**.
 - Loading pauses and slowdown: **don't reproduce loading pauses; reproduce gameplay timing exactly**.
-- Platforms: **open.** If "play wherever" includes phones and tablets, touch controls become core
-  work rather than a later extra.
+- Platforms: **decided: desktop web browsers only, with keyboard and gamepad. No touch controls.**
 
 ## 10. Phased plan
 
