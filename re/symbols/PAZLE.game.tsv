@@ -58,3 +58,57 @@
 0x800b5c94	function	card_init	S: InitCARD, StartCARD, _bu_init
 0x800b5cd4	function	card_events_enable	S
 0x800b5d7c	function	card_shutdown	S
+# Phase 3 (docs/re/ram-map.md). E = runs p3-verify, p3-lines2, p3-rand (write watchpoints, watches).
+0x800a2f9c	function	play_spawn	S/E: play step 0; next1 -> piece, spawn position, ceiling timer +60, queue_advance
+0x800a313c	function	play_fall	S/E: play step 1; input, gravity, collision, lock after lock_count frames
+0x800a34f8	function	play_line_check	S/E: play step 2; no lines -> step 5, else start the clear animation
+0x800a3674	function	play_clear_anim	S/E: play step 3; runs the clear animation (table 0x800946d0)
+0x800a36e4	function	play_collapse	S/E: play step 4; removes rows, adds score, sets ceiling pushback
+0x800a382c	function	play_next	S/E: play step 5; back to step 0
+0x800ade20	function	piece_input	S/E: move with DAS 20/4 (24/5 in effect), rotation buttons from state+0x4b4ec/0x4b4f4
+0x800ae28c	function	piece_gravity	S: gravity counter; thresholds 8 / 50 / 3 (Down)
+0x800ae4f0	function	piece_collides	S: 5x5 piece grid against the board and the 10x16 well
+0x800adb54	function	piece_lock	S/E: writes the piece into the board and its block sprites
+0x800ad93c	function	lines_find_full	S: flags full rows among the piece's 5 grid rows (rows 1-15 only)
+0x800ad148	function	lines_collapse	S/E: counts lines_cleared, moves rows down within the piece's rows
+0x800ad4e0	function	lines_remove	S: lines_collapse, then shifts the rows above down
+0x800ad83c	function	lines_clear_cells	S: empties the full rows
+0x800ac6a8	function	score_add_lines	S/E: score += level-0 table {100,400,800,1600}[lines], cap 9999999
+0x800ac930	function	clear_anim_dispatch	S: table 0x800946d0 on 0x800ee3d0
+0x800ac9b0	function	clear_anim_start	S: sprites for the cleared rows
+0x800acb1c	function	clear_anim_tick	S: 8 steps on even frames
+0x800a7dd4	function	piece_flash_draw	S: overlay copy of the falling piece on odd frames
+0x800a7fd4	function	lines_popup_dispatch	S: 3- and 4-line pop-up (0x800f35e4)
+0x800ae828	function	queue_init	S/E: preview positions and two rand() pieces
+0x800ae9f4	function	queue_advance	S/E: next1 = next2, new next2 with rerolls (E: 79/79 predicted)
+0x800ae71c	function	queue_draw	S: preview sprites
+0x800ac718	function	board_reset	S/E: clears the board, row-0 wall cells 0xffff
+0x800ac7ec	function	board_clear_rows	S/E: clears rows 1-15
+0x800ac83c	function	stage_load_layout	S/E: 150-byte layout from 0x800d898c via the stage record
+0x800af2dc	function	ceiling_dispatch	S: table 0x80094780 on 0x800f2d00
+0x800af350	function	ceiling_init	S/E: ceiling at 10 px, timers cleared
+0x800af490	function	ceiling_tick	S/E: drop every interval (0x800d74ec), shake in the last 100 frames, pushback
+0x800af7bc	function	ceiling_crush	S/E: turns blocks at or above the ceiling (and row 0 cols 3-6) into debris
+0x800afe40	function	debris_update	S: moves debris sprites
+0x800b0ad8	function	stage_timer_reset	S/E: stage_time 0, sub-counter 6
+0x800b0b88	function	stage_timer_tick	S/E: +1 tenth every 7 frames, cap 9999
+0x800b0e8c	function	stage_timer_draw	S
+0x800b0424	function	number_draw	S: draws a number with digit sprites
+0x8009d86c	function	prof_dispatch	S/E: professor state machine on 0x800ee6d8
+0x8009d8f8	function	prof_reset	S/E: clears the professor's variables
+0x8009db78	function	prof_place	S/E: start cell and facing from the stage record (0x800d79ec)
+0x8009de70	function	prof_entered	S/E: state 2; sets stage_flags |= 1
+0x8009df40	function	prof_walk	S/E: state 3; prof_think, crush and goal checks
+0x8009e090	function	prof_lost_start	S: lost sequence step 0; lose_flags |= 2
+0x8009e294	function	prof_goal_start	S/E: goal sequence step 0; stage_flags |= 4
+0x8009e4d4	function	prof_goal_record_time	S/E: goal sequence; writes the best time (pc 0x8009e6e4)
+0x8009f50c	function	prof_think	S/E: chooses the next action from the sensors, danger music
+0x800a0668	function	prof_set_action	S: starts an animation script on a channel
+0x800a0754	function	prof_anim_tick	S: runs the current script
+0x800a0ccc	function	prof_move_op	S/E: script opcode; moves the professor by (dx, dy) cells
+0x800a11e4	function	prof_sense	S: reads the 10 board cells around him
+0x800a13ac	function	prof_fall_distance	S: empty 2-wide rows below him
+0x800a14c8	function	prof_check_crushed	S: danger and headroom < 3 -> lost
+0x800a156c	function	prof_check_goal	S/E: row 15 -> goal, music 0x2c
+0x800a7a64	function	stage_number_advance	S/E: stage + 1; after 20, zone clear or next zone
+0x800a2150	function	intro_setup	S/E: scr04 step 0; board and professor reset for the stage

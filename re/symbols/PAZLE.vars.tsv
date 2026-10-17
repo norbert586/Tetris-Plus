@@ -1,0 +1,89 @@
+# PAZLE.EXE gameplay RAM map (Phase 3). See docs/re/ram-map.md for the prose.
+# address<TAB>type<TAB>name<TAB>writers (gameplay)<TAB>evidence<TAB>notes
+# Types: s32[2] = one int per player (index 0x800eead0, stride 4); fx = 16.16 fixed point, pixels
+# relative to the playfield's top-left; cell = 10 px. "state" = 0x8003e668.
+# Evidence: S = decompiled code; E = seen in the emulator (watch value, write watchpoint PC);
+# runs p3-verify, p3-lines2 (forced line clears and stage clear), p3-rand (rand() trace).
+#
+# --- Board and stage
+0x800edca0	s32[2][21][10]	board	piece_lock lines_remove lines_collapse lines_clear_cells ceiling_crush board_reset board_clear_rows stage_load_layout	S/E	0 empty; 1-7 piece kind (colour); stage blocks use their own values (5 on Egypt 1); 0xffff = row-0 wall cells (cols 0-2 and 7-9). Rows 0-15 used, 16-20 never touched. Player stride 0x348
+0x800eebb0	s32[2]	zone	menu/map screens	S/E	0 = Egypt; indexes the stage table 0x800d780c (zone*20 + stage)
+0x800eeb04	s32[2]	stage	stage_number_advance and menu/map/password screens	S/E	0-19 within the zone; +1 on stage clear (E: 0->1 at frame 14488)
+0x800f35c8	u8[2]	zones_cleared	(not traced; read by stage_number_advance)	S	bit mask; after stage 20 of a zone, screen 10 (zone clear) unless all five bits are set
+0x800ee394	s32[2]	level	menu screens (always 0)	S	index into the 31-entry level table 0x800d61c4 {gravity, lock, score 1-4 lines}; Puzzle Mode only writes 0
+#
+# --- Falling piece
+0x800ee384	s32[2]	piece_kind	play_spawn play_fall	S/E	0 none (between lock and spawn), 1 I, 2 O, 3 T, 4 J, 5 L, 6 Z, 7 S. Shapes: 5x5 int grids at 0x800d5544 + kind*400 + rot*100
+0x800ee3c8	fx[2]	piece_x	play_spawn play_fall	S/E	x of the 5x5 grid's left edge; spawn 30 px (column 3); moves in 10 px steps
+0x800ee3d8	fx[2]	piece_y	play_spawn play_fall	S/E	y of the grid's top edge; spawn -20 px (row -2)
+0x800f35dc	s32[2]	piece_rot	play_spawn play_fall	S/E	0-3; Cross +1, Circle -1 (button masks state+0x4b4ec/0x4b4f4); undone if it collides, no kicks
+0x800ee374	fx[2]	input_dx	piece_input	S/E	this frame's move: +-0xa0000 or 0
+0x800edc98	s32[2]	input_rot	piece_input	S/E	this frame's rotation: -1 (Cross), +1 (Circle) or 0; piece_rot -= input_rot
+0x800ee37c	fx[2]	gravity_dy	piece_input piece_gravity	S	0xa0000 when the gravity counter reaches its threshold
+0x800ee478	s32[2]	das_delay	piece_input	S/E	set to 20 on a new press; first repeat 24 frames after the press
+0x800ee418	s32[2]	das_repeat	piece_input	S/E	set to 4 on each move; repeats every 5 frames
+0x800f2cec	s32[2]	gravity_count	play_spawn play_fall piece_gravity	S	+1 per frame, cleared when the piece moves down. Threshold 8 before the first drop, then 50, or 3 while Down is held
+0x800ee3f0	s32[2]	piece_has_dropped	play_spawn play_fall	S	0 after spawn: no moving or rotating until the piece first falls one row (8 frames)
+0x800f3644	s32[2]	lock_count	play_spawn play_fall	S/E	+1 per frame resting; locks at 10 (level-table lock value)
+0x800f364c	s32[2]	spawn_delay	intro_setup (0x800a2150)	S/E	counted down in play_spawn; stays 0 in play, so a piece spawns 3 frames after the lock (steps 2, 5, 0)
+0x800f2ad0	s32[2]	pieces_spawned	play_spawn stage setup	S	+1 per spawn
+#
+# --- Preview queue and randomness
+0x800ee4c4	s32[2]	next1	queue_init queue_advance	S/E	the piece that spawns next
+0x800ee4dc	s32[2]	next2	queue_init queue_advance	S/E	the one after: rand()&15 into table 0x80094720 {1,2,3,4,5,6,7,7,6,5,4,3,2,1,1,4}, rerolled while equal to next1 or the current piece (E: 79/79 predicted)
+0x800ee500	fx[2]	next1_x	queue_init	S	preview position = spawn position (table 0x80094760)
+0x800ee510	fx[2]	next1_y	queue_init	S	preview y; spawn y = this + 20 px
+0x800ee350	s32[2]	spawn_rot	queue_init	S	always 0
+0x800083a4	u32	bios_rand_seed	BIOS rand (A0:2Fh)	E	OpenBIOS only (not the game's): seed = seed*1103515245 + 12345, rand = (seed>>16)&0x7fff
+#
+# --- Line clears and score
+0x800ee97c	s32[2]	lock_top_row	piece_lock	S/E	board row of the locked piece's grid top; lines_find_full checks rows top..top+4 (only rows 1-15 can clear)
+0x800eeaa4	s32[2][5]	full_rows	lines_find_full	S	one flag per grid row (bottom first); player stride 0x14
+0x800eea40	s32[2]	lines_found	play_fall play_next	S/E	OR of full_rows
+0x800ee3d0	s32[2]	clear_anim_state	play_line_check clear_anim_start	S	table 0x800946d0
+0x800ee91c	s32[2]	clear_anim_frame	play_line_check clear_anim_start clear_anim_tick	S	8 steps, one every other frame
+0x800f35e4	s32[2]	lines_this_clear	play_line_check lines_popup states	S/E	selects the "3/4 lines" pop-up (0x800a7fd4); sound 0x2b+n
+0x800ee924	s32[2]	lines_cleared	lines_collapse	S/E	count for scoring and pushback (E: 4, then 1)
+0x800f35d0	s32[2]	lines_for_professor	lines_collapse prof_think	S/E	copy of lines_cleared; consumed by the professor's drop check
+0x800ee3b4	s32[2]	score	score_add_lines (pointer write at 0x800ac6f4) menu screens	S/E	+= {100,400,800,1600}[lines], capped at 9,999,999 (E: 0->1600->1700)
+0x800ee6c8	s32[2]	popup_state	lines_popup states	S	3/4-line pop-up animation
+#
+# --- Ceiling
+0x800ee914	fx[2]	ceiling_y	ceiling_init ceiling_tick	S/E	starts 10 px (row 1); +10 px per drop; pushback subtracts; never above 10 px
+0x800ee3e0	s32[2]	ceiling_timer	play_spawn ceiling_init ceiling_tick	S/E	+1 per frame and +60 per spawned piece; a drop happens when it reaches the interval
+0x800ee39c	s32[2]	ceiling_drops	ceiling_init ceiling_tick	S/E	index into the interval table 0x800d74ec + difficulty*200 (50 entries, max index 49)
+0x800ee7b0	fx[2]	ceiling_pushback	play_collapse ceiling_tick	S/E	{0,0,-10,-20} px for 1-4 lines (table 0x8009438c), applied and cleared next tick (E: 30 px -> 10 px)
+0x800ee358	s32[2]	ceiling_shake	ceiling_init ceiling_tick	S	toggles in the last 100 frames before a drop (+-1 px on the sprite)
+0x800f2d00	s32[2]	ceiling_state	ceiling_init	S	0 init, 1 running; state 2 is an empty function nothing selects
+0x8003e668+0x4b4fe	u8	difficulty	option screens (boot program state)	S/E	ceiling interval row 0-3; 1 in the default settings
+#
+# --- Professor
+0x800ee6d8	s32[2]	prof_state	prof_dispatch states prof_check_crushed prof_check_goal	S/E	0 init, 1-2 entering, 3 walking, 4 lost, 5 goal (E: 3->5 at the stage clear)
+0x800f0be0	s32[2]	prof_substate	states 4 and 5	S/E	lost / goal sequences (16 steps for the goal)
+0x800ee85c	s32[2]	prof_col	prof_reset prof_place prof_move_op	S/E	column of his bottom-left cell; he covers col..col+1
+0x800ee864	s32[2]	prof_row	prof_reset prof_place prof_think prof_move_op	S/E	row of his bottom cell; he covers row-1..row. Row 15 = goal (E: 14->15)
+0x800ee854	s32[2]	prof_facing	prof_reset prof_place prof_think	S/E	0 right, 1 left; flips on each turn
+0x800ee844	s32[2]	prof_action	prof_think	S/E	current action id (animation script index into 0x800e0738)
+0x800ee7e4	s32[2]	prof_anim_channel	prof_set_action	S	which of 4 script channels is current
+0x800ee8ac	s32[2][4]	prof_channel_action	prof_set_action	S	stride 0x10
+0x800ee88c	ptr[2][4]	prof_channel_script	prof_set_action prof_anim opcodes	S	12-byte opcodes; opcode 0x800a0ccc moves him by (dx, dy) cells
+0x800ee7dc	s32[2]	prof_anim_wait	prof_set_action prof_anim_tick	S	frames left on the current opcode
+0x800ee83c	s32[2]	prof_action_done	prof_anim_tick	S	set when the script ends
+0x800ee7ec	s32[2][10]	prof_sensors	prof_sense	S	board cells around him (offsets 0x800e27f0, flipped by facing): 0-1 under his feet, 2-3 ahead (foot, head), 4-7 his own cells, 8-9 behind; -1 off the board. Stride 0x28
+0x800ee7cc	s32[2]	prof_turns	prof_think	S/E	turns in a row; at 8 (outside danger) he switches to action 0x15, probably the sleep the wikis describe (E: frame 8133, held until a line clear under him)
+0x800ee7bc	s32[2]	prof_lifted	prof_think	S	1 while blocks overlap him: action 0x0c (blocks in his lower cells) or 0x0d (upper cells); blocks the goal check
+0x800ee7c4	s32[2]	prof_fall_state	prof_think	S	2 with fall actions 8/9, 3 with actions 0x0a/0x0b (drops of 3+ rows)
+0x800ee87c	s32[2]	prof_headroom	prof_think	S	prof_row - ceiling row
+0x800ee884	s32[2]	prof_danger	prof_think	S/E	1 when headroom < 5: switches the music to 0x25; lost when headroom < 3
+0x800eeb18	s32[2]	prof_danger_prev	prof_think	S	for the music switch
+0x800ee490	s32[2]	prof_hold	stage intro (0x800a2c6c, 0x800a2d60)	S	1 while the intro panel shows
+0x800ee3f8	s32[2]	retire	pause menu (0x800abc78)	S	pause option 0: the professor loses
+#
+# --- Stage flow
+0x800ee3a4	s32[2]	stage_flags	prof_reset prof_entered prof_goal_start	S/E	|1 professor in, |4 goal reached -> screen 9 (E: 1->5)
+0x800ee348	s32[2]	lose_flags	prof_reset prof_walk prof_lost_start prof_check_crushed	S	1 lost, |2 -> screen 6 (continue)
+0x800ee5bc	s32[2]	clear_flags	prof_reset prof_goal_tick prof_check_goal	S/E	1 at the goal, |8 then 11 during the clear sequence
+0x800edc80	s32[2]	clear_countdown	goal/lost sequences	S	180 frames after the goal
+0x800ee580	s32[2]	stage_time	stage_timer_reset stage_timer_tick	S/E	tenths of a second, capped 9999; +1 every 7 frames (E: 880 after 6,160 frames)
+0x800ee6c0	s32[2]	stage_time_sub	stage_timer_tick	S/E	counts 6..-1
+0x8003e668+0x4ad84	u16[100]	best_times	best_times_reset prof_goal_record_time (pc 0x8009e6e4)	S/E	per stage, tenths; 9999 = none (E: stage 0 9999->880)
