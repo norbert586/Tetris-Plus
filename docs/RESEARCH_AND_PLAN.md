@@ -97,9 +97,11 @@ Puzzle Mode plus garbage lines.
   hand-off between programs, plus `SELECT` and `TITLE`, cover the flow around it. Each is a
   standalone PS-X EXE, which suits the per-executable REA approach in §5.1.
 - **Music:** many tracks come in same-length pairs (for example 2/3, 14/37, 28/48). That suggests
-  two versions of each tune, or duplicates. Which plays when is a Phase 1/4 question.
-- **Data files:** the `E` suffix (`TITLEE`, `PAZLEE`, …) probably marks English data. Their
-  container format is custom and still unidentified.
+  two versions of each tune, or duplicates. *Resolved in Phase 1:* tracks 2–33 are the console
+  arrangement and 34–51 the arcade one, picked by Option mode's music setting
+  (`docs/re/disc-inventory.md` §7).
+- **Data files:** the `E` suffix (`TITLEE`, `PAZLEE`, …) probably marks English data. *Resolved in
+  Phase 1:* they are indexed archives of LZ-compressed TIM images (`docs/re/disc-inventory.md` §3).
 
 ## 3. Why community info isn't enough
 
@@ -464,7 +466,8 @@ start of each session. If a later session asks you to approve a tool server call
 
 ## 10. Phased plan
 
-**Status:** Phase 0 is complete (2026-10-16; see `docs/re/phase0.md`). Phase 1 is next.
+**Status:** Phases 0 and 1 are complete (Phase 0 on 2026-10-16, see `docs/re/phase0.md`; Phase 1
+on 2026-10-17, see `docs/re/disc-inventory.md`). Phase 2 is next.
 
 | Phase | Work | Deliverable | Exit criteria | Size |
 |---|---|---|---|---|
