@@ -160,3 +160,62 @@
 0x800b41e0	function	password_scramble	S: xor 0x2aaa
 0x800b552c	function	menu_dpad_repeat	S: up/down/left/right deltas with auto-repeat 20/4
 0x800b43e4	function	pause_stage_select	S: hidden stage select in pause step 4; Cross on the pause screen in 100-stage mode
+# Phase 6 (docs/re/core-port.md). S = decompiled code; T = the core matches the original's trace (movie named, or the corpus).
+0x80098200	function	object_move	S: adds velocity (+0x38/+0x3C) to position
+0x800983bc	function	object_fade_up	S: object word +0x4C counts up to 64
+0x80098408	function	object_fade_down	S: object word +0x4C counts down to 0
+0x8009844c	function	object_fade_box_dark	S: kind -2 full-panel fade box
+0x800984b8	function	object_fade_box_light	S: kind -3 full-panel fade box
+0x80098524	function	object_fade_up_b	S: same as object_fade_up
+0x80098570	function	object_fade_down_b	S: same as object_fade_down
+0x800985b4	function	object_set	S: image and whole-pixel position
+0x800985ec	function	object_put1	S: player's object, layer 1
+0x80098658	function	object_put2	S: player's object, layer 2
+0x800986c4	function	object_load1	S: object_put1 plus palette and image upload
+0x80098738	function	object_load2	S: object_put2 plus palette and image upload
+0x800987ac	function	draw_random_box	S: box fill whose colour takes three rand() calls (objects of kind -1)
+0x80098dc8	function	result_panel_dispatch	S; T egypt1-climb: the goal sequence's result panel
+0x80099128	function	result_time_bonus	S; T: time bonus at stage clear (docs/spec/lines.md §5)
+0x80099398	function	result_panel_show	S; T: time, time bonus, new record
+0x80099bdc	function	record_time_blink	S: the clock blinks on a new record
+0x8009e858	function	goal_piece_bonus	S; T: piece bonus on marker stages
+0x8009ecc8	function	goal_bonus_item	S; T: the bonus item joins the collection
+0x800a599c	function	idle_setup	S; T all: screen 8 step 0
+0x800a5bc0	function	idle_run	S; T all: screen 8 step 1, the idle animation (rand)
+0x800a483c	function	rank_entry_init	S; T atlantis20-ending
+0x800a4be4	function	rank_entry_letters	S; T atlantis20-ending
+0x800a5274	function	rank_entry_blink	S; T atlantis20-ending
+0x800a5504	function	rank_table_insert	S; T atlantis20-ending
+0x800a9f18	function	zone_clear_items	S; T egypt20-zoneclear: runs continue steps 4-7
+0x800aaea8	function	credits_line	S; T atlantis20-ending
+0x800aafd8	function	credits_free_object	S
+0x800ab048	function	credits_scroll	S; T atlantis20-ending
+0x800ace54	function	board_objects_layout	S
+0x800aeb30	function	anim_start	S: sprite animation (table 0x800E2E6C)
+0x800aec28	function	anim_start_load	S: anim_start plus image upload
+0x800aecb4	function	anim_tick	S: true when the image changed; 0xFFFF ends, 0xFFFE loops
+0x800aef3c	function	anim_tick_load	S: anim_tick plus image upload
+0x800afecc	function	wipe_cover	S: tile wipe covering the screen (16 frames)
+0x800b01cc	function	wipe_uncover	S: tile wipe uncovering it
+0x800b0620	function	number_draw_layer	S: number_draw with a layer argument
+0x800b0c04	function	best_time_draw_tick	S; T: best time, after one stage_timer_tick
+0x800b17f0	function	player_objects_clear	S: objects 0x1E-0x1AD of a player
+0x800b1c10	function	objects_clear_range	S
+0x800b1d28	function	play_area_hide	S: image sign bit set while paused
+0x800b20e4	function	play_area_show	S
+0x800b4464	function	stage_select_init	S; T hundred-select
+0x800b4780	function	stage_select_choose	S; T hundred-select
+0x800b4bcc	function	stage_select_cancel	S; T hundred-select
+0x800b4ed4	function	stage_select_confirm	S; T hundred-select
+0x800b53a4	function	stage_select_number_draw	S
+0x800ba188	function	textbox_a_run	S; T: map, story, zone clear text box
+0x800ba320	function	textbox_a_type	S; T
+0x800baa94	function	textbox_a_wait	S; T
+0x800bac20	function	story_skip_check	S: Start skips a story scene
+0x800bac9c	function	story_scene_run	S; T
+0x800bdfe4	function	zone_clear_scene_run	S; T egypt20-zoneclear, atlantis20-ending
+0x800bf53c	function	scene_picture_shake	S
+0x800bfe94	function	scene_frame	S: frame above and below a picture
+0x800bff24	function	textbox_b_run	S; T atlantis20-ending: the ending's text box
+0x800c00bc	function	textbox_b_type	S; T
+0x800c07d4	function	textbox_b_wait	S; T

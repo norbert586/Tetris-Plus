@@ -52,6 +52,7 @@ end 5400             # last tick to run (the run also ends if Puzzle Mode exits)
 100 4 CROSS          # TICK HOLD BUTTONS: hold Cross on ticks 100-103
 +30 1 DOWN+RIGHT     # TICK may be relative to the previous line's tick
 200 1 2:START        # 2: = pad 2
+poke 400 0x800ee864 15   # write memory right after tick 400 is recorded (added in Phase 6)
 ```
 
 - **Buttons:** `UP DOWN LEFT RIGHT CROSS CIRCLE SQUARE TRIANGLE L1 L2 R1 R2 START SELECT`, joined
@@ -66,6 +67,12 @@ end 5400             # last tick to run (the run also ends if Puzzle Mode exits)
   3400 and Cross at 3500 and 3700 (mode select: Puzzle). `pazle_main` starts at frame 4323, with
   the frame counter at 1001 and the BIOS seed at `0x4327D505`. From then on the emulated pad is
   released and only the movie drives the game.
+
+- **Pokes** (`poke TICK ADDRESS VALUE [SIZE]`, size 1, 2 or 4, default 4; added in Phase 6) set
+  up a scenario: the harness writes memory at the sample point of tick TICK, after its trace
+  line, and the TypeScript core's replay does the same. Setting the professor's row
+  (`0x800EE864`) to 15 makes him reach the goal at once, so stages can be cleared without
+  playing them (`docs/re/core-port.md` §5).
 
 `tpplan.py` writes movies in a canonical form: one line per run of identical pad words, ticks
 absolute.
@@ -94,7 +101,8 @@ hasn't been stored yet. The harness then:
 
 All values are player 1's and raw: 16.16 positions stay 16.16 (`tptrace.py` shows pixels).
 `prof_ch_script` holds RAM pointers into the script table, which are the same in the port only if
-it keeps the original layout; Phase 6 compares it as an index or leaves it out.
+it keeps the original layout. (It does: Phase 6's core runs the scripts from the program's data
+at their original addresses, and compares the pointers as they are.)
 
 **Events per tick.** `rand`, `se` and `bgm` count the calls to `rand` (`0x800C0C48`), `se_play`
 (`0x80095778`, argument = sound ID) and `bgm_request` (`0x80095DA8`, argument = music ID) between
@@ -168,6 +176,9 @@ All movies use the `puzzle` boot route. Tick numbers are the movie's.
 | `knossos2-lines` | 1,832 | Password 1 6 5 7 1 2 (Knossos stage 2, stage 62). Rows 13–15 are full except columns 0 and 9; a vertical I fills each; the second clears 3 lines (pushback −10 px). The professor falls to row 15: goal | Password entry and decode (41), 15–18, 21, 33, 39; a stage reached by password |
 | `input-edges` | 4,368 | Egypt 1, nine pieces with scripted inputs: rotation before the first drop (ignored), Cross+Circle on one tick (Circle wins), Right held 40 ticks, Left+Right held together, move and rotate on one tick, taps into the wall, refused rotations at the wall, no input (full lock delay), Down from the spawn, every unused button, Down released after landing, Down tapped, holds with Circle taps | 2, 9–14 |
 | `pause-retire` | 5,390 | Egypt 1: pause; Select opens the menu; show password and back; retire (Right on "no" first); the professor loses; Start continues (score +1) and the stage restarts; pause, quit, yes: Puzzle Mode exits to the title | 34, 40; screens 6, 12; the pause menu (§5.1) |
+| `egypt20-zoneclear` | 4,000 | Added in Phase 6. Password to Egypt 20; goal by poke; zone clear: Egypt's scene, items, the map, Angkor Wat's story and first stage | 39, 42, 43; screen 10 |
+| `atlantis20-ending` | 8,451 | Added in Phase 6. Password with four zones cleared to Atlantis 20; goal by poke; Atlantis's scene, the ending and credits, game over, name entry with a rank, the save screen, quit to `RANKING.EXE` | 42–45; screens 7, 10, 11, 13 |
+| `hundred-select` | 6,731 | Added in Phase 6. 100-stage mode: the automatic pause and stage select, stage 13, the stage select cancelled, pokes to stage 100 and the goal, the end of the run, the ending, name entry, quit | 44–46; screens 9 (steps 4–6), 11, 12 (step 4) |
 
 ### 5.1 New facts from building the corpus
 
@@ -234,8 +245,8 @@ a time; the final corpus run had no hangs.
 | Gap | Why / where it goes |
 |---|---|
 | 1-, 2- and 4-line clears from real play | The corpus has a 3-line clear. Phase 3's `p3-lines2` forced a 4-line and a 1-line clear by poking RAM. Planned scenarios on stages with suitable rows (stage 6's four rows, or stacking on a later stage) can add them |
-| Hidden stage select | Needs 100-stage mode: a password with `zones_cleared = 0x1F` (`tp_password.py encode 31 0 0`), then Cross on the pause screen |
-| Zone clear (screen 10), ending (11), name entry with a rank (7) | Need a zone's 20th stage cleared and a ranking score. Phase 10's solver produces them; a password to stage 20 plus a planned clear can come sooner |
+| ~~Hidden stage select~~ | Phase 6: `hundred-select` |
+| ~~Zone clear (screen 10), ending (11), name entry with a rank (7)~~ | Phase 6: `egypt20-zoneclear`, `atlantis20-ending`, `hundred-select` (stages cleared by poke). The zone-clear scenes of Angkor Wat, Maya and Knossos remain for Phase 10's solver runs |
 | Holding a button to speed up the goal/lost sequences (`prof_fast`) | One more movie on Egypt 1 |
 | Player 2 joining | Off in the port until two-player mode (`docs/RESEARCH_AND_PLAN.md` §9) |
 | Memory-card save on screen 13 | Each run gets a new card from Redux; saving hasn't been tried. Phase 9 |
@@ -243,6 +254,8 @@ a time; the final corpus run had no hangs.
 | Pixel and audio traces | Phases 7 and 8 add their own layers; screenshots by tick already work (`TP_SHOTS`) |
 
 ## 8. How Phase 6 uses this
+
+(Done: `docs/re/core-port.md`.)
 
 1. The port's core starts from the trace's first row of a stage (or from tick 1 once the menus are
    ported), with `ctr` and `seed` taken from the trace.

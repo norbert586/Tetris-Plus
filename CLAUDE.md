@@ -4,8 +4,11 @@ A faithful browser version of Tetris Plus's Puzzle Mode (the professor mode), re
 original PS1 game (US, SLUS-00338) and verified against it in an emulator.
 
 - **Plan:** `docs/RESEARCH_AND_PLAN.md` (phases, fidelity rules, verification layers, ground rules).
-- **Latest results:** `docs/re/oracle-harness.md` (Phase 5: input movies, the per-tick tracer,
-  determinism checks, the movie corpus in `re/movies/` and its traces in `re/traces/`).
+- **Latest results:** `docs/re/core-port.md` (Phase 6: the TypeScript core in `web/src/core/`,
+  which keeps game state at the original's addresses; golden-trace equality on every movie and
+  Unicorn function tests, both under `npm test` in `web/`).
+  `docs/re/oracle-harness.md` (Phase 5: input movies, the per-tick tracer, determinism checks,
+  the movie corpus in `re/movies/` and its traces in `re/traces/`).
   `docs/spec/` (Phase 4: the gameplay specification, one page per subsystem, the mechanics ledger
   in `docs/spec/ledger.md`, every table extracted to `docs/spec/data/`).
   Earlier: `docs/re/ram-map.md` (Phase 3: every gameplay variable with its writer;
@@ -27,6 +30,20 @@ original PS1 game (US, SLUS-00338) and verified against it in an emulator.
    - Both are outside the repo; keep game data there.
 
 ## Common commands
+
+- **The TypeScript core** (in `web/`; `npm install` first):
+  - `npm test`: golden traces and Unicorn function tests. `npm run trace -- [MOVIE...]`: replays
+    movies and prints the first difference with the original's trace. `npm run typecheck`.
+  - Design a movie on the core before running it on the original:
+    `npx tsx tools/simulate.ts ../re/movies/<name>.tpm [--to T] [--fields a,b]`.
+  - Movies can poke memory after a tick (`poke TICK ADDRESS VALUE [SIZE]`) to set up a scenario;
+    both the emulator and the core apply it.
+  - Regenerate the core's data after a disc fetch:
+    `python3 re/tools/extract_core_rom.py ../tp-private/files/PAZLE.EXE web/src/core/rom.ts`;
+    boot defaults from a tick-1 RAM dump (`TP_RAM_AT=1`):
+    `python3 re/tools/extract_boot_state.py <dir>/ram_00001.bin web/src/core/boot-state.ts`;
+    Unicorn fixtures (needs `pip install unicorn capstone`):
+    `python3 re/tools/unicorn_fixtures.py ../tp-private/files/PAZLE.EXE web/test/fixtures/unicorn`.
 
 - **Play a movie on the original and trace it** (one row per logic tick; format and fields in
   `docs/re/oracle-harness.md`):
@@ -71,9 +88,12 @@ original PS1 game (US, SLUS-00338) and verified against it in an emulator.
   - To trace CD reads and music, add `TP_CD_HOOKS=$PWD/re/lua/cd_hooks.txt`, then run
     `python3 re/tools/cd_trace.py <dir>/run.log "../tp-private/disc/Tetris Plus.cue" "../tp-private/disc/Tetris Plus (Track 01).bin"`.
 - **Decompile a whole EXE to one greppable file**, plus its call graph (real PSX loader and PsyQ
-  names; absolute paths). Keep the `DefineTableFunctions.java` pre-pass, or ~500 table-dispatched
-  functions are missing:
-  `$GHIDRA_INSTALL_DIR/support/analyzeHeadless /home/user/tp-private/work/ghidra p -import /home/user/tp-private/files/PAZLE.EXE -loader PsxLoader -scriptPath re/ghidra -postScript DefineTableFunctions.java 0x800955d4 0x800d4fb0 /home/user/tp-private/work/decomp/PAZLE.EXE.ptr.tsv -postScript ExportDecompiled.java /home/user/tp-private/work/decomp/PAZLE.EXE.c -postScript ExportCallGraph.java /home/user/tp-private/work/decomp/PAZLE.EXE.cg.tsv -deleteProject`
+  names; absolute paths). Keep the `DefineTableFunctions.java` pass, or ~500 table-dispatched
+  functions are missing, and the `EnableParamId.java` pre-script, or calls lose arguments that a
+  function passes straight through:
+  `$GHIDRA_INSTALL_DIR/support/analyzeHeadless /home/user/tp-private/work/ghidra p -import /home/user/tp-private/files/PAZLE.EXE -loader PsxLoader -scriptPath re/ghidra -preScript EnableParamId.java -postScript DefineTableFunctions.java 0x800955d4 0x800d4fb0 /home/user/tp-private/work/decomp/PAZLE.EXE.ptr.tsv -postScript ExportDecompiled.java /home/user/tp-private/work/decomp/PAZLE.EXE.c -postScript ExportCallGraph.java /home/user/tp-private/work/decomp/PAZLE.EXE.cg.tsv -deleteProject`
+  - Disassemble a function where the decompiler looks unsure:
+    `python3 re/tools/disasm.py ../tp-private/files/PAZLE.EXE <address> --cg <decomp>/PAZLE.EXE.cg.tsv --names re/symbols/PAZLE.seeds.tsv`.
 - **Who writes a global (static):** `python3 re/tools/global_xrefs.py <decompiled.c> --names re/symbols/PAZLE.seeds.tsv`.
   Misses writes through pointers; confirm with `TP_WRITERS`.
 - **State-machine tree:** `python3 re/tools/dispatch_tree.py <EXE> <decompiled.c> <root> --names re/symbols/PAZLE.seeds.tsv`
