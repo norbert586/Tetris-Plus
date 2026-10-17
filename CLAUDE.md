@@ -4,8 +4,10 @@ A faithful browser version of Tetris Plus's Puzzle Mode (the professor mode), re
 original PS1 game (US, SLUS-00338) and verified against it in an emulator.
 
 - **Plan:** `docs/RESEARCH_AND_PLAN.md` (phases, fidelity rules, verification layers, ground rules).
-- **Latest results:** `docs/re/ram-map.md` (Phase 3: every gameplay variable with its writer;
-  machine-readable in `re/symbols/PAZLE.vars.tsv`). Earlier: `docs/re/static-bootstrap.md`
+- **Latest results:** `docs/spec/` (Phase 4: the gameplay specification, one page per subsystem,
+  the mechanics ledger in `docs/spec/ledger.md`, every table extracted to `docs/spec/data/`).
+  Earlier: `docs/re/ram-map.md` (Phase 3: every gameplay variable with its writer;
+  machine-readable in `re/symbols/PAZLE.vars.tsv`), `docs/re/static-bootstrap.md`
   (Phase 2: main loop, screens; tree in `docs/re/dispatch-tree.txt`), `docs/re/disc-inventory.md`
   (Phase 1), `docs/re/phase0.md`.
 - **Repo:** private; extracted web-ready assets may be committed. Never commit the disc image or
@@ -61,5 +63,10 @@ original PS1 game (US, SLUS-00338) and verified against it in an emulator.
 - **State-machine tree:** `python3 re/tools/dispatch_tree.py <EXE> <decompiled.c> <root> --names re/symbols/PAZLE.seeds.tsv`
   (Puzzle Mode root `800a16c4`, boot `80022e60`).
 - **Read a table out of an EXE:** `python3 re/tools/exeread.py <EXE> <address> [count] [--size 1|2|4] [--string]`.
+- **Extract the gameplay tables** (pieces, rules, 100 stages, professor scripts, passwords) to JSON:
+  `python3 re/tools/extract_spec.py ../tp-private/files/PAZLE.EXE docs/spec/data`.
+  Password codec: `python3 re/tools/tp_password.py selftest|encode|decode`.
+- **Play any stage in the emulator:** add `TP_EXTRA=$PWD/re/lua/p4_stage.lua TP_STAGE=<1-100>` to
+  the Egypt stage 1 route (it pokes zone and stage during the stage setup screen).
 - **Data files (`*.BIN`):** `python3 re/tools/tpbin.py list|extract <PROGRAM.EXE> <DATA.BIN> [out]`.
   Render them with `python3 re/tools/tim2png.py sheet|extract <PROGRAM.EXE> <DATA.BIN> <out>`.
