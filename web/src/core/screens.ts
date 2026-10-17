@@ -4,6 +4,7 @@ import { scr00Menu } from './screens/menu';
 import { scr01Map } from './screens/map';
 import { scr02Story } from './screens/story';
 import { scr08Idle } from './screens/idle';
+import { scr03StageSetup, scr04StageIntro, scr05Play } from './screens/stage';
 
 const notPorted = (n: number) => (_g: Game) => {
   throw new NotPorted(`screen ${n}`);
@@ -13,9 +14,9 @@ export const SCREENS: ((g: Game) => void)[] = [
   scr00Menu,
   scr01Map,
   scr02Story,
-  notPorted(3),
-  notPorted(4),
-  notPorted(5),
+  scr03StageSetup,
+  scr04StageIntro,
+  scr05Play,
   notPorted(6),
   notPorted(7),
   scr08Idle,
