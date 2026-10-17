@@ -178,7 +178,7 @@ function inputDirection(g: Game, bit: number, dx: number): void {
 }
 
 /** piece_input (docs/spec/piece.md §4). */
-function pieceInput(g: Game): void {
+export function pieceInput(g: Game): void {
   const m = g.m;
   m.w32(g.pv(V.INPUT_DX), 0);
   m.w32(g.pv(V.GRAVITY_DY), 0);

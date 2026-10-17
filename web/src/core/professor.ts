@@ -130,12 +130,16 @@ export function profSetAction(g: Game, action: number, ch: number): void {
   m.w32(channelScript(g, ch), m.s32(SCRIPTS + 4 * action));
 }
 
-/** prof_anim_tick */
-export function profAnimTick(g: Game): void {
+/** prof_anim_tick: returns -1 while a wait counts down, else 0. */
+export function profAnimTick(g: Game): number {
   set(g, V.PROF_ACTION_DONE, 0);
   set(g, OP_FLAG, 0);
-  if (v(g, V.PROF_ANIM_WAIT) < 1) profScriptRun(g);
-  else g.m.add32(g.pv(V.PROF_ANIM_WAIT), -1);
+  if (v(g, V.PROF_ANIM_WAIT) < 1) {
+    profScriptRun(g);
+    return 0;
+  }
+  g.m.add32(g.pv(V.PROF_ANIM_WAIT), -1);
+  return -1;
 }
 
 /** prof_script_run (0x800A07F4) */
@@ -238,7 +242,7 @@ function profScriptOp(g: Game): void {
 // ---- sensors and decisions (professor.md §3-§5) ----
 
 /** prof_sense */
-function profSense(g: Game): void {
+export function profSense(g: Game): void {
   const m = g.m;
   const base = V.PROF_SENSORS + g.p * 0x28;
   m.fill(base, 0x28);
@@ -256,7 +260,7 @@ function profSense(g: Game): void {
 }
 
 /** prof_fall_distance: empty rows under both his columns. */
-function profFallDistance(g: Game): number {
+export function profFallDistance(g: Game): number {
   const m = g.m;
   if (ground(g)) return 0;
   const col = v(g, V.PROF_COL);
@@ -276,7 +280,7 @@ function resetMotion(g: Game): void {
 }
 
 /** prof_think (0x8009F50C) */
-function profThink(g: Game): void {
+export function profThink(g: Game): void {
   const m = g.m;
   // §5.1: cleared rows carry him down while he climbs out from under blocks.
   if ((v(g, V.PROF_ACTION) - 0xc) >>> 0 < 2 && v(g, V.LINES_FOR_PROFESSOR) > 0) {

@@ -70,7 +70,7 @@ export function ceilingDrawChain(g: Game): void {
 }
 
 /** ceiling_tick (docs/spec/ceiling.md §2). */
-function ceilingTick(g: Game): void {
+export function ceilingTick(g: Game): void {
   const m = g.m;
   const sprite = A.obj(g.ob + CEIL_OBJ) + A.O_Y;
   if (interval(g) - m.s32(g.pv(V.CEILING_TIMER)) < 100) {

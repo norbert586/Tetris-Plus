@@ -181,7 +181,7 @@ function linesCollapse(g: Game): void {
 }
 
 /** lines_remove: the first pass, then everything above falls (second pass). */
-function linesRemove(g: Game): void {
+export function linesRemove(g: Game): void {
   const m = g.m;
   m.w32(A.OBJ_BASE, g.p * 400);
   linesCollapse(g);
@@ -208,7 +208,7 @@ function linesRemove(g: Game): void {
 }
 
 /** score_add_lines: 100/400/800/1600, capped at 9,999,999. */
-function scoreAddLines(g: Game): void {
+export function scoreAddLines(g: Game): void {
   const m = g.m;
   const s = m.s32(g.pv(V.SCORE)) + m.s32(SCORE_TABLE + m.s32(g.pv(V.LINES_CLEARED)) * 4);
   m.w32(g.pv(V.SCORE), s > 9999999 ? 9999999 : s);

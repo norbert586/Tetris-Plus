@@ -104,7 +104,7 @@ const popcount14 = (v: number) => {
 };
 
 /** password_decode (0x800B3AD8) */
-function passwordDecode(g: Game): void {
+export function passwordDecode(g: Game): void {
   const m = g.m;
   let v = 0;
   for (let k = 0; k < 6; k++) v = (v << 3) | (m.s32(sym(g, k)) & 7);
@@ -142,6 +142,16 @@ function passwordDecode(g: Game): void {
   m.w32(g.pv(A.STEP4), 0);
 }
 
+/** password_encode (0x800B401C): the current game's password value, scrambled, 18 bits. */
+export function passwordEncodeValue(g: Game): void {
+  const m = g.m;
+  const zc = m.s32(g.pv(V.ZONES_CLEARED));
+  let v = zc;
+  if (zc !== 0x1f) v |= (m.s32(g.pv(V.ZONE)) << 5) | ((m.s32(g.pv(V.STAGE)) % 20) << 8);
+  v = (popcount14(v) << 14) | v;
+  m.w32(g.pv(V.PASSWORD_VALUE), v ^ 0x2aaa);
+}
+
 /** The password for a state (password_encode, 0x800B401C): six symbols, left to right. */
 export function passwordEncode(zonesCleared: number, zone: number, stage: number): number[] {
   let v = zonesCleared;
@@ -162,11 +172,8 @@ export function passwordShow(g: Game, x: number, y: number, layer: number): void
   m.w32(o + A.O_Y, y << 16);
   m.w32(o + A.O_PLAYER, g.p);
   m.w32(o + A.O_20, layer);
-  const zc = m.s32(g.pv(V.ZONES_CLEARED));
-  let v = zc;
-  if (zc !== 0x1f) v |= (m.s32(g.pv(V.ZONE)) << 5) | ((m.s32(g.pv(V.STAGE)) % 20) << 8);
-  v = (popcount14(v) << 14) | v;
-  v ^= 0x2aaa;
+  passwordEncodeValue(g);
+  let v = m.s32(g.pv(V.PASSWORD_VALUE));
   for (let i = 0; i < 6; i++) {
     symbolDraw(g, 5 - i, v & 7);
     v >>= 3;
