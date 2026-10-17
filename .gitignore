@@ -1,0 +1,11 @@
+# Game data never lives inside the repo working tree; see docs/RESEARCH_AND_PLAN.md §12.
+/private/
+*.bin
+*.cue
+*.7z
+*.raw
+
+node_modules/
+dist/
+__pycache__/
+.DS_Store
