@@ -3,7 +3,9 @@
 Every gameplay mechanic is an obligation: it has evidence (where the behaviour was read or
 seen), the module that will own it in the port, and the verifier that will close it
 (`docs/RESEARCH_AND_PLAN.md` §8). Phase 4's exit criterion is that **every row has evidence**.
-Verifiers run from Phase 5–6 on; until then every row is "open".
+Verifiers run from Phase 5–6 on; until then every row is "open". Phase 5's trace corpus
+(`re/traces/`, `docs/re/oracle-harness.md` §5) lists which movie exercises each row; the T
+verifiers close against it in Phase 6.
 
 - **Evidence:** S = decompiled code (function), D = table extracted to `docs/spec/data/`,
   E = measured in the emulator (run name).
@@ -68,8 +70,8 @@ Verifiers run from Phase 5–6 on; until then every row is "open".
 |---|---|
 | Which program changes `difficulty` and the rotation buttons (options screen); Puzzle Mode only reads them | Phase 9 (shell), from `TITLE.EXE` or `SELECT.EXE` |
 | Goal sequence substates 1–15 and screen 9's remaining steps (presentation, best-time display) | Phase 5 corpus, Phase 7 |
-| Screens 7 (name entry), 10, 11 (ending), 13 (save) in detail | Phase 5 corpus, Phase 9 |
-| How the pause menu reaches the hidden stage select (pause step 4) | Phase 5 |
-| Short-fall landing, sleep/wake and "trapped" timings measured in the emulator (read in code, partly seen in Phase 3) | Phase 5 corpus |
-| Player 2 joining a game in progress (two-player Puzzle Mode) | Phase 5 |
+| Screens 7 (name entry), 10, 11 (ending), 13 (save) in detail | Phase 9; the Phase 5 corpus reaches 7 (no rank: straight to 13) and 13 only |
+| ~~How the pause menu reaches the hidden stage select~~ Answered in Phase 5: Cross on the pause screen in 100-stage mode ([stages.md](stages.md) §6); not yet played | Phase 9 |
+| Short-fall landing, sleep/wake and "trapped" timings measured in the emulator (read in code, partly seen in Phase 3) | Phase 5 corpus records them (`egypt1-idle`: sleep; `egypt1-climb`: climb, walk off, fall, land); Phase 6 checks them |
+| Player 2 joining a game in progress (two-player Puzzle Mode) | Off until two-player mode (`docs/RESEARCH_AND_PLAN.md` §9) |
 | Art items in stage records `+0x20`/`+0x24`: which is the background | Phase 7 |

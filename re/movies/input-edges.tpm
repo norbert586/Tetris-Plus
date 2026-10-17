@@ -1,0 +1,162 @@
+tpm 1
+boot puzzle
+end 4368
+# input-edges: input edge cases on Egypt stage 1, one piece each (ticks from the piece's spawn).
+#   1. Cross at +3 and Circle at +5, before the first drop: ignored. Cross+Circle together at +9:
+#      Circle wins. Right held 40 ticks from +11: moves at once, then after 24 ticks, then every 5.
+#   2. Left and Right held together for 30 ticks (shared auto-repeat counters), Cross on the same
+#      tick as the first move (move, then rotate).
+#   3. Left tapped 7 times (into the wall, the extra taps do nothing), then Cross 4 times on
+#      separate ticks: turns that would overlap the wall are refused.
+#   4. No input: normal gravity and the full lock delay.
+#   5. Down held from the spawn (no effect before the first drop), Up, Square, Triangle, L1, R1,
+#      L2, R2 and Select tapped (no effect in play).
+#   6. Down held until the piece has landed and 3 blocked gravity steps, then released: the lock
+#      delay continues at normal gravity.
+#   7. Down tapped on and off every other tick.
+#   8-9. Right held 60 ticks, then Left held 60 ticks; Circle tapped every 6 ticks meanwhile.
+# Then the professor carries on, unwatched, until the movie ends.
+100 4 CROSS
+220 4 CROSS
+340 4 CROSS
+460 4 CROSS
+580 4 CROSS
+700 4 CROSS
+820 4 CROSS
+940 4 CROSS
+1060 4 CROSS
+1180 4 CROSS
+1300 4 CROSS
+1420 4 CROSS
+1540 4 CROSS
+1660 4 CROSS
+1780 4 CROSS
+1900 4 CROSS
+2020 4 CROSS
+2140 4 CROSS
+2260 4 CROSS
+2380 4 CROSS
+2500 4 CROSS
+2620 4 CROSS
+2740 4 CROSS
+2860 4 CROSS
+2980 4 CROSS
+3065 1 CROSS
+3067 1 CIRCLE
+3071 1 CIRCLE+CROSS
+3073 40 RIGHT
+3122 47 DOWN
+3171 12 DOWN
+3183 1 CROSS+RIGHT+DOWN+LEFT
+3184 29 RIGHT+DOWN+LEFT
+3213 12 DOWN
+3239 1 LEFT
+3241 1 LEFT
+3243 1 LEFT
+3245 1 LEFT
+3247 1 LEFT
+3249 1 LEFT
+3251 1 LEFT
+3257 1 CROSS
+3259 1 CROSS
+3261 1 CROSS
+3263 1 CROSS
+3267 40 DOWN
+3336 31 DOWN
+3429 9 DOWN
+3438 1 UP+DOWN
+3439 1 DOWN
+3440 1 SQUARE+DOWN
+3441 1 DOWN
+3442 1 TRIANGLE+DOWN
+3443 1 DOWN
+3444 1 L1+DOWN
+3445 1 DOWN
+3446 1 R1+DOWN
+3447 1 DOWN
+3448 1 L2+DOWN
+3449 1 DOWN
+3450 1 R2+DOWN
+3451 1 DOWN
+3452 1 SELECT+DOWN
+3453 23 DOWN
+3487 29 DOWN
+3578 1 DOWN
+3580 1 DOWN
+3582 1 DOWN
+3584 1 DOWN
+3586 1 DOWN
+3588 1 DOWN
+3590 1 DOWN
+3592 1 DOWN
+3594 1 DOWN
+3596 1 DOWN
+3598 1 DOWN
+3600 1 DOWN
+3602 1 DOWN
+3604 1 DOWN
+3606 1 DOWN
+3608 1 DOWN
+3610 1 DOWN
+3612 1 DOWN
+3614 1 DOWN
+3616 1 DOWN
+3618 1 DOWN
+3620 1 DOWN
+3622 1 DOWN
+3634 3 RIGHT
+3637 1 CIRCLE+RIGHT
+3638 5 RIGHT
+3643 1 CIRCLE+RIGHT
+3644 5 RIGHT
+3649 1 CIRCLE+RIGHT
+3650 5 RIGHT
+3655 1 CIRCLE+RIGHT
+3656 5 RIGHT
+3661 1 CIRCLE+RIGHT
+3662 5 RIGHT
+3667 1 CIRCLE+RIGHT
+3668 5 RIGHT
+3673 1 CIRCLE+RIGHT
+3674 4 RIGHT
+3678 1 RIGHT+DOWN
+3679 1 CIRCLE+RIGHT
+3680 1 RIGHT+DOWN
+3681 1 RIGHT
+3682 1 RIGHT+DOWN
+3683 1 RIGHT
+3684 1 RIGHT+DOWN
+3685 1 CIRCLE+RIGHT
+3686 1 RIGHT+DOWN
+3687 1 RIGHT
+3688 1 RIGHT+DOWN
+3689 1 RIGHT
+3690 1 RIGHT+DOWN
+3691 1 CIRCLE+RIGHT
+3692 1 RIGHT+DOWN
+3693 1 RIGHT
+3694 37 DOWN
+3734 8 DOWN
+3742 3 DOWN+LEFT
+3745 1 CIRCLE+DOWN+LEFT
+3746 5 DOWN+LEFT
+3751 1 CIRCLE+DOWN+LEFT
+3752 5 DOWN+LEFT
+3757 1 CIRCLE+DOWN+LEFT
+3758 5 DOWN+LEFT
+3763 1 CIRCLE+DOWN+LEFT
+3764 2 DOWN+LEFT
+3766 3 LEFT
+3769 1 CIRCLE+LEFT
+3770 5 LEFT
+3775 1 CIRCLE+LEFT
+3776 5 LEFT
+3781 1 CIRCLE+LEFT
+3782 5 LEFT
+3787 1 CIRCLE+LEFT
+3788 5 LEFT
+3793 1 CIRCLE+LEFT
+3794 5 LEFT
+3799 1 CIRCLE+LEFT
+3800 2 LEFT
+3842 61 DOWN

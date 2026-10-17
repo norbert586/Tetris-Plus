@@ -1,0 +1,419 @@
+-- Oracle harness: plays an input movie (docs/re/oracle-harness.md) on the original game in
+-- PCSX-Redux and records a trace of the decoded game state once per logic tick.
+--
+-- How it drives the game:
+--   * Boot: the movie's boot route presses buttons on the emulated pad, by emulator frame,
+--     until PAZLE.EXE starts (route "puzzle": title, then Puzzle on the mode select).
+--   * In Puzzle Mode the pad is left idle and the movie's pad word is returned from PadRead
+--     instead: a breakpoint right after pad_read's call to PadRead (0x80095668) sets v0. So
+--     movie input is per logic tick, exact, and independent of the BIOS pad polling.
+--   * Tick t is the global frame counter state+0x40 minus its value when pazle_main starts:
+--     tick 1 is the main loop's first iteration. movie[t] is the pad word the logic of tick t
+--     sees; it is injected by the PadRead at the end of tick t-1.
+--   * The trace row for tick t is sampled at the same breakpoint: after tick t's logic and
+--     drawing, before its pad read. Sounds, music requests and rand() calls are counted
+--     between consecutive samples, so they belong to tick t's logic (plus the end of tick t-1's
+--     main loop: bgm_poll and the per-frame rand()).
+--
+-- Environment:
+--   TP_OUT      output directory (must exist)
+--   TP_MOVIE    the movie (.tpm)
+--   TP_SHOTS    ticks to screenshot, comma separated; a range first-last:every
+--   TP_SAVE_AT  ticks after which to write a save state (state_TICK.sstate + .json); the state
+--               also holds the input of tick TICK+1
+--   TP_LOAD     a save state written by TP_SAVE_AT at tick T: start there instead of booting.
+--               Inputs up to T+1 come from the saved run; the trace starts at T+2
+--   TP_RAM_AT   ticks at which to dump main RAM (ram_TICK.bin); the last tick is always dumped
+--   TP_REALTIME 1: keep Redux's real-time pacing (by default the run goes as fast as it can)
+--   TP_SPEED    the SPU speed multiplier used otherwise (default 32)
+--   TP_PADLOG   1: log PadRead's own value whenever it is non-zero (checks the pad format)
+--   TP_UNTIL    also end the run at the first recorded tick where any condition holds:
+--               NAME=VALUE, NAME!=VALUE or NAME>=VALUE on a trace field, comma separated
+--               (for example pieces>=5,scr!=5). Logged as "tick N: until NAME"
+--   TP_SAVE_UNTIL 1: write a save state at the tick TP_UNTIL stopped on
+--
+-- Output: TP_OUT/trace.jsonl (re/tools/tptrace.py reads it), TP_OUT/run.log lines
+-- "tick N: ..." and the files above.
+
+local TRACE_VERSION = 1
+
+local ffi = require('ffi')
+
+-- Redux paces emulation by its (dummy) audio output. A higher SPU speed multiplier lets a run go
+-- as fast as the host allows (about 90 ticks a second instead of 60). Emulated timing doesn't
+-- change: traces are identical either way (docs/re/oracle-harness.md §6). (UseNullSync, the
+-- obvious switch, hangs the emulator.)
+if os.getenv('TP_REALTIME') ~= '1' then PCSX.settings.spu.Speed = tonumber(os.getenv('TP_SPEED') or '32') end
+local outDir = os.getenv('TP_OUT') or '.'
+local mem = PCSX.getMemPtr()
+local pad = PCSX.SIO0.slots[1].pads[1]
+local button = PCSX.CONSTS.PAD.BUTTON
+
+local PAZLE_FINGERPRINT = '30610980306109803061098030610980' -- first 16 bytes of PAZLE.EXE
+local PAZLE_MAIN, AFTER_PADREAD, RAND = 0x800963b0, 0x80095668, 0x800c0c48
+local SE_PLAY, BGM_REQUEST = 0x80095778, 0x80095da8
+local CTR = 0x3e668 + 0x40
+
+local BITS = {
+    L2 = 0x0001, R2 = 0x0002, L1 = 0x0004, R1 = 0x0008, TRIANGLE = 0x0010, CIRCLE = 0x0020,
+    CROSS = 0x0040, SQUARE = 0x0080, SELECT = 0x0100, START = 0x0800, UP = 0x1000,
+    RIGHT = 0x2000, DOWN = 0x4000, LEFT = 0x8000,
+}
+
+-- Boot routes: emulated-pad presses by emulator frame, from power-on to PAZLE.EXE.
+-- { button, first frame, last frame, every } taps (held 4 frames) and { button, frame, hold }.
+local ROUTES = {
+    puzzle = {
+        taps = { { 'START', 300, 3000, 90 } },
+        presses = { { 'RIGHT', 3400, 4 }, { 'CROSS', 3500, 4 }, { 'CROSS', 3700, 4 } },
+    },
+}
+
+local function fail(text)
+    print('error: ' .. text)
+    PCSX.quit(1)
+    error(text)
+end
+
+------------------------------------------------------------------------------ movie
+
+local function parseButtons(text, where)
+    local mask = 0
+    local player = 0
+    local names = text
+    local p = text:match('^(%d):')
+    if p then
+        player = tonumber(p) - 1
+        names = text:sub(3)
+    end
+    if player < 0 or player > 1 then fail(where .. ': pad must be 1 or 2') end
+    for name in names:gmatch('[^+]+') do
+        local bit_ = BITS[name]
+        if not bit_ then fail(where .. ': unknown button ' .. name) end
+        mask = bit.bor(mask, bit_)
+    end
+    return bit.lshift(mask, 16 * player)
+end
+
+local function loadMovie(path)
+    local movie = { inputs = {}, boot = 'puzzle', name = path:match('([^/]+)$') }
+    local last = 0
+    local n = 0
+    for line in io.lines(path) do
+        n = n + 1
+        local where = string.format('%s:%d', path, n)
+        line = line:gsub('#.*$', '')
+        local words = {}
+        for w in line:gmatch('%S+') do words[#words + 1] = w end
+        if #words == 0 then
+        elseif words[1] == 'tpm' then
+            if words[2] ~= '1' then fail(where .. ': unsupported movie version') end
+            movie.version = 1
+        elseif words[1] == 'boot' then
+            movie.boot = words[2]
+        elseif words[1] == 'end' then
+            movie.last = tonumber(words[2])
+        elseif words[1] == 'mark' then
+        else
+            local at = words[1]
+            local t = at:sub(1, 1) == '+' and last + tonumber(at:sub(2)) or tonumber(at)
+            local hold = tonumber(words[2])
+            if not t or not hold or not words[3] then fail(where .. ': expected TICK HOLD BUTTONS') end
+            if t < last then fail(where .. ': events must be in tick order') end
+            if t < 2 then fail(where .. ': the first tick with input is 2') end
+            local mask = parseButtons(words[3], where)
+            for k = t, t + hold - 1 do movie.inputs[k] = bit.bor(movie.inputs[k] or 0, mask) end
+            last = t
+        end
+    end
+    if movie.version ~= 1 then fail(path .. ': missing "tpm 1"') end
+    if not movie.last then fail(path .. ': missing "end TICK"') end
+    if not ROUTES[movie.boot] then fail(path .. ': unknown boot route ' .. movie.boot) end
+    return movie
+end
+
+local moviePath = os.getenv('TP_MOVIE') or fail('TP_MOVIE is not set')
+local movie = loadMovie(moviePath)
+local route = ROUTES[movie.boot]
+
+local function tickSet(text)
+    local set = {}
+    for entry in (text or ''):gmatch('[^,]+') do
+        local first, last, every = entry:match('^(%d+)-(%d+):(%d+)$')
+        if first then
+            for t = tonumber(first), tonumber(last), tonumber(every) do set[t] = true end
+        else
+            set[tonumber(entry)] = true
+        end
+    end
+    return set
+end
+
+local shotTicks = tickSet(os.getenv('TP_SHOTS'))
+local saveTicks = tickSet(os.getenv('TP_SAVE_AT'))
+local ramTicks = tickSet(os.getenv('TP_RAM_AT'))
+local padLog = os.getenv('TP_PADLOG') == '1'
+local loadPath = os.getenv('TP_LOAD')
+local saveUntil = os.getenv('TP_SAVE_UNTIL') == '1'
+local untils = {}
+for entry in (os.getenv('TP_UNTIL') or ''):gmatch('[^,]+') do
+    local name, op, value = entry:match('^([%w_]+)([!>]?=)(%-?%d+)$')
+    if not name then fail('bad TP_UNTIL entry: ' .. entry) end
+    untils[#untils + 1] = { name = name, op = op, value = tonumber(value), text = entry }
+end
+
+------------------------------------------------------------------------------ memory
+
+local function phys(address) return bit.band(address, 0x1fffff) end
+
+local readers = {
+    s32 = function(a) return ffi.cast('int32_t*', mem + a)[0] end,
+    u32 = function(a) return tonumber(ffi.cast('uint32_t*', mem + a)[0]) end,
+    s16 = function(a) return ffi.cast('int16_t*', mem + a)[0] end,
+    u16 = function(a) return ffi.cast('uint16_t*', mem + a)[0] end,
+    u8 = function(a) return mem[a] end,
+}
+local sizes = { s32 = 4, u32 = 4, s16 = 2, u16 = 2, u8 = 1 }
+
+local fields = {}
+for _, f in ipairs(dofile(os.getenv('TP_REPO') .. '/re/lua/trace_fields.lua')) do
+    local name, address, type_, count, stride = f[1], f[2], f[3], f[4], f[5]
+    fields[#fields + 1] = { name = name, address = phys(address), read = readers[type_], count = count,
+                            stride = stride or sizes[type_] }
+end
+
+local function slotFingerprint()
+    local bytes = {}
+    for i = 0, 15 do bytes[#bytes + 1] = string.format('%02x', mem[0x94000 + i]) end
+    return table.concat(bytes)
+end
+
+-- Board, player 1: rows 0-15 as one string, '.' empty, 1-9, a-z for 10-35, '#' 0xFFFF.
+-- Any other value is a format error and stops the run.
+local BOARD = phys(0x800edca0)
+local CELL = {}
+CELL[0] = '.'
+for v = 1, 9 do CELL[v] = tostring(v) end
+for v = 10, 35 do CELL[v] = string.char(87 + v) end
+CELL[0xffff] = '#'
+
+local function readBoard()
+    local cells = ffi.cast('int32_t*', mem + BOARD)
+    local out = {}
+    for i = 0, 159 do
+        local c = CELL[cells[i]]
+        if not c then fail(string.format('board cell %d holds %d', i, cells[i])) end
+        out[i + 1] = c
+    end
+    return table.concat(out)
+end
+
+------------------------------------------------------------------------------ trace
+
+local trace = io.open(outDir .. '/trace.jsonl', 'w')
+local function jsonValue(v)
+    if type(v) == 'table' then
+        local parts = {}
+        for i, x in ipairs(v) do parts[i] = jsonValue(x) end
+        return '[' .. table.concat(parts, ',') .. ']'
+    elseif type(v) == 'string' then
+        return '"' .. v .. '"'
+    end
+    return string.format('%d', v)
+end
+
+do
+    local names = {}
+    for i, f in ipairs(fields) do names[i] = '"' .. f.name .. '"' end
+    trace:write(string.format('{"tptrace":%d,"movie":"%s","boot":"%s","fields":[%s,"board","rand","se","bgm"]}\n',
+                              TRACE_VERSION, movie.name, movie.boot, table.concat(names, ',')))
+end
+
+local previous = {}
+local function sameValue(a, b)
+    if type(a) ~= 'table' then return a == b end
+    if type(b) ~= 'table' or #a ~= #b then return false end
+    for i = 1, #a do if a[i] ~= b[i] then return false end end
+    return true
+end
+
+-- Per-tick event lists, filled by the breakpoints below.
+local randCalls, sounds, music = 0, {}, {}
+
+-- One trace line: the tick and every value that changed since the previous line (all of them
+-- on the first line). Lists of events are written whenever non-empty.
+local function record(t)
+    local parts = { '"t":' .. t }
+    local function put(name, value)
+        if not sameValue(previous[name], value) then
+            parts[#parts + 1] = '"' .. name .. '":' .. jsonValue(value)
+            previous[name] = value
+        end
+    end
+    for _, f in ipairs(fields) do
+        if f.count then
+            local values = {}
+            for i = 0, f.count - 1 do values[i + 1] = f.read(f.address + i * f.stride) end
+            put(f.name, values)
+        else
+            put(f.name, f.read(f.address))
+        end
+    end
+    put('board', readBoard())
+    put('rand', randCalls)
+    if #sounds > 0 then parts[#parts + 1] = '"se":' .. jsonValue(sounds) end
+    if #music > 0 then parts[#parts + 1] = '"bgm":' .. jsonValue(music) end
+    trace:write('{' .. table.concat(parts, ',') .. '}\n')
+    randCalls, sounds, music = 0, {}, {}
+end
+
+------------------------------------------------------------------------------ run state
+
+local frame = 0
+local active = false   -- PAZLE.EXE's main loop is running
+local base = nil       -- state+0x40 when pazle_main started
+local tick = -1        -- last tick seen
+local resumeAfter = -1 -- record ticks after this one
+local quitCode = nil
+local pending = {}     -- work for the next vblank (screenshots, save states)
+
+local function log(text) print(string.format('tick %d: %s', tick, text)) end
+
+local function dumpRam(name)
+    local file = Support.File.open(outDir .. '/' .. name, 'TRUNCATE')
+    file:write(mem, 0x200000)
+    file:close()
+end
+
+local function screenshot(t)
+    local shot = PCSX.GPU.takeScreenShot()
+    local name = string.format('%s/shot_t%05d_%dx%d_%s.raw', outDir, t, shot.width, shot.height,
+                               shot.bpp == 0 and '16' or '24')
+    local file = Support.File.open(name, 'TRUNCATE')
+    file:writeMoveSlice(shot.data)
+    file:close()
+end
+
+local function saveState(t)
+    local name = string.format('%s/state_%05d', outDir, t)
+    local file = Support.File.open(name .. '.sstate', 'TRUNCATE')
+    file:writeMoveSlice(PCSX.createSaveState())
+    file:close()
+    local side = io.open(name .. '.json', 'w')
+    side:write(string.format('{"tick":%d,"base":%d,"movie":"%s"}\n', t, base, movie.name))
+    side:close()
+    log('save state ' .. name .. '.sstate')
+end
+
+------------------------------------------------------------------------------ breakpoints
+-- Globals: Redux removes a breakpoint once its Lua handle is collected.
+
+TpMovieBreakpoints = {}
+local function addExec(address, name, fn)
+    table.insert(TpMovieBreakpoints, PCSX.addBreakpoint(address, 'Exec', 4, name, function()
+        fn(PCSX.getRegisters())
+        return true -- keep the breakpoint
+    end))
+end
+
+addExec(PAZLE_MAIN, 'tp_pazle_main', function()
+    if slotFingerprint() ~= PAZLE_FINGERPRINT or active then return end
+    active = true
+    base = readers.u32(CTR)
+    for _, value in pairs(button) do pad.clearOverride(value) end
+    print(string.format('frame %d: pazle_main, counter %d, seed 0x%08x', frame, base, readers.u32(phys(0x800083a4))))
+end)
+
+addExec(AFTER_PADREAD, 'tp_padread', function(regs)
+    if not active then return end
+    local t = readers.u32(CTR) - base
+    if t ~= tick then
+        if t ~= tick + 1 and tick >= 0 then log(string.format('warning: tick jumped to %d', t)) end
+        tick = t
+        -- After a save state the first tick's sounds and rand() calls were partly counted
+        -- before the save, so the trace resumes one tick later.
+        if t > resumeAfter then record(t) else randCalls, sounds, music = 0, {}, {} end
+        if t > resumeAfter and not quitCode then
+            for _, u in ipairs(untils) do
+                local v = previous[u.name]
+                if type(v) == 'table' then v = v[1] end
+                if v == nil then fail('TP_UNTIL: no field ' .. u.name) end
+                if (u.op == '=' and v == u.value) or (u.op == '!=' and v ~= u.value) or (u.op == '>=' and v >= u.value) then
+                    log('until ' .. u.text)
+                    if saveUntil then pending.save = t end
+                    dumpRam('ram_end.bin')
+                    quitCode = 0
+                    break
+                end
+            end
+        end
+        if shotTicks[t] then pending.shot = t end
+        if saveTicks[t] then pending.save = t end
+        if ramTicks[t] then dumpRam(string.format('ram_%05d.bin', t)) end
+        if t >= movie.last then
+            dumpRam('ram_end.bin')
+            log('done')
+            quitCode = 0
+        end
+    else
+        log('warning: pad_read called twice in one tick')
+    end
+    if padLog and regs.GPR.n.v0 ~= 0 then log(string.format('PadRead returned 0x%08x', regs.GPR.n.v0)) end
+    regs.GPR.n.v0 = movie.inputs[t + 1] or 0
+end)
+
+addExec(RAND, 'tp_rand', function()
+    if active then randCalls = randCalls + 1 end
+end)
+addExec(SE_PLAY, 'tp_se', function(regs)
+    if active then sounds[#sounds + 1] = regs.GPR.n.a0 end
+end)
+addExec(BGM_REQUEST, 'tp_bgm', function(regs)
+    if active then music[#music + 1] = regs.GPR.n.a0 end
+end)
+
+------------------------------------------------------------------------------ per vblank
+
+local function applyRoute()
+    for _, value in pairs(button) do pad.clearOverride(value) end
+    for _, tap in ipairs(route.taps) do
+        local name, first, last, every = tap[1], tap[2], tap[3], tap[4]
+        if frame >= first and frame <= last and (frame - first) % every < 4 then pad.setOverride(button[name]) end
+    end
+    for _, press in ipairs(route.presses) do
+        local name, at, hold = press[1], press[2], press[3]
+        if frame >= at and frame < at + hold then pad.setOverride(button[name]) end
+    end
+end
+
+TpMovieListener = PCSX.Events.createEventListener('GPU::Vsync', function()
+    frame = frame + 1
+    if loadPath and frame == 1 then
+        local side = io.open((loadPath:gsub('%.sstate$', '.json'))):read('*a')
+        tick = tonumber(side:match('"tick":(%d+)'))
+        resumeAfter = tick + 1
+        base = tonumber(side:match('"base":(%d+)'))
+        PCSX.loadSaveState(Support.File.open(loadPath, 'READ'))
+        active = true
+        previous = {}
+        print(string.format('frame %d: loaded %s at tick %d', frame, loadPath, tick))
+        return
+    end
+    if not active and not loadPath then applyRoute() end
+    if active and slotFingerprint() ~= PAZLE_FINGERPRINT then
+        log('PAZLE.EXE has exited')
+        dumpRam('ram_end.bin')
+        trace:close()
+        PCSX.quit(0)
+        return
+    end
+    if pending.shot then screenshot(pending.shot) end
+    if pending.save then saveState(pending.save) end
+    pending = {}
+    if quitCode then
+        trace:close()
+        PCSX.quit(quitCode)
+        return
+    end
+    if frame > 200000 then fail('ran 200,000 frames without reaching the end tick') end
+end)
