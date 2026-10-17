@@ -4,7 +4,7 @@ A faithful browser version of Tetris Plus's Puzzle Mode (the professor mode), re
 original PS1 game (US, SLUS-00338) and verified against it in an emulator.
 
 - **Plan:** `docs/RESEARCH_AND_PLAN.md` (phases, fidelity rules, verification layers, ground rules).
-- **Latest results:** `docs/re/phase0.md`.
+- **Latest results:** `docs/re/disc-inventory.md` (Phase 1). Earlier: `docs/re/phase0.md`.
 - **Repo:** private; extracted web-ready assets may be committed. Never commit the disc image or
   bulky raw dumps.
 
@@ -32,3 +32,9 @@ original PS1 game (US, SLUS-00338) and verified against it in an emulator.
 - **Run the original game headless:**
   `TP_FRAMES=600 bash scripts/run-emulator.sh re/lua/smoke.lua ../tp-private/runs/<name>`
   - Convert the screenshots with `python3 re/tools/shot2png.py <dir>/*.raw`.
+  - To trace CD reads and music, add `TP_CD_HOOKS=$PWD/re/lua/cd_hooks.txt`, then run
+    `python3 re/tools/cd_trace.py <dir>/run.log "../tp-private/disc/Tetris Plus.cue" "../tp-private/disc/Tetris Plus (Track 01).bin"`.
+- **Decompile a whole EXE to one greppable file** (real PSX loader and PsyQ names; absolute paths):
+  `$GHIDRA_INSTALL_DIR/support/analyzeHeadless /home/user/tp-private/work/ghidra p -import /home/user/tp-private/files/PAZLE.EXE -loader PsxLoader -scriptPath re/ghidra -postScript ExportDecompiled.java /home/user/tp-private/work/decomp/PAZLE.EXE.c -deleteProject`
+- **Data files (`*.BIN`):** `python3 re/tools/tpbin.py list|extract <PROGRAM.EXE> <DATA.BIN> [out]`.
+  Render them with `python3 re/tools/tim2png.py sheet|extract <PROGRAM.EXE> <DATA.BIN> <out>`.
