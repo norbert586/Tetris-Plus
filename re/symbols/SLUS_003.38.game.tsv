@@ -1,0 +1,23 @@
+# SLUS_003.38 (boot program) game code: hand-given names (Phase 2). address<TAB>function<TAB>name<TAB>evidence
+# S = read in the decompiled code, E = seen in the emulator, P1 = Phase 1.
+0x80022e60	function	main	S: init, CD TOC, file search, then the per-frame loader loop
+0x80023204	function	boot_lz_decode	P1: the data-file LZ codec
+0x80024214	function	boot_cd_read_step	S: one CD read as a step machine (setloc, read, sync)
+0x80024950	function	boot_dispatch	S: table 0x800221bc (5) on 0x8005e388
+0x800249b8	function	boot_prepare	S: clears VRAM, decides whether to show "Now Loading"
+0x80024af8	function	boot_load	S: table 0x8002219c (8) on 0x8005e380; loads data file then EXE
+0x80024374	function	load_set_mode	S: CdlSetmode 0x80 (double speed)
+0x800243f4	function	load_data_file	S/E: reads program N's data file to 0x800f4000 (none for JLOGO)
+0x8002450c	function	load_exe_header_setup	S
+0x800245c4	function	load_exe_header	S: reads the 2 KB PS-X EXE header
+0x800246b8	function	load_exe_body_setup	S: body goes to the header's t_addr
+0x800247a4	function	load_exe_body	S
+0x800248a0	function	load_next	S
+0x800248bc	function	load_done	S
+0x80024be0	function	boot_loading_finish	S: waits for the loading animation to end
+0x80024c34	function	boot_settle	S: 4 frames; clears both players' screen states (state+0x4b508..0x4b534)
+0x80024cdc	function	boot_exec	S/E: Exec(program, state); re-initialises the libraries when it returns
+0x80024fa0	function	boot_find_programs	P1: CdSearchFile for the 13 programs
+0x800250b4	function	boot_find_data_files	P1: CdSearchFile for the 13 data files
+0x800252c8	function	boot_sound_load	P1: EF.VH/EF.VB into SPU RAM
+0x80025890	function	loading_anim_step	S: steps the "Now Loading" sprite animation
