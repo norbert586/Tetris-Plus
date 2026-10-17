@@ -3,7 +3,7 @@
 // model of main RAM at the original's addresses (mem.ts, addr.ts).
 import * as A from './addr';
 import { BOOT_STATE_BASE64, BOOT_STATE_OFFSET } from './boot-state';
-import { Mem } from './mem';
+import { decodeBase64, Mem } from './mem';
 import { Rng } from './rng';
 import { SCREENS } from './screens';
 import { pauseCheck } from './pause';
@@ -47,7 +47,7 @@ export class Game {
       return;
     }
     this.m = new Mem();
-    const boot = Buffer.from(BOOT_STATE_BASE64, 'base64');
+    const boot = decodeBase64(BOOT_STATE_BASE64);
     this.m.bytes.set(boot, (A.S + BOOT_STATE_OFFSET) & 0x1fffff);
     if (opts.difficulty !== undefined) this.m.w8(A.DIFFICULTY, opts.difficulty);
     this.m.w32(A.COUNTER, opts.counter);

@@ -162,7 +162,7 @@ function stageNumberAndHud(g: Game, numberX: number, checkHundred: boolean): voi
 const v = (g: Game, a: number) => g.m.s32(g.pv(a));
 
 /** Objects of the stage art: slot 31 (FUN_800B0824) and slot 30 (FUN_800B091C). */
-function stageArt31(g: Game): void {
+export function stageArt31(g: Game): void {
   const m = g.m;
   const o = A.obj(g.ob + 0x1f);
   m.w32(o + A.O_PLAYER, g.p);
@@ -172,7 +172,7 @@ function stageArt31(g: Game): void {
   m.w32(o + A.O_Y, 0x20000);
   m.w32(o + A.O_PALETTE, g.p);
 }
-function stageArt30(g: Game): void {
+export function stageArt30(g: Game): void {
   const m = g.m;
   const o = A.obj(g.ob + 0x1e);
   m.w32(o + A.O_PLAYER, g.p);
@@ -464,7 +464,6 @@ export function scr04StageIntro(g: Game): void {
 const PLAY_STEPS: ((g: Game) => void)[] = [playSpawn, playFall, playLineCheck, playClearAnim, playCollapse, playNext, () => {}, () => {}];
 
 export function scr05Play(g: Game): void {
-  const m = g.m;
   PLAY_STEPS[step(g)](g);
   pieceFlashDraw(g);
   linesPopup(g);

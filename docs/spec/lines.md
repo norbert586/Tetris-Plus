@@ -38,6 +38,11 @@ are always crushed, [ceiling.md](ceiling.md) §4).
   `0x800946E0` and `clear_anim_frame += 1`. Once it is 8: remove the sprites, return "done".
 - On "done", step 4.
 
+**`lines_this_clear` after one or two lines** (Phase 6): the pop-up dispatcher
+(`lines_popup_dispatch`, every frame after the step) indexes its table with it, and entries 0-2
+reset it to 0 at once. So it reads 1 or 2 only within step 2's frame; 3 and 4 keep it while
+their pop-up shows (about 60 frames).
+
 **Quirk: the length depends on the global frame counter.** Step 3 lasts 17 frames if its first
 frame has an odd counter, 18 if even. The counter carries over from earlier programs, so the port
 needs the original's value at Puzzle Mode entry (Phase 2 §2) to match frame-exactly.
@@ -109,3 +114,14 @@ if score > 9999999: score = 9999999
 
 `0x800D61C8 + 4n` is `LEVELS[0].score[n − 1]` = 100, 400, 800, 1600 for 1–4 lines. The level is
 never consulted (and is 0 anyway). Nothing else in play scores.
+
+**Stage-clear bonuses** (found in Phase 6, `docs/re/core-port.md` §8; checked by the traces).
+The goal sequence adds two more:
+
+- **Time bonus** (`0x80099128`): with the stage clock at t tenths, 20,000 if t < 100, else
+  `((600 − t) × 40 + 90) / 100 × 100` (C division) if t < 600, else nothing.
+- **Piece bonus** (goal substate 4, `0x8009E858`): only on stages that show the bonus marker
+  (`(stage + 1) % 3 == 0` within the zone, and the zone's last stage outside Atlantis; never in
+  100-stage mode). The score gets `0x800E2920[group][(pieces − 1) / 10]` (pieces capped at 31,
+  `group = 0x800E28E0[stage % 20]`), and an item (`0x800E2970`) is added to the game's
+  collection, shown at game over and on the zone-clear screen.

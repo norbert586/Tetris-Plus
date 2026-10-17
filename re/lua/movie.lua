@@ -96,7 +96,7 @@ local function parseButtons(text, where)
 end
 
 local function loadMovie(path)
-    local movie = { inputs = {}, boot = 'puzzle', name = path:match('([^/]+)$') }
+    local movie = { inputs = {}, pokes = {}, boot = 'puzzle', name = path:match('([^/]+)$') }
     local last = 0
     local n = 0
     for line in io.lines(path) do
@@ -114,6 +114,15 @@ local function loadMovie(path)
         elseif words[1] == 'end' then
             movie.last = tonumber(words[2])
         elseif words[1] == 'mark' then
+        elseif words[1] == 'poke' then
+            -- poke TICK ADDRESS VALUE [SIZE]: write memory right after tick TICK is recorded
+            local t, address, value = tonumber(words[2]), tonumber(words[3]), tonumber(words[4])
+            local size = tonumber(words[5] or '4')
+            if not t or not address or not value or (size ~= 1 and size ~= 2 and size ~= 4) then
+                fail(where .. ': expected poke TICK ADDRESS VALUE [1|2|4]')
+            end
+            movie.pokes[t] = movie.pokes[t] or {}
+            table.insert(movie.pokes[t], { address = address, value = value, size = size })
         else
             local at = words[1]
             local t = at:sub(1, 1) == '+' and last + tonumber(at:sub(2)) or tonumber(at)
@@ -350,6 +359,13 @@ addExec(AFTER_PADREAD, 'tp_padread', function(regs)
         if shotTicks[t] then pending.shot = t end
         if saveTicks[t] then pending.save = t end
         if ramTicks[t] then dumpRam(string.format('ram_%05d.bin', t)) end
+        for _, p in ipairs(movie.pokes[t] or {}) do
+            local a = phys(p.address)
+            if p.size == 4 then ffi.cast('uint32_t*', mem + a)[0] = bit.tobit(p.value)
+            elseif p.size == 2 then ffi.cast('uint16_t*', mem + a)[0] = p.value
+            else mem[a] = p.value end
+            log(string.format('poke 0x%08x = %d', p.address, p.value))
+        end
         if t >= movie.last then
             dumpRam('ram_end.bin')
             log('done')

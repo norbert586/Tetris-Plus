@@ -11,7 +11,7 @@ import * as A from '../src/core/addr';
 import { BOOT_STATE_BASE64, BOOT_STATE_OFFSET } from '../src/core/boot-state';
 import { menuDpadRepeat } from '../src/core/dpad';
 import { Game } from '../src/core/game';
-import { Mem } from '../src/core/mem';
+import { decodeBase64, Mem } from '../src/core/mem';
 import { ceilingCrush, ceilingTick, debrisUpdate } from '../src/core/play/ceiling';
 import { numberDraw, stageTimerTick } from '../src/core/play/hud';
 import { linesFindFull, linesRemove, scoreAddLines } from '../src/core/play/lines';
@@ -71,7 +71,7 @@ let base: Uint8Array | null = null;
 function baseMemory(): Uint8Array {
   if (!base) {
     const m = new Mem();
-    m.bytes.set(Buffer.from(BOOT_STATE_BASE64, 'base64'), (A.S + BOOT_STATE_OFFSET) & 0x1fffff);
+    m.bytes.set(decodeBase64(BOOT_STATE_BASE64), (A.S + BOOT_STATE_OFFSET) & 0x1fffff);
     base = m.bytes;
   }
   return base;

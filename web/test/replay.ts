@@ -44,6 +44,11 @@ export function compareMovie(movie: Movie, trace: Trace, opts: CompareOptions = 
     }
     const got = game.traceRow();
     got.t = t;
+    for (const poke of movie.pokes.get(t) ?? []) {
+      if (poke.size === 4) game.m.w32(poke.address, poke.value);
+      else if (poke.size === 2) game.m.w16(poke.address, poke.value);
+      else game.m.w8(poke.address, poke.value);
+    }
     mine.push(got);
     ticks++;
     const bad = fields.filter((f) => !sameValue(got[f], want[f]));

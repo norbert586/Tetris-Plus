@@ -41,7 +41,7 @@ function itemsAnimate(g: Game): void {
 
 // ---- screen 6: continue ----
 
-const CONTINUE: ((g: Game) => void)[] = [
+export const CONTINUE: ((g: Game) => void)[] = [
   // 0 (0x800A395C): the lost sequence plays out.
   (g) => {
     const m = g.m;
@@ -189,10 +189,18 @@ export function scr06Continue(g: Game): void {
 
 // ---- screen 7: rank entry ----
 
-export function scr07RankEntry(g: Game): void {
+const ENTRY_TIMER = 0x800ee44c; // [2]
+const ENTRY_CURSOR = 0x800eead8; // [2] letter being chosen, 0-3
+const ENTRY = 0x800f2a8c; // [2] stride 0x1C: letters[4], score, stage, zone
+const LETTER_RANGE = 0x80094408; // (min, max) per letter slot
+const LETTER_IMAGE = 0x800e1268; // image per letter (0x1D end, 0x1E back, 0x1F blank)
+const RANK_IMAGE = 0x800943ec; // int[5]
+const RANK_X = 0x80094400; // int[2]
+const letter = (g: Game, k: number) => ENTRY + g.p * 0x1c + 4 * k;
+
+/** The rank the score reaches (0-4), or 5 when it doesn't make the table. */
+function rankFind(g: Game): void {
   const m = g.m;
-  if (step(g) !== 0) throw new NotPorted(`rank entry step ${step(g)}`);
-  // 0x800A46D4: does the score make the top five?
   m.w32(g.pv(RANK_POS), 5);
   for (;;) {
     const k = v(g, RANK_POS) - 1;
@@ -200,12 +208,159 @@ export function scr07RankEntry(g: Game): void {
     m.w32(g.pv(RANK_POS), k);
     if (k <= 0) break;
   }
-  if (v(g, RANK_POS) < 5) {
-    bgmRequest(g, 0x31);
+}
+
+const RANK: ((g: Game) => void)[] = [
+  // 0 (0x800A46D4): does the score make the top five?
+  (g) => {
+    rankFind(g);
+    if (v(g, RANK_POS) < 5) {
+      bgmRequest(g, 0x31);
+      nextStep(g);
+    } else {
+      toScreen(g, 13);
+    }
+  },
+  // 1 (0x800A483C): name entry, 90 seconds
+  (g) => {
+    const m = g.m;
+    const p = g.p;
+    const x = m.s32(RANK_X + p * 4);
+    m.w32(g.pv(ENTRY_TIMER), 0x1518);
+    m.w32(g.pv(ENTRY_CURSOR), 0);
+    m.w32(letter(g, 0), 0);
+    m.w32(letter(g, 1), 0x1f);
+    m.w32(letter(g, 2), 0x1f);
+    m.w32(ENTRY + p * 0x1c + 0x10, v(g, V.SCORE));
+    m.w32(ENTRY + p * 0x1c + 0x14, v(g, V.STAGE));
+    m.w32(ENTRY + p * 0x1c + 0x18, v(g, V.ZONES_CLEARED) === 0x1f ? 5 : v(g, V.ZONE));
+    let o = A.obj(g.ob + 0x19e);
+    m.w32(o + A.O_PLAYER, 0);
+    m.w32(o + A.O_20, 0);
+    animSet(g, g.ob + 0x19e, 0x23);
+    m.w32(o + A.O_PALETTE, p);
+    m.w32(o + A.O_X, x);
+    m.w32(o + A.O_Y, 0x9d0000);
+    o = A.obj(g.ob + 0x1a0);
+    m.w32(o + A.O_PLAYER, 0);
+    m.w32(o + A.O_20, 0);
+    m.w32(o + A.O_IMAGE, m.s32(RANK_IMAGE + 4 * v(g, RANK_POS)) + 0x10000);
+    m.w32(o + A.O_X, x + 0x40000);
+    m.w32(o + A.O_Y, 0xa70000);
+    for (let i = 0; i < 4; i++) {
+      o = A.obj(i + 0x1a3 + g.ob);
+      m.w32(o + A.O_PLAYER, 0);
+      m.w32(o + A.O_20, 0);
+      m.w32(o + A.O_IMAGE, 0);
+      m.w32(o + A.O_X, i * 0xe0000 + 0x280000 + x);
+      m.w32(o + A.O_Y, 0xa50000);
+    }
+    numberDraw(g, m.s32(ENTRY + p * 0x1c + 0x10), 7, g.ob + 0x1a7, (x >> 16) + 0x1e, 0xb5, 0x140, 7);
     nextStep(g);
-  } else {
-    toScreen(g, 13);
-  }
+  },
+  // 2 (0x800A4BE4): Left/Right change the letter, Cross moves on, Circle goes back
+  (g) => {
+    const m = g.m;
+    if (m.add32(g.pv(ENTRY_TIMER), -1) < 0) {
+      nextStep(g);
+      m.w32(g.pv(ENTRY_TIMER), 0x78);
+      return;
+    }
+    const pressed = g.pressed();
+    const cur = () => v(g, ENTRY_CURSOR);
+    const lr = pressed & 0xa000;
+    if (lr === 0x2000 || lr === 0x8000) {
+      const a = letter(g, cur());
+      const c = m.add32(a, lr === 0x2000 ? 1 : -1);
+      const min = m.s32(LETTER_RANGE + cur() * 8);
+      const max = m.s32(LETTER_RANGE + cur() * 8 + 4);
+      if (lr === 0x2000 && max < c) m.w32(a, min);
+      if (lr === 0x8000 && c < min) m.w32(a, max);
+      sePlay(g, 2);
+    }
+    if (pressed & 0x20) {
+      m.w32(letter(g, cur()), 0x1f);
+      if (m.add32(g.pv(ENTRY_CURSOR), -1) < 0) {
+        m.w32(g.pv(ENTRY_CURSOR), 0);
+        m.w32(letter(g, 0), 0x1d);
+      }
+    }
+    if (pressed & 0x40) {
+      const c = m.s32(letter(g, cur()));
+      if (c === 0x1d) {
+        nextStep(g);
+        m.w32(g.pv(ENTRY_TIMER), 0x78);
+        return;
+      }
+      if (c === 0x1e) {
+        m.w32(letter(g, cur()), 0x1d);
+        if (m.add32(g.pv(ENTRY_CURSOR), -1) < 0) {
+          m.w32(g.pv(ENTRY_CURSOR), 0);
+          m.w32(letter(g, 0), 0x1d);
+        }
+      } else {
+        sePlay(g, 3);
+        if (m.add32(g.pv(ENTRY_CURSOR), 1) > 2) m.w32(g.pv(ENTRY_CURSOR), 3);
+        m.w32(letter(g, cur()), m.s32(LETTER_RANGE + cur() * 8));
+      }
+    }
+    animTick(g, g.ob + 0x19e);
+    const image = (k: number) => m.s32(LETTER_IMAGE + m.s32(letter(g, k)) * 4) + 0x10000;
+    for (let i = 0; i < cur(); i++) m.w32(A.obj(i + 0x1a3 + g.ob) + A.O_IMAGE, image(i));
+    m.w32(A.obj(cur() + 0x1a3 + g.ob) + A.O_IMAGE, g.counter & 8 ? 0 : image(cur()));
+    for (let i = cur(); i + 1 < 4; i++) m.w32(A.obj(i + 0x1a4 + g.ob) + A.O_IMAGE, 0);
+  },
+  // 3 (0x800A5274): the name blinks for 2 seconds
+  (g) => {
+    const m = g.m;
+    if (m.add32(g.pv(ENTRY_TIMER), -1) < 0) {
+      nextStep(g);
+      return;
+    }
+    for (let i = 0; i < 3; i++) {
+      let image = 0;
+      if ((g.counter & 4) === 0) {
+        const c = m.s32(letter(g, i));
+        image = ((c - 0x1d) >>> 0 > 1 ? m.s32(LETTER_IMAGE + c * 4) : m.s32(0x800e12e4)) + 0x10000;
+      }
+      m.w32(A.obj(i + 0x1a3 + g.ob) + A.O_IMAGE, image);
+    }
+    m.w32(A.obj(g.ob + 0x1a6) + A.O_IMAGE, 0);
+  },
+  // 4 (0x800A5420): player 2 waits for player 1 at the same step
+  (g) => {
+    const m = g.m;
+    if (g.p !== 1 || m.s32(A.STEP) !== m.s32(A.STEP + 4) || m.s32(A.SCREEN) !== m.s32(A.SCREEN + 4)) nextStep(g);
+  },
+  (g) => nextStep(g),
+  // 6 (0x800A5504): into the ranking table
+  (g) => {
+    const m = g.m;
+    rankFind(g);
+    const rank = v(g, RANK_POS);
+    if (rank < 5) {
+      for (let k = 4; rank < k; k--) {
+        const e = A.RANKING + k * 0xc;
+        m.w32(e - 4, m.s32(e - 0x10));
+        m.w32(e, m.s32(e - 0xc));
+        m.w32(e + 4, m.s32(e - 8));
+      }
+      for (let i = 0; i < 3; i++) {
+        const c = m.s32(letter(g, i));
+        m.w8(A.RANKING - 4 + rank * 0xc + i, (c - 0x1d) >>> 0 < 2 ? 0x1f : m.u8(letter(g, i)));
+      }
+      m.w32(A.RANKING + rank * 0xc, m.s32(ENTRY + g.p * 0x1c + 0x10));
+      m.w8(A.RANKING + rank * 0xc + 4, m.u8(ENTRY + g.p * 0x1c + 0x14));
+      m.w8(A.RANKING + rank * 0xc + 5, m.u8(ENTRY + g.p * 0x1c + 0x18));
+    }
+    nextStep(g);
+  },
+  // 7
+  (g) => toScreen(g, 13),
+];
+
+export function scr07RankEntry(g: Game): void {
+  RANK[step(g)](g);
 }
 
 // ---- screen 9: stage clear ----

@@ -83,7 +83,9 @@ is crushed or retired (screen 6) ([professor.md](professor.md) §6).
 
 `stage_time` (tenths, shown as `ddd.d`) and `stage_time_sub`:
 
-- `stage_timer_reset`: `stage_time = 0`, `stage_time_sub = 6`.
+- `stage_timer_reset`: `stage_time = 0`, `stage_time_sub = 6`. **Quirk (Phase 6):** the stage
+  load draws the best time with `FUN_800B0C04`, which also ticks the clock once, so play
+  starts with `stage_time_sub = 5`.
 - `stage_timer_tick`, every frame of screen 5 ([frame.md](frame.md) §3):
 
 ```
@@ -152,6 +154,10 @@ map (the `zone += 1` branch above).
   - 3: "quit?" (steps 7–8), the same yes/no. Yes: music `0x34`, then screen 8 for this player;
     if the other player is already on screen 8, Puzzle Mode exits to the title (program 3,
     phase 9).
+
+**100-stage mode opens it by itself** (Phase 6): a game started in 100-stage mode has
+`0x800EE340` set, which makes `pause_check` pause on the first frame of play, and the pause
+screen then goes straight to the stage select (and clears the flag).
 
 **Hidden stage select.** Pause step 4 (`0x800ABB58` → `0x800B43E4`) is a stage select that sets
 `zone`/`stage` from a 1–100 number (`0x800F2CF8`), reloads the layout and redraws

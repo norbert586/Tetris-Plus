@@ -25,17 +25,19 @@ running in an emulator.
 
 ## Status
 
-Early. There's no playable build yet. Right now the work is reverse-engineering the original
-game to pin down exactly how it behaves.
+The game logic runs in TypeScript and matches the original tick for tick; there's no playable
+build yet (no graphics, sound or controls).
 
 | Phase | What | State |
 |---|---|---|
 | 0 | Toolchain, first look at the game | done |
 | 1 | What's on the disc (files, art, music, sound) | done |
 | 2 | Map the program: main loop, controls, screens | done |
-| 3 | Find where the game keeps its state in memory | next |
-| 4 | Write down the rules and pull out the stage data | |
-| 5–9 | Test harness, the game itself, graphics, audio, menus | |
+| 3 | Find where the game keeps its state in memory | done |
+| 4 | Write down the rules and pull out the stage data | done |
+| 5 | Test harness: input movies and traces from the original | done |
+| 6 | The game logic in TypeScript, checked against the original | done |
+| 7–9 | Graphics, audio, menus and controls | next |
 | 10 | Prove it matches, polish, put it online (private) | |
 
 ## How it works
@@ -48,7 +50,8 @@ game to pin down exactly how it behaves.
 ## Where things are
 
 - `docs/RESEARCH_AND_PLAN.md`: the full plan and what "faithful" means here
-- `docs/re/`: what each phase found
+- `docs/re/`: what each phase found; `docs/spec/`: the rules, written down
+- `web/`: the TypeScript game (`web/src/core/`: the logic) and its tests
 - `re/`: reverse-engineering tools, symbol names and emulator scripts
 - `scripts/`: setup (toolchain, fetching the disc, running the emulator)
 

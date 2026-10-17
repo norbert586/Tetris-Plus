@@ -9,19 +9,16 @@ import { ROM } from './rom';
 
 export const RAM_SIZE = 0x200000;
 
-function decode(b64: string): Uint8Array {
-  if (typeof atob === 'function') {
-    const s = atob(b64);
-    const out = new Uint8Array(s.length);
-    for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
-    return out;
-  }
-  return new Uint8Array(Buffer.from(b64, 'base64'));
+export function decodeBase64(b64: string): Uint8Array {
+  const s = atob(b64);
+  const out = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+  return out;
 }
 
 let romImage: { address: number; bytes: Uint8Array }[] | null = null;
 function romRanges() {
-  romImage ??= ROM.map((r) => ({ address: r.address, bytes: decode(r.base64) }));
+  romImage ??= ROM.map((r) => ({ address: r.address, bytes: decodeBase64(r.base64) }));
   return romImage;
 }
 

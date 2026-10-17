@@ -10,10 +10,18 @@ export interface Movie {
   last: number;
   /** inputs[t] = the pad word the logic sees on tick t (0 when absent). */
   inputs: Map<number, number>;
+  /** pokes[t] = memory writes made right after tick t is recorded (scenario set-up). */
+  pokes: Map<number, Poke[]>;
+}
+
+export interface Poke {
+  address: number;
+  value: number;
+  size: 1 | 2 | 4;
 }
 
 export function parseMovie(text: string, name = 'movie'): Movie {
-  const movie: Movie = { name, boot: 'puzzle', last: -1, inputs: new Map() };
+  const movie: Movie = { name, boot: 'puzzle', last: -1, inputs: new Map(), pokes: new Map() };
   let version = 0;
   let last = 0;
   text.split('\n').forEach((raw, i) => {
@@ -29,6 +37,15 @@ export function parseMovie(text: string, name = 'movie'): Movie {
       movie.last = Number(words[1]);
     } else if (words[0] === 'mark') {
       // annotation only
+    } else if (words[0] === 'poke') {
+      const [t, address, value] = [Number(words[1]), Number(words[2]), Number(words[3])];
+      const size = Number(words[4] ?? '4');
+      if (!Number.isInteger(t) || !Number.isInteger(address) || !Number.isInteger(value) || ![1, 2, 4].includes(size)) {
+        throw new Error(`${where}: expected poke TICK ADDRESS VALUE [1|2|4]`);
+      }
+      const list = movie.pokes.get(t) ?? [];
+      list.push({ address, value, size: size as 1 | 2 | 4 });
+      movie.pokes.set(t, list);
     } else {
       const at = words[0];
       const t = at.startsWith('+') ? last + Number(at.slice(1)) : Number(at);

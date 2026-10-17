@@ -57,7 +57,7 @@ export function storyRun(g: Game): boolean {
 const next = (g: Game) => g.m.add32(g.pv(SCENE_STEP), 1);
 
 /** Object 0x32 (+ player) shows `image` at (0, y): the scene's picture. */
-function picture(g: Game, image: number, y: number): void {
+export function picture(g: Game, image: number, y: number): void {
   const m = g.m;
   const o = A.obj(g.ob + 0x32);
   m.w32(o + A.O_IMAGE, image);
@@ -69,7 +69,7 @@ function picture(g: Game, image: number, y: number): void {
 }
 
 /** FUN_800BFE94: the frame above and below the picture. */
-function frame(g: Game): void {
+export function frame(g: Game): void {
   const m = g.m;
   let o = A.obj(g.ob + 0x34);
   m.w32(o + A.O_IMAGE, 0x103a9);
