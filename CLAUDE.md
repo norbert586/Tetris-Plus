@@ -4,7 +4,9 @@ A faithful browser version of Tetris Plus's Puzzle Mode (the professor mode), re
 original PS1 game (US, SLUS-00338) and verified against it in an emulator.
 
 - **Plan:** `docs/RESEARCH_AND_PLAN.md` (phases, fidelity rules, verification layers, ground rules).
-- **Latest results:** `docs/re/disc-inventory.md` (Phase 1). Earlier: `docs/re/phase0.md`.
+- **Latest results:** `docs/re/static-bootstrap.md` (Phase 2: main loop, screens, code map;
+  full tree in `docs/re/dispatch-tree.txt`). Earlier: `docs/re/disc-inventory.md` (Phase 1),
+  `docs/re/phase0.md`.
 - **Repo:** private; extracted web-ready assets may be committed. Never commit the disc image or
   bulky raw dumps.
 
@@ -23,18 +25,33 @@ original PS1 game (US, SLUS-00338) and verified against it in an emulator.
 
 - **Wrap Puzzle Mode for REA:**
   `python3 re/tools/psxexe2elf.py ../tp-private/work/PAZLE.elf ../tp-private/files/SLUS_003.38 ../tp-private/files/PAZLE.EXE`
+  - The wrapper stores zero bytes for all non-code RAM. Don't go back to zero-filled segments:
+    Ghidra maps those read-only and the decompiler folds every global in them to 0.
 - **Run REA** (CLI; each call re-imports, about 35 s):
   `REA_GHIDRA_SEED_FILE=$PWD/re/symbols/PAZLE.seeds.tsv $TP_REA decompile <abs path to PAZLE.elf> 0x800963b0 --provider ghidra --json`
   - Leave `REA_GHIDRA_LANGUAGE_ID` unset. REA refuses the PSX language for MIPS targets.
-- **Re-export library names** after changing ghidra_psx_ldr:
-  `$GHIDRA_INSTALL_DIR/support/analyzeHeadless <dir> <name> -import <exe> -loader PsxLoader -scriptPath re/ghidra -postScript ExportFunctionNames.java re/symbols/<exe>.tsv -deleteProject`
-  - Then rebuild the seeds with `re/tools/make_seeds.py`.
+- **Re-export function names** (after changing ghidra_psx_ldr or the pre-pass). Code ranges:
+  `PAZLE.EXE` `0x800955d4 0x800d4fb0`, `SLUS_003.38` `0x80022200 0x80039a54`.
+  `$GHIDRA_INSTALL_DIR/support/analyzeHeadless <dir> <name> -import <exe> -loader PsxLoader -scriptPath re/ghidra -postScript DefineTableFunctions.java <code start> <code end> <out>.ptr.tsv -postScript ExportFunctionNames.java $PWD/re/symbols/<exe>.tsv all -deleteProject`
+  - Then rebuild the seeds; the hand-named `*.game.tsv` files go last so they win:
+    `python3 re/tools/make_seeds.py re/symbols/PAZLE.seeds.tsv re/symbols/SLUS_003.38.tsv re/symbols/PAZLE.EXE.tsv re/symbols/SLUS_003.38.game.tsv re/symbols/PAZLE.game.tsv`
+  - New names go in `re/symbols/PAZLE.game.tsv` (4th column: evidence).
 - **Run the original game headless:**
   `TP_FRAMES=600 bash scripts/run-emulator.sh re/lua/smoke.lua ../tp-private/runs/<name>`
   - Convert the screenshots with `python3 re/tools/shot2png.py <dir>/*.raw`.
+  - To log RAM values when they change, add `TP_WATCH='!scr0=0x80089b70:4,step0=0x80089b78:4'`
+    (`!` also screenshots). Player screen/step words are `state+0x4b508/0x4b510` + 4×player,
+    with `state` = `0x8003e668`.
+  - Route into Egypt stage 1: `TP_TAP=START:300:3000:90,CROSS:4200:9000:120 TP_INPUTS=3400:RIGHT:4,3500:CROSS:4,3700:CROSS:4`
+    (play starts at frame 7642).
   - To trace CD reads and music, add `TP_CD_HOOKS=$PWD/re/lua/cd_hooks.txt`, then run
     `python3 re/tools/cd_trace.py <dir>/run.log "../tp-private/disc/Tetris Plus.cue" "../tp-private/disc/Tetris Plus (Track 01).bin"`.
-- **Decompile a whole EXE to one greppable file** (real PSX loader and PsyQ names; absolute paths):
-  `$GHIDRA_INSTALL_DIR/support/analyzeHeadless /home/user/tp-private/work/ghidra p -import /home/user/tp-private/files/PAZLE.EXE -loader PsxLoader -scriptPath re/ghidra -postScript ExportDecompiled.java /home/user/tp-private/work/decomp/PAZLE.EXE.c -deleteProject`
+- **Decompile a whole EXE to one greppable file**, plus its call graph (real PSX loader and PsyQ
+  names; absolute paths). Keep the `DefineTableFunctions.java` pre-pass, or ~500 table-dispatched
+  functions are missing:
+  `$GHIDRA_INSTALL_DIR/support/analyzeHeadless /home/user/tp-private/work/ghidra p -import /home/user/tp-private/files/PAZLE.EXE -loader PsxLoader -scriptPath re/ghidra -postScript DefineTableFunctions.java 0x800955d4 0x800d4fb0 /home/user/tp-private/work/decomp/PAZLE.EXE.ptr.tsv -postScript ExportDecompiled.java /home/user/tp-private/work/decomp/PAZLE.EXE.c -postScript ExportCallGraph.java /home/user/tp-private/work/decomp/PAZLE.EXE.cg.tsv -deleteProject`
+- **State-machine tree:** `python3 re/tools/dispatch_tree.py <EXE> <decompiled.c> <root> --names re/symbols/PAZLE.seeds.tsv`
+  (Puzzle Mode root `800a16c4`, boot `80022e60`).
+- **Read a table out of an EXE:** `python3 re/tools/exeread.py <EXE> <address> [count] [--size 1|2|4] [--string]`.
 - **Data files (`*.BIN`):** `python3 re/tools/tpbin.py list|extract <PROGRAM.EXE> <DATA.BIN> [out]`.
   Render them with `python3 re/tools/tim2png.py sheet|extract <PROGRAM.EXE> <DATA.BIN> <out>`.

@@ -466,8 +466,9 @@ start of each session. If a later session asks you to approve a tool server call
 
 ## 10. Phased plan
 
-**Status:** Phases 0 and 1 are complete (Phase 0 on 2026-10-16, see `docs/re/phase0.md`; Phase 1
-on 2026-10-17, see `docs/re/disc-inventory.md`). Phase 2 is next.
+**Status:** Phases 0–2 are complete (Phase 0 on 2026-10-16, see `docs/re/phase0.md`; Phase 1
+on 2026-10-17, see `docs/re/disc-inventory.md`; Phase 2 on 2026-10-17, see
+`docs/re/static-bootstrap.md`). Phase 3 is next.
 
 | Phase | Work | Deliverable | Exit criteria | Size |
 |---|---|---|---|---|

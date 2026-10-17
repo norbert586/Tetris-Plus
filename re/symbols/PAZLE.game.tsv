@@ -1,0 +1,60 @@
+# PAZLE.EXE game code: hand-given names (Phase 2). address<TAB>function<TAB>name<TAB>evidence
+# Merged last into PAZLE.seeds.tsv, so these win over generated names. See docs/re/static-bootstrap.md.
+# Evidence: S = read in the decompiled code, E = seen in the emulator (run p2-screens), P1 = Phase 1.
+0x800955d4	function	pad_init	S: PadInit(0), clears both players' pad words
+0x80095658	function	pad_read	S: PadRead(0); held and newly-pressed words per player
+0x80095778	function	se_play	S/P1: SsVoKeyOn from table 0x800dc47c; +5/+10 program for 2P stereo
+0x8009590c	function	cd_debug_off	S: just CdSetDebug(0); the PsyQ signature pass mislabels it SpuInit
+0x80095a0c	function	bgm_play_track	P1: CdlSetloc + play to TOC[track] + end_offset
+0x80095b08	function	bgm_poll	S: per frame; after a CdReset, restarts the current track
+0x80095c5c	function	bgm_report_callback	P1: CD report callback; loops or mutes at end_offset
+0x80095da8	function	bgm_request	P1: music id -> track (console/arcade), 2P priority
+0x800961c4	function	sound_init	S/P1: VAB header, reverb, volumes from state settings
+0x800963b0	function	pazle_main	S: init, per-frame loop until state+0x1fcf4, then shutdown
+0x800965cc	function	system_init	S: card/pad/GPU 320x240/SPU init, sprite templates
+0x800966c0	function	globals_init	S: zeroes game globals and both players' screen states
+0x8009740c	function	item_load	S/P1: LZ-decode PAZLEE.BIN item n and upload it to VRAM
+0x80097524	function	upload_queue_flush	S: per frame, uploads queued TIMs (count at 0x800d4fb0)
+0x800975c8	function	tim_upload	S: LoadImage of a TIM; player 2's copy 256 VRAM rows lower
+0x80097358	function	sprite_templates_init	S: GsSPRITE template for each of the 1,235 items
+0x80097af4	function	lz_decode	P1: the data-file LZ codec
+0x80097e90	function	system_shutdown	S: stops sound, CD, counters before returning to the boot program
+0x80097f8c	function	soft_reset_check	S: Start+Select held over 120 frames -> back to TITLE
+0x8009812c	function	objects_clear_all	S: clears all 1,050 sprite objects
+0x80098168	function	object_clear	S: clears one 0x7c-byte sprite object
+0x8009882c	function	objects_draw	S: sorts every live sprite object into the ordering table
+0x800a16c4	function	phase_dispatch	S: table 0x800942e0 on state+0x50
+0x800a1734	function	phase0_start	S: phase 0; dispatches on state+0x54
+0x800a1754	function	phase1_players	S/E: phase 1; runs the screen machine for player 1 then player 2
+0x800a187c	function	phase2_nop	S: empty
+0x800a1884	function	phase3_nop	S: empty
+0x800a188c	function	phase0_dispatch	S: table 0x800942f0 on state+0x54
+0x800a18e8	function	phase0_setup	S/E: P1 screen 0, P2 screen 8, then phase 1
+0x800a1a20	function	screen_dispatch	S/E: table 0x800942f8 (14) on state+0x4b508[player]
+0x800a1ac8	function	scr00_menu	S/E: New Game / Continue / Password; music 0x2f
+0x800a1ae8	function	scr01_map	S/E: world map and zone choice; music 0x2f
+0x800a1b08	function	scr02_story	S/E: zone story scene with dialogue; music 0x26
+0x800a1b28	function	scr03_stage_setup	S/E: lasts ~20 frames before the stage intro
+0x800a1b48	function	scr04_stage_intro	S/E: stage intro, "The Professor" rules panel
+0x800a1b68	function	scr05_play	S/E: gameplay; -> 9 on clear, -> 6 on loss
+0x800a1ce4	function	scr06_continue	S/E: "CONTINUE?" countdown, game over; -> 4 or 7
+0x800a1d04	function	scr07_rank_entry	S: top-5 check at state+0x4aea0, name entry (90 s), music 0x31
+0x800a1d24	function	scr08_idle	S/E: player not playing ("PRESS START"); -> 0
+0x800a1d44	function	scr09_stage_clear	S: -> 3 (next stage), 10 or 11
+0x800a1d64	function	scr10_zone_clear	S: music 0x32/0x33 (zone 4: tracks 32/33); -> 11, 2 or 1
+0x800a1d84	function	scr11_zone_end	S: stops music; -> 6 or 7
+0x800a1da4	function	scr12_pause	S/E: entered by Start on a pausable screen; two-option menu, option 0 quits
+0x800a1dc4	function	scr13_save	S: save or password screen; music 0x2f; -> 1 or 8
+0x800a2ef8	function	play_step_dispatch	S/E: table 0x8009436c (8) on state+0x4b510; steps 0,1,2,5 cycle per piece
+0x800a38b4	function	continue_step_dispatch	S: table 0x8009439c (10)
+0x800a4630	function	rank_step_dispatch	S: table 0x800943cc (8)
+0x800a5928	function	idle_step_dispatch	S: table 0x80094428 (2)
+0x800a85f0	function	menu_step_dispatch	S: table 0x8009458c (8)
+0x800a8b10	function	map_step_dispatch	S: table 0x800945ac (12)
+0x800a98ec	function	story_step_dispatch	S: table 0x800945ec (6)
+0x800b1364	function	pause_check	S: Start + pausable screen (table 0x800dc424) -> screen 12
+0x800b2504	function	best_times_reset	S: sets the 100 halfwords at state+0x4ad84 to 9999 (999.9 s)
+0x800b5b6c	function	card_events_open	S: memory-card event handles
+0x800b5c94	function	card_init	S: InitCARD, StartCARD, _bu_init
+0x800b5cd4	function	card_events_enable	S
+0x800b5d7c	function	card_shutdown	S

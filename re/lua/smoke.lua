@@ -14,6 +14,9 @@
 --   TP_CD_HOOKS hook table from re/tools/cd_hooks.py (re/lua/cd_hooks.txt). When set, each
 --               CdControl/CdControlF/CdControlB call is logged as
 --               "frame N: cd PROGRAM FUNCTION com=0xCC param=b0 b1 b2 b3"
+--   TP_WATCH    values to log whenever they change, as name=ADDRESS:BYTES (1, 2 or 4, little
+--               endian), comma separated. A name starting with '!' also takes a screenshot on
+--               change. Logged as "frame N: watch NAME OLD -> NEW" (decimal).
 
 local outDir = os.getenv('TP_OUT') or '.'
 local maxFrames = tonumber(os.getenv('TP_FRAMES') or '3600')
@@ -107,6 +110,31 @@ local function hookCdCommands(slot)
     if cdHooks[slot] then addCdBreakpoints(cdHooks[slot], cdBreakpoints) end
 end
 
+local watches = {}
+for entry in (os.getenv('TP_WATCH') or ''):gmatch('[^,]+') do
+    local name, address, size = entry:match('^(!?[%w_]+)=0x(%x+):(%d)$')
+    if not name then error('bad TP_WATCH entry: ' .. entry) end
+    table.insert(watches, { name = name:gsub('^!', ''), shot = name:sub(1, 1) == '!',
+                            address = bit.band(tonumber(address, 16), 0x1fffff), size = tonumber(size) })
+end
+
+local function readValue(address, size)
+    local value = 0
+    for i = size - 1, 0, -1 do value = value * 256 + mem[address + i] end
+    return value
+end
+
+local function checkWatches()
+    for _, w in ipairs(watches) do
+        local value = readValue(w.address, w.size)
+        if value ~= w.last then
+            print(string.format('frame %d: watch %s %s -> %d', frame, w.name, tostring(w.last), value))
+            if w.shot and w.last ~= nil then screenshot('watch ' .. w.name) end
+            w.last = value
+        end
+    end
+end
+
 local function dumpRam()
     local file = Support.File.open(outDir .. '/ram_end.bin', 'TRUNCATE')
     file:write(mem, 0x200000)
@@ -126,6 +154,8 @@ TpSmokeListener = PCSX.Events.createEventListener('GPU::Vsync', function()
     elseif frame % shotEvery == 0 then
         screenshot('periodic')
     end
+
+    checkWatches()
 
     if frame >= maxFrames then
         dumpRam()

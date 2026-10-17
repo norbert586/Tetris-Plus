@@ -7,8 +7,11 @@ header declares EF_MIPS_ARCH_32 with no ABI field and no ABI-flags record (its
 (from ghidra_psx_ldr), Ghidra then decodes the code as R3000A + GTE.
 
 Each EXE's text is mapped at its header load address. The remaining PS1 main RAM,
-the scratchpad and the I/O register window are mapped as uninitialized segments so
-references into them resolve to memory instead of dangling. The entry point is the
+the scratchpad and the I/O register window are mapped as zero bytes stored in the file so
+references into them resolve to memory instead of dangling. They must be stored, not
+zero-filled (FileSiz 0): Ghidra's ELF loader maps zero-filled segments read-only whatever
+their flags, and the decompiler then folds every variable in them to the constant 0
+(for example the player index at 0x800eead0, which made player-2 code read as player 1). The entry point is the
 pc0 of the last EXE given (the program being studied, e.g. PAZLE.EXE loaded on top
 of the resident boot program).
 
@@ -70,22 +73,19 @@ def main():
     # (vaddr, filesz, memsz, flags, payload)
     segments = [(exe["addr"], len(exe["text"]), len(exe["text"]), PF_R | PF_W | PF_X, exe["text"])
                 for exe in exes]
-    segments += [(addr, 0, size, PF_R | PF_W, b"") for addr, size in ram_gaps(exes)]
-    segments += [(addr, 0, size, PF_R | PF_W, b"") for addr, size in (SCRATCHPAD, IO_REGISTERS)]
+    segments += [(addr, size, size, PF_R | PF_W, bytes(size))
+                 for addr, size in ram_gaps(exes) + [SCRATCHPAD, IO_REGISTERS]]
     segments.sort(key=lambda segment: segment[0])
 
     header_end = ELF_HEADER_SIZE + PROGRAM_HEADER_SIZE * len(segments)
     offset = (header_end + FILE_ALIGN - 1) // FILE_ALIGN * FILE_ALIGN
     program_headers, payload = [], bytearray()
     for vaddr, filesz, memsz, flags, data in segments:
-        if filesz:
-            assert vaddr % FILE_ALIGN == 0, f"{vaddr:#x} is not page aligned"
-            program_headers.append(struct.pack("<8I", PT_LOAD, offset + len(payload), vaddr, vaddr,
-                                               filesz, memsz, flags, FILE_ALIGN))
-            payload += data
-            payload += bytes(-len(payload) % FILE_ALIGN)
-        else:
-            program_headers.append(struct.pack("<8I", PT_LOAD, 0, vaddr, vaddr, 0, memsz, flags, 0x10))
+        # ELF wants file offset and address congruent modulo the alignment.
+        payload += bytes((vaddr - offset - len(payload)) % FILE_ALIGN)
+        program_headers.append(struct.pack("<8I", PT_LOAD, offset + len(payload), vaddr, vaddr,
+                                           filesz, memsz, flags, FILE_ALIGN))
+        payload += data
 
     ident = b"\x7fELF" + bytes([1, 1, 1, 0]) + bytes(8)  # ELFCLASS32, little endian, version 1
     elf_header = ident + struct.pack("<2H5I6H", ET_EXEC, EM_MIPS, 1, exes[-1]["pc0"], ELF_HEADER_SIZE,
@@ -96,8 +96,8 @@ def main():
     image += payload
     with open(out_path, "wb") as out:
         out.write(image)
-    for vaddr, filesz, memsz, _flags, _data in segments:
-        kind = "file" if filesz else "zero"
+    for vaddr, _filesz, memsz, flags, _data in segments:
+        kind = "code" if flags & PF_X else "zeros"
         print(f"  {vaddr:#010x}-{vaddr + memsz:#010x} {kind}")
     print(f"wrote {out_path}: entry {exes[-1]['pc0']:#010x}, {len(segments)} segments")
 
