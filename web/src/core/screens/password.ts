@@ -152,3 +152,24 @@ export function passwordEncode(zonesCleared: number, zone: number, stage: number
   for (let k = 0; k < 6; k++) out.push((v >> (3 * (5 - k))) & 7);
   return out;
 }
+
+/** password_show (0x800B3F28): the frame at (x, y) and the current game's six symbols. */
+export function passwordShow(g: Game, x: number, y: number, layer: number): void {
+  const m = g.m;
+  const o = A.obj(g.ob + 0x194);
+  m.w32(o + A.O_IMAGE, 0x103d5);
+  m.w32(o + A.O_X, x << 16);
+  m.w32(o + A.O_Y, y << 16);
+  m.w32(o + A.O_PLAYER, g.p);
+  m.w32(o + A.O_20, layer);
+  const zc = m.s32(g.pv(V.ZONES_CLEARED));
+  let v = zc;
+  if (zc !== 0x1f) v |= (m.s32(g.pv(V.ZONE)) << 5) | ((m.s32(g.pv(V.STAGE)) % 20) << 8);
+  v = (popcount14(v) << 14) | v;
+  v ^= 0x2aaa;
+  for (let i = 0; i < 6; i++) {
+    symbolDraw(g, 5 - i, v & 7);
+    v >>= 3;
+  }
+  m.w32(g.pv(V.PASSWORD_VALUE), v);
+}

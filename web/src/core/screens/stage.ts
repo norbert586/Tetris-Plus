@@ -34,7 +34,7 @@ function toScreen(g: Game, screen: number): void {
 }
 
 /** One frame of the tile wipe (FUN_800AFF90 covers, FUN_800B0290 uncovers); true at the end. */
-function wipe(g: Game, cover: boolean): boolean {
+export function wipe(g: Game, cover: boolean): boolean {
   const m = g.m;
   if (m.s32(g.pv(WIPE_STATE)) === 0) {
     m.w32(g.pv(WIPE_FRAME), 0);

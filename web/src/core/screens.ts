@@ -5,6 +5,8 @@ import { scr01Map } from './screens/map';
 import { scr02Story } from './screens/story';
 import { scr08Idle } from './screens/idle';
 import { scr03StageSetup, scr04StageIntro, scr05Play } from './screens/stage';
+import { scr06Continue, scr07RankEntry, scr09StageClear, scr13Save } from './screens/after';
+import { scr12Pause } from './screens/pausemenu';
 
 const notPorted = (n: number) => (_g: Game) => {
   throw new NotPorted(`screen ${n}`);
@@ -17,12 +19,12 @@ export const SCREENS: ((g: Game) => void)[] = [
   scr03StageSetup,
   scr04StageIntro,
   scr05Play,
-  notPorted(6),
-  notPorted(7),
+  scr06Continue,
+  scr07RankEntry,
   scr08Idle,
-  notPorted(9),
+  scr09StageClear,
   notPorted(10),
   notPorted(11),
-  notPorted(12),
-  notPorted(13),
+  scr12Pause,
+  scr13Save,
 ];

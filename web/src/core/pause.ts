@@ -53,3 +53,12 @@ export function hidePlayArea(g: Game): void {
     g.m.w32(a, g.m.u32(a) | 0x80000000);
   }
 }
+
+/** FUN_800B20E4: shows the play area again. */
+export function showPlayArea(g: Game): void {
+  g.m.w32(A.OBJ_BASE, g.p * 400);
+  for (const n of PLAY_AREA) {
+    const a = A.obj(g.ob + n) + A.O_IMAGE;
+    g.m.w32(a, g.m.u32(a) & 0x7fffffff);
+  }
+}
