@@ -1,5 +1,5 @@
 // Reads traces written by re/lua/movie.lua (docs/re/oracle-harness.md §3): a header line, then
-// one line per tick with only the fields that changed. Event lists (se, bgm) appear only on
+// one line per tick with only the fields that changed. Event lists (se, bgm, up) appear only on
 // ticks that have events. The TypeScript twin of re/tools/tptrace.py's reader.
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
@@ -13,17 +13,17 @@ export interface Trace {
   rows: Row[];
 }
 
-export const EVENT_FIELDS = ['se', 'bgm'];
+export const EVENT_FIELDS = ['se', 'bgm', 'up'];
 
 export function parseTrace(text: string): Trace {
   const lines = text.split('\n').filter((l) => l.length > 0);
   const header = JSON.parse(lines[0]);
-  if (header.tptrace !== 1) throw new Error('not a version 1 trace');
+  if (header.tptrace !== 1 && header.tptrace !== 2) throw new Error('not a version 1 or 2 trace');
   const rows: Row[] = [];
   let current: Row = {};
   for (let i = 1; i < lines.length; i++) {
     const delta = JSON.parse(lines[i]) as Row;
-    current = { ...current, se: [], bgm: [], ...delta };
+    current = { ...current, se: [], bgm: [], up: [], ...delta };
     rows.push(current);
   }
   return { movie: header.movie, fields: header.fields, rows };

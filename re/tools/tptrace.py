@@ -15,7 +15,7 @@ import gzip
 import json
 import sys
 
-EVENT_FIELDS = ('se', 'bgm')
+EVENT_FIELDS = ('se', 'bgm', 'up')
 PIECES = '.IOTJLZS'
 
 
@@ -27,8 +27,8 @@ def read(path):
     """Returns (header, rows): every row holds every field's value at its tick."""
     with open_text(path) as f:
         header = json.loads(f.readline())
-        if header.get('tptrace') != 1:
-            raise SystemExit(f'{path}: not a version 1 trace')
+        if header.get('tptrace') not in (1, 2):
+            raise SystemExit(f'{path}: not a version 1 or 2 trace')
         rows, current = [], {}
         for line in f:
             delta = json.loads(line)
