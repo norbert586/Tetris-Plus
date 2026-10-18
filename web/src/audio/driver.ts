@@ -12,6 +12,8 @@ export const CYCLES_PER_VBLANK = 564_400;
 /** When in a vblank libsnd's flush reads ENVX, and when it writes KON (measured: ~18,000-18,230). */
 const FLUSH_READ = 16_000;
 const FLUSH_WRITE = 18_100;
+/** The flush's history index when tick 1 starts (measured: 14 at tick 2's sample, after 332 flushes). */
+const BOOT_HISTORY_INDEX = 2;
 
 /** The SPU state right after Puzzle Mode's sound setup (trace tick 1): `spu` and `rev` fields. */
 const BOOT_KOFF = [0xffff, 0xffff * 65536, 0xff * 65536];
@@ -53,6 +55,7 @@ export class SoundDriver {
   /** The writes Puzzle Mode's sound setup leaves behind, reported on its first tick. */
   boot(cdVolume: number): TickAudio {
     const out: TickAudio = { kon: [], koff: [...BOOT_KOFF], writes: [] };
+    this.libsnd.historyIndex = BOOT_HISTORY_INDEX;
     for (const [o, v] of BOOT_GLOBALS) this.write(out, o, v, 0);
     this.setCdVolume(out, cdVolume, 0);
     BOOT_REVERB.forEach((v, i) => this.write(out, 0x1c0 + 2 * i, v, 0));

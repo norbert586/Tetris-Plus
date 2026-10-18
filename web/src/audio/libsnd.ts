@@ -43,9 +43,10 @@ export class Libsnd {
   private kon = 0;
   private koff = 0;
   private eon = 0;
-  /** Which voices read ENVX = 0, for the last 16 flushes (0x800EDBAC), and the ring index. */
+  /** Which voices read ENVX = 0, for the last 16 flushes (0x800EDBAC), and the ring index
+   * (0x800EDBA8). Only entries 0-14 decide whether a voice is free, so the index's phase matters. */
   private readonly zeroHistory = new Uint32Array(16);
-  private historyIndex = 0;
+  historyIndex = 0;
 
   constructor(
     private readonly vab: Vab,
