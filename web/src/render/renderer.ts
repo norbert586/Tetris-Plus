@@ -6,7 +6,7 @@ import * as A from '../core/addr';
 import type { Game } from '../core/game';
 import { parseTim, type Tim } from '../assets/tim';
 import { Gpu, VRAM_WIDTH } from './gpu';
-import { OrderingTable, type Box, type Sprite } from './libgs';
+import { OrderingTable, type Sprite } from './libgs';
 
 /** Per-image position offsets (16.16) for images below 0x10200 (objects_draw). */
 const IMAGE_OFFSETS = 0x800d64ac;
@@ -70,6 +70,11 @@ export class Renderer {
   readonly templates: Sprite[];
   /** Packets of the last frame, in drawing order (for debugging). */
   packets: number[][] = [];
+  /**
+   * Leave out player 2's sprite objects (400-799): the "PRESS START" panel and its character,
+   * hidden until two-player mode exists (docs/RESEARCH_AND_PLAN.md §9). Off for verification.
+   */
+  hidePlayer2 = false;
 
   constructor(items: Uint8Array[]) {
     this.tims = items.map(parseTim);
@@ -102,7 +107,11 @@ export class Renderer {
   frame(g: Game): Frame {
     this.applyUploads(g.uploads);
     // GsGetActiveBuff alternates from 0 at tick 1; the table is drawn into the other buffer.
-    const buffer = g.tick & 1;
+    return this.draw(g, g.tick & 1);
+  }
+
+  /** Sorts and draws the game's objects and boxes into display buffer `buffer`. */
+  draw(g: Game, buffer: number): Frame {
     const top = 240 * buffer;
     const ot = new OrderingTable();
     for (const b of g.boxes) ot.sortBoxFill(b.box, b.pri);
@@ -142,6 +151,11 @@ export class Renderer {
       const o = A.obj(n);
       const image = m.s32(o + A.O_IMAGE);
       if (image <= 0) continue;
+      if (this.hidePlayer2 && n >= 400 && n < 800) {
+        // Its box-fill objects still used their rand() colours.
+        if (m.s32(o + A.O_KIND) === -1) randomBox++;
+        continue;
+      }
       const pri = m.s32(o + A.O_PRIORITY) < 1 ? 20 - Math.trunc(n / 50) : m.u16(o + A.O_PRIORITY);
       const kind = m.s32(o + A.O_KIND);
       if (kind === -1) {
@@ -208,4 +222,4 @@ export class Renderer {
   }
 }
 
-export type { Box };
+

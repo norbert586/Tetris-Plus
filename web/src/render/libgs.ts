@@ -77,10 +77,14 @@ export class OrderingTable {
     this.buckets[pri].unshift(words);
   }
 
-  /** Packets in drawing order: the head, then buckets from the highest priority down. */
+  /**
+   * Packets in drawing order: the head, the buckets from the highest priority down, then the
+   * 4-word dummy packet (all zero, 0x800E73F8) ClearOTagR links the last entry to.
+   */
   *packets(): Generator<number[]> {
     yield* this.head;
     for (let p = this.length - 1; p >= 0; p--) yield* this.buckets[p];
+    yield [0, 0, 0, 0];
   }
 
   /** GsSortClear: a fill of the drawing buffer. */

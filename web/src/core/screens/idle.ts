@@ -5,7 +5,7 @@
 // shell keeps pad 2's Start off until two-player mode exists.
 import * as A from '../addr';
 import type { Game } from '../game';
-import { animSet, animTick, objectMove, objectsClear } from '../objects';
+import { animSet, animTick, itemLoad, objectMove, objectsClear } from '../objects';
 import { debrisClearAll, objectsClearBoard, boardObjectsLayout, objectsClearPopups, objectsClearPieceFlash } from '../play/objects';
 import { BGM_JOIN_P1, BGM_JOIN_P2 } from '../sound';
 
@@ -25,6 +25,18 @@ function setAnim(g: Game, state: number) {
   g.m.w32(g.pv(ANIM_SUB), 0);
 }
 const animDone = (g: Game) => g.m.s32(co(g) + A.O_ANIM) === 0;
+
+/** FUN_800A787C: uploads the character's current image. */
+const charLoad = (g: Game) => itemLoad(g, g.m.s32(co(g) + A.O_IMAGE) - 0x10001);
+/** Starts the character's animation and uploads its first image. */
+function charSet(g: Game, id: number) {
+  animSet(g, charObj(g), id);
+  charLoad(g);
+}
+/** Advances the character's animation, uploading the image when it changed. */
+function charTick(g: Game) {
+  if (animTick(g, charObj(g))) charLoad(g);
+}
 
 export function scr08Idle(g: Game): void {
   if (g.m.s32(g.pv(A.STEP)) === 0) idleSetup(g);
@@ -63,6 +75,7 @@ function idleSetup(g: Game): void {
   m.w32(o + A.O_20, 2);
   m.w32(o + A.O_PALETTE, p);
   setAnim(g, 0);
+  charLoad(g);
   if (g.p === 0) {
     m.w32(BGM_JOIN_P1, 0);
     if (m.s32(A.SCREEN + 4) !== 8) m.w32(BGM_JOIN_P2, 1);
@@ -94,7 +107,7 @@ function idleRun(g: Game): void {
 
 /** 0x800A5DBC: animation 0x28, wait 64 frames. */
 function enter0(g: Game) {
-  animSet(g, charObj(g), 0x28);
+  charSet(g, 0x28);
   g.m.w32(co(g) + A.O_4C, 0x40);
   nextSub(g);
 }
@@ -109,11 +122,11 @@ function enter1(g: Game) {
 }
 /** 0x800A5F10: jump up, decelerating. */
 function enter2(g: Game) {
-  animTick(g, charObj(g));
+  charTick(g);
   objectMove(g, charObj(g));
   const o = co(g);
   if (g.m.add32(o + A.O_VY, 0x4000) === 0) {
-    animSet(g, charObj(g), 0x29);
+    charSet(g, 0x29);
     nextSub(g);
   }
 }
@@ -122,18 +135,18 @@ function enter3(g: Game) {
   const m = g.m;
   const o = co(g);
   if (m.s32(o + A.O_Y) < 0x3f0000) {
-    animTick(g, charObj(g));
+    charTick(g);
     objectMove(g, charObj(g));
     m.add32(co(g) + A.O_VY, 0x4000);
   } else {
-    animSet(g, charObj(g), 0x2a);
+    charSet(g, 0x2a);
     m.w32(co(g) + A.O_Y, 0x3f0000);
     nextSub(g);
   }
 }
 /** 0x800A61BC */
 function enter4(g: Game) {
-  animTick(g, charObj(g));
+  charTick(g);
   if (animDone(g)) setAnim(g, 1);
 }
 
@@ -146,6 +159,7 @@ function stand0(g: Game) {
   m.w32(o + A.O_PLAYER, g.p);
   m.w32(o + A.O_20, 2);
   m.w32(co(g) + A.O_4C, g.rand() & 0xff);
+  charLoad(g);
   nextSub(g);
 }
 /** 0x800A63DC */
@@ -179,7 +193,7 @@ function walk0(g: Game) {
   const o = co(g);
   m.w32(o + A.O_VX, m.s32(X_STEP + 4 * (r & 1)));
   m.w32(o + A.O_VY, 0);
-  animSet(g, charObj(g), 0x2b);
+  charSet(g, 0x2b);
   faceWalk(g);
   nextSub(g);
 }
@@ -190,7 +204,7 @@ function walk1(g: Game) {
     nextSub(g);
     return;
   }
-  animTick(g, charObj(g));
+  charTick(g);
   if (atEdge(g)) {
     m.w32(g.pv(ANIM_SUB), 4);
   } else if (g.counter & 1) {
@@ -210,14 +224,14 @@ function nop(_g: Game) {}
 function walk4(g: Game) {
   const o = co(g);
   g.m.w32(o + A.O_VX, -g.m.s32(o + A.O_VX));
-  animSet(g, charObj(g), 0x2c);
+  charSet(g, 0x2c);
   nextSub(g);
 }
 /** 0x800A6A18 */
 function walk5(g: Game) {
-  animTick(g, charObj(g));
+  charTick(g);
   if (animDone(g)) {
-    animSet(g, charObj(g), 0x2b);
+    charSet(g, 0x2b);
     faceWalk(g);
     objectMove(g, charObj(g));
     g.m.w32(g.pv(ANIM_SUB), 1);
@@ -226,12 +240,12 @@ function walk5(g: Game) {
 
 /** Starts animation `id` and goes to the next sub-step. */
 const play = (id: number) => (g: Game) => {
-  animSet(g, charObj(g), id);
+  charSet(g, id);
   nextSub(g);
 };
 /** Waits for the animation to end. */
 function playWait(g: Game) {
-  animTick(g, charObj(g));
+  charTick(g);
   if (animDone(g)) nextSub(g);
 }
 /** Back to standing. */
@@ -241,13 +255,13 @@ const toStand = (g: Game) => setAnim(g, 1);
 function long0(g: Game) {
   g.m.w32(co(g) + A.O_ANIM, 0x2e);
   g.m.w32(co(g) + A.O_4C, (g.rand() & 0x7f) + 0xff);
-  animSet(g, charObj(g), 0x2e);
+  charSet(g, 0x2e);
   nextSub(g);
 }
 /** 0x800A6EE4 */
 function long1(g: Game) {
   if (g.m.add32(co(g) + A.O_4C, -1) < 0) nextSub(g);
-  animTick(g, charObj(g));
+  charTick(g);
 }
 
 // ANIMS[state][sub]; state 9's entry is a plain function, not a table (it reruns enter0).

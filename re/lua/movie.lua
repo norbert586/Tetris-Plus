@@ -240,7 +240,7 @@ end
 do
     local names = {}
     for i, f in ipairs(fields) do names[i] = '"' .. f.name .. '"' end
-    trace:write(string.format('{"tptrace":%d,"movie":"%s","boot":"%s","fields":[%s,"board","rand","se","bgm"]}\n',
+    trace:write(string.format('{"tptrace":%d,"movie":"%s","boot":"%s","fields":[%s,"board","rand","se","bgm","up","ot","fb"]}\n',
                               TRACE_VERSION, movie.name, movie.boot, table.concat(names, ',')))
 end
 
@@ -444,11 +444,17 @@ addExec(BGM_REQUEST, 'tp_bgm', function(regs)
 end)
 -- Image uploads: item_load(n) uploads at once, FUN_8009747C(n) queues an upload for the end of
 -- the frame (up to 4 a frame). Logged as n + 0x10000 * player, plus 0x100000 when queued.
+-- TP_UPLOAD_LOG=1 also logs each call's return address ("tick N: up ITEM from RA").
+local uploadLog = os.getenv('TP_UPLOAD_LOG') == '1'
 addExec(ITEM_LOAD, 'tp_item_load', function(regs)
-    if active then uploads[#uploads + 1] = regs.GPR.n.a0 + 0x10000 * readers.u32(phys(PLAYER)) end
+    if not active then return end
+    uploads[#uploads + 1] = regs.GPR.n.a0 + 0x10000 * readers.u32(phys(PLAYER))
+    if uploadLog then log(string.format('up %d from 0x%08x', regs.GPR.n.a0, regs.GPR.n.ra)) end
 end)
 addExec(ITEM_QUEUE, 'tp_item_queue', function(regs)
-    if active then uploads[#uploads + 1] = regs.GPR.n.a0 + 0x10000 * readers.u32(phys(PLAYER)) + 0x100000 end
+    if not active then return end
+    uploads[#uploads + 1] = regs.GPR.n.a0 + 0x10000 * readers.u32(phys(PLAYER)) + 0x100000
+    if uploadLog then log(string.format('upq %d from 0x%08x', regs.GPR.n.a0, regs.GPR.n.ra)) end
 end)
 
 ------------------------------------------------------------------------------ per vblank

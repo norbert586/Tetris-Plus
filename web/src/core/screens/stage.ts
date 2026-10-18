@@ -1,7 +1,7 @@
 // Screens 3 (stage setup), 4 (stage intro) and 5 (play): docs/spec/stages.md §2, frame.md §2-§3.
 import * as A from '../addr';
 import type { Game } from '../game';
-import { animSet, animTick, objectClear } from '../objects';
+import { animSet, animTick, itemLoad, objectClear } from '../objects';
 import { bgmRequest, sePlay } from '../sound';
 import * as V from '../vars';
 import { profDispatch, objectsClearLineFlash } from '../professor';
@@ -171,6 +171,7 @@ export function stageArt31(g: Game): void {
   m.w32(o + A.O_X, -0x40000);
   m.w32(o + A.O_Y, 0x20000);
   m.w32(o + A.O_PALETTE, g.p);
+  itemLoad(g, m.s32(o + A.O_IMAGE) - 0x10001);
 }
 export function stageArt30(g: Game): void {
   const m = g.m;
@@ -181,6 +182,7 @@ export function stageArt30(g: Game): void {
   m.w32(o + A.O_X, 0);
   m.w32(o + A.O_Y, 0x80000);
   m.w32(o + A.O_PALETTE, g.p);
+  itemLoad(g, m.s32(o + A.O_IMAGE) - 0x10001);
 }
 
 /** FUN_800B0FAC: the zone emblem, the "last stage" mark and the bonus-stage marker. */
@@ -196,6 +198,7 @@ function stageEmblem(g: Game): void {
   m.w32(o + A.O_X, m.s32(0x8009486c + last * 8) << 16);
   m.w32(o + A.O_Y, m.s32(0x8009486c + last * 8 + 4) << 16);
   m.w32(o + A.O_PALETTE, p);
+  itemLoad(g, m.s32(o + A.O_IMAGE) - 0x10001);
   if (stage === 0x13) {
     o = A.obj(g.ob + 0x24);
     m.w32(o + A.O_PLAYER, p);

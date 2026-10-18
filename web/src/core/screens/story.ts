@@ -5,7 +5,7 @@
 import * as A from '../addr';
 import type { Game } from '../game';
 import { dialogueRun, dialogueStart } from '../dialogue';
-import { objectClear, objectFadeBox, objectFadeDown, objectFadeUp, objectsClear } from '../objects';
+import { itemLoad, objectClear, objectFadeBox, objectFadeDown, objectFadeUp, objectsClear } from '../objects';
 import { bgmRequest } from '../sound';
 import * as V from '../vars';
 
@@ -66,6 +66,7 @@ export function picture(g: Game, image: number, y: number): void {
   m.w32(o + A.O_PLAYER, g.p);
   m.w32(o + A.O_20, 2);
   m.w32(o + A.O_PALETTE, g.p);
+  itemLoad(g, image - 0x10001);
 }
 
 /** FUN_800BFE94: the frame above and below the picture. */
@@ -99,6 +100,7 @@ const open = (image: number, msg: number, pages: number, strip: boolean): Step =
     m.w32(o + A.O_PLAYER, g.p);
     m.w32(o + A.O_20, 2);
     m.w32(o + A.O_PALETTE, g.p);
+    itemLoad(g, 0x10203 - 0x10001);
   }
   dialogueStart(g, msg, 0, pages);
   next(g);

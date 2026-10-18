@@ -32,13 +32,54 @@ export function objectsDraw(g: Game): void {
     const image = m.s32(o + A.O_IMAGE);
     if (image <= 0) continue;
     live++;
-    if (m.s32(o + A.O_KIND) === -1) {
-      g.rand();
-      g.rand();
-      g.rand();
-    }
+    if (m.s32(o + A.O_KIND) === -1) g.boxColors.push(g.rand() & 7, g.rand() & 7, g.rand() & 7);
   }
   m.w32(A.S + 0x58, live);
+}
+
+// ---- image uploads (presentation: the renderer replays them into its VRAM) ----
+
+/** GsBOXF, as GsSortBoxFill takes it. */
+export interface Box {
+  attribute: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  r: number;
+  g: number;
+  b: number;
+}
+
+const UPLOAD_COUNT = 0x800d4fb0; // queued uploads this frame (at most 4)
+const UPLOAD_PLAYER = 0x800f0bc4; // [4] the player each was queued for
+
+/** item_load (0x8009740C): decodes PAZLEE.BIN item n and uploads it to the current player's VRAM. */
+export function itemLoad(g: Game, n: number): void {
+  g.uploads.push(n + 0x10000 * g.p);
+}
+
+/** FUN_8009747C: queues item n's upload for the end of the frame; a fifth one is dropped. */
+export function itemQueue(g: Game, n: number): void {
+  g.uploads.push(n + 0x10000 * g.p + 0x100000);
+  const count = g.m.s32(UPLOAD_COUNT);
+  if (count < 4) {
+    g.m.w32(UPLOAD_PLAYER + 4 * count, g.p);
+    g.m.w32(UPLOAD_COUNT, count + 1);
+  }
+}
+
+/** upload_queue_flush (0x80097524): uploads the queue, leaving the current player at the last one's. */
+export function uploadQueueFlush(g: Game): void {
+  const count = g.m.s32(UPLOAD_COUNT);
+  if (count === 0) return;
+  for (let i = 0; i < count; i++) g.m.w32(A.PLAYER, g.m.s32(UPLOAD_PLAYER + 4 * i));
+  g.m.w32(UPLOAD_COUNT, 0);
+}
+
+/** GsSortBoxFill during the logic: a box drawn this frame only (the renderer sorts it first). */
+export function boxFill(g: Game, box: Box, pri: number): void {
+  g.boxes.push({ box, pri });
 }
 
 /** FUN_800985b4: image and position (whole pixels) of object n. */
@@ -73,10 +114,12 @@ function objectPut(g: Game, n: number, image: number, x: number, y: number, laye
 export function objectLoad1(g: Game, n: number, image: number, x: number, y: number): void {
   objectPut1(g, n, image, x, y);
   g.m.w32(A.obj(n + g.ob) + A.O_PALETTE, g.p);
+  itemLoad(g, image - 1);
 }
 export function objectLoad2(g: Game, n: number, image: number, x: number, y: number): void {
   objectPut2(g, n, image, x, y);
   g.m.w32(A.obj(n + g.ob) + A.O_PALETTE, g.p);
+  itemLoad(g, image - 1);
 }
 
 /** FUN_80098200: moves object n by its velocity. */
@@ -161,4 +204,18 @@ export function animTick(g: Game, n: number): boolean {
   m.w32(o + A.O_ANIM_TIMER, m.s32(t));
   m.w32(o + A.O_IMAGE, m.s32(t + 4 * (m.s32(o + A.O_ANIM_FRAME) + 1)) + 0x10000);
   return true;
+}
+
+/** FUN_800AEC28: animStart, queueing an upload of the first image. */
+export function animStartLoad(g: Game, n: number): void {
+  if (g.m.s32(A.obj(n) + A.O_ANIM) === 0) return;
+  animStart(g, n);
+  itemQueue(g, g.m.s32(A.obj(n) + A.O_IMAGE) - 0x10001);
+}
+
+/** FUN_800AEF3C: animTick, queueing an upload whenever the image changed. */
+export function animTickLoad(g: Game, n: number): boolean {
+  const changed = animTick(g, n);
+  if (changed) itemQueue(g, g.m.s32(A.obj(n) + A.O_IMAGE) - 0x10001);
+  return changed;
 }

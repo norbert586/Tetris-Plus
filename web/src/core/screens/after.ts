@@ -1,7 +1,7 @@
 // Screens 6 (continue), 7 (rank check), 9 (stage clear) and 13 (save / password).
 import * as A from '../addr';
 import { NotPorted, type Game } from '../game';
-import { animSet, animTick, objectClear, objectPut2 } from '../objects';
+import { animSet, animStartLoad, animTick, animTickLoad, objectClear, objectPut2 } from '../objects';
 import { bgmRequest, sePlay } from '../sound';
 import * as V from '../vars';
 import { profDispatch, objectsClearLineFlash } from '../professor';
@@ -237,7 +237,8 @@ const RANK: ((g: Game) => void)[] = [
     let o = A.obj(g.ob + 0x19e);
     m.w32(o + A.O_PLAYER, 0);
     m.w32(o + A.O_20, 0);
-    animSet(g, g.ob + 0x19e, 0x23);
+    g.m.w32(A.obj(g.ob + 0x19e) + A.O_ANIM, 0x23);
+    animStartLoad(g, g.ob + 0x19e);
     m.w32(o + A.O_PALETTE, p);
     m.w32(o + A.O_X, x);
     m.w32(o + A.O_Y, 0x9d0000);
@@ -304,7 +305,7 @@ const RANK: ((g: Game) => void)[] = [
         m.w32(letter(g, cur()), m.s32(LETTER_RANGE + cur() * 8));
       }
     }
-    animTick(g, g.ob + 0x19e);
+    animTickLoad(g, g.ob + 0x19e);
     const image = (k: number) => m.s32(LETTER_IMAGE + m.s32(letter(g, k)) * 4) + 0x10000;
     for (let i = 0; i < cur(); i++) m.w32(A.obj(i + 0x1a3 + g.ob) + A.O_IMAGE, image(i));
     m.w32(A.obj(cur() + 0x1a3 + g.ob) + A.O_IMAGE, g.counter & 8 ? 0 : image(cur()));

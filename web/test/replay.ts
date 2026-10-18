@@ -1,5 +1,6 @@
 // Plays a movie on the core and compares it with the original's trace, tick by tick.
 import { Game, NotPorted } from '../src/core/game';
+import type { Renderer } from '../src/render/renderer';
 import type { Movie } from '../tools/movie';
 import { sameValue, type Row, type Trace } from '../tools/trace';
 
@@ -7,7 +8,12 @@ export interface CompareOptions {
   ignore?: string[];
   to?: number;
   context?: number;
+  /** Also render every tick and compare the GPU packet and frame hashes (ot, fb). */
+  renderer?: Renderer;
 }
+
+/** Trace fields only the renderer produces. */
+export const RENDER_FIELDS = ['ot', 'fb'];
 
 export interface CompareResult {
   ok: boolean;
@@ -26,7 +32,25 @@ export function gameForTrace(trace: Trace): Game {
 }
 
 export function compareMovie(movie: Movie, trace: Trace, opts: CompareOptions = {}): CompareResult {
-  const ignore = new Set(opts.ignore ?? []);
+  const steps = compareSteps(movie, trace, opts);
+  for (;;) {
+    const r = steps.next();
+    if (r.done) return r.value;
+  }
+}
+
+/** compareMovie, giving the event loop a turn every 1,000 ticks (long runs in a test worker). */
+export async function compareMovieAsync(movie: Movie, trace: Trace, opts: CompareOptions = {}): Promise<CompareResult> {
+  const steps = compareSteps(movie, trace, opts);
+  for (let n = 0; ; n++) {
+    const r = steps.next();
+    if (r.done) return r.value;
+    if (n % 1000 === 999) await new Promise((resolve) => setImmediate(resolve));
+  }
+}
+
+function* compareSteps(movie: Movie, trace: Trace, opts: CompareOptions): Generator<void, CompareResult> {
+  const ignore = new Set([...(opts.ignore ?? []), ...(opts.renderer ? [] : RENDER_FIELDS)]);
   const fields = trace.fields.filter((f) => !ignore.has(f));
   const context = opts.context ?? 5;
   const to = Math.min(opts.to ?? Infinity, movie.last);
@@ -44,6 +68,11 @@ export function compareMovie(movie: Movie, trace: Trace, opts: CompareOptions = 
     }
     const got = game.traceRow();
     got.t = t;
+    if (opts.renderer) {
+      const frame = opts.renderer.frame(game);
+      got.ot = frame.ot;
+      got.fb = frame.fb;
+    }
     for (const poke of movie.pokes.get(t) ?? []) {
       if (poke.size === 4) game.m.w32(poke.address, poke.value);
       else if (poke.size === 2) game.m.w16(poke.address, poke.value);
@@ -51,6 +80,7 @@ export function compareMovie(movie: Movie, trace: Trace, opts: CompareOptions = 
     }
     mine.push(got);
     ticks++;
+    yield;
     const bad = fields.filter((f) => !sameValue(got[f], want[f]));
     if (bad.length) {
       const lines = [`first difference at tick ${t}: ${bad.join(', ')}`];

@@ -1,7 +1,7 @@
 // Screen 0: Puzzle Mode's menu, New Game / Continue / Password (menu_step_dispatch).
 import * as A from '../addr';
 import { NotPorted, type Game } from '../game';
-import { animSet, animTick, objectClear, objectPut2, objectsClear } from '../objects';
+import { animSet, animTick, itemLoad, objectClear, objectPut2, objectsClear } from '../objects';
 import { bgmRequest, sePlay } from '../sound';
 import { passwordStep } from './password';
 import * as V from '../vars';
@@ -52,6 +52,7 @@ const MAIN: ((g: Game) => void)[] = [
     m.w32(g.pv(V.HUNDRED_AUTO), 0);
     m.w32(g.pv(V.HUNDRED), 0);
     m.w32(g.pv(V.NEW_GAME_FIRST), 0);
+    itemLoad(g, 0x4c5);
     m.add32(g.pv(A.SUBSTEP), 1);
   },
   // 0x8009A020: Up/Down move the cursor, Cross picks.
