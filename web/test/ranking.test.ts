@@ -49,10 +49,9 @@ describe('RANKING.EXE', () => {
     runs(trace).forEach((run, k) => {
       it(`${name}, run ${k + 1} (ticks ${trace.rows[run.start].t}-${trace.rows[run.end - 1].t})`, () => {
         const rows = trace.rows.slice(run.start, run.end);
-        // The first row's rand() count also has the boot program's calls before main, which the
-        // port skips (it starts from the trace's mainseed): the seed shows main made none itself.
+        // The first row's rand() count is the previous program's last call (the seed at main
+        // already includes it): main itself makes none.
         expect(rows[0].seed).toBe(rows[0].mainseed);
-        rows[0] = { ...rows[0], rand: 0 };
         const after = trace.rows[run.end] as Row | undefined;
         const last = rows[rows.length - 1];
         const reset = after !== undefined && after.prog === 'TITLE' && last.exit === 0;

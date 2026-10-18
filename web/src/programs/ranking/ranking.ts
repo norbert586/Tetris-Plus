@@ -99,7 +99,9 @@ export class Ranking implements Program {
     const m = this.m;
     this.sound = [];
     this.uploads = [];
-    this.rng.calls = 0;
+    // On the first tick, the previous program's last iteration's rand() (after the tracer's
+    // last sample of it, already in the seed main finds) is counted, as the other ports do.
+    this.rng.calls = this.tick === 0 ? 1 : 0;
     if (this.tick > 0) {
       this.tail(pad);
       if (this.exited) return;
