@@ -1,5 +1,7 @@
 // Plays a movie on the core and compares it with the original's trace, tick by tick.
 import { Game, NotPorted } from '../src/core/game';
+import type { MemoryCards } from '../src/flow/memcard';
+import { bootSave, movieCards } from './cards';
 import type { AudioModel } from '../src/audio/model';
 import type { Renderer } from '../src/render/renderer';
 import type { Movie } from '../tools/movie';
@@ -13,6 +15,8 @@ export interface CompareOptions {
   renderer?: Renderer;
   /** Also run the sound (the trace's vs, kon, koff, spu, rev, cd, cdr; trace version 3). */
   audio?: (game: Game) => AudioModel;
+  /** The memory cards (default: the movie's, test/cards.ts). */
+  cards?: MemoryCards;
 }
 
 /** Trace fields only the renderer produces. */
@@ -24,11 +28,11 @@ export const AUDIO_FIELDS = ['vs', 'kon', 'koff', 'spu', 'rev', 'cd', 'cdr'];
  * are compared as sequences that may each be a tick early or late (docs/re/audio.md §6): where
  * the program's commands fall inside a tick isn't modelled.
  */
-const TIMED = ['cd', 'cdr', 'cdvol'];
+export const TIMED = ['cd', 'cdr', 'cdvol'];
 const SLACK = 1;
 
 /** Matches two event sequences, allowing each event to move by SLACK ticks. */
-class TimedEvents {
+export class TimedEvents {
   private readonly got: [number, string][] = [];
   private readonly want: [number, string][] = [];
 
@@ -64,13 +68,17 @@ export interface CompareResult {
 }
 
 /** A game set up as the trace's first tick found it (counter and seed from the trace). */
-export function gameForTrace(trace: Trace): Game {
+export function gameForTrace(trace: Trace, cards?: MemoryCards): Game {
   const first = trace.rows[0];
-  return new Game({
+  const game = new Game({
     counter: (first.ctr as number) - 1,
     seed: first.seed as number,
     difficulty: first.difficulty as number,
+    cards,
   });
+  // A card holding a save: the saved block as SW_ON loaded it at power-on.
+  if (cards) bootSave(game);
+  return game;
 }
 
 export function compareMovie(movie: Movie, trace: Trace, opts: CompareOptions = {}): CompareResult {
@@ -100,7 +108,7 @@ function* compareSteps(movie: Movie, trace: Trace, opts: CompareOptions): Genera
     .map(([f]) => [f, new TimedEvents()]));
   const context = opts.context ?? 5;
   const to = Math.min(opts.to ?? Infinity, movie.last);
-  const game = gameForTrace(trace);
+  const game = gameForTrace(trace, opts.cards ?? movieCards(movie));
   // Traces before version 3 have no sound fields.
   const audio = trace.fields.includes('kon') ? opts.audio?.(game) : undefined;
   const mine: Row[] = [];
@@ -166,7 +174,7 @@ function* compareSteps(movie: Movie, trace: Trace, opts: CompareOptions): Genera
 }
 
 /** Field equality; spu's CD volume is left to the timed events. */
-function sameField(f: string, a: Value | undefined, b: Value | undefined): boolean {
+export function sameField(f: string, a: Value | undefined, b: Value | undefined): boolean {
   if (f === 'spu' && Array.isArray(a) && Array.isArray(b)) {
     return sameValue([...a.slice(0, 4), ...a.slice(6)], [...b.slice(0, 4), ...b.slice(6)]);
   }

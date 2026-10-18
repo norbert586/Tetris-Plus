@@ -1,0 +1,129 @@
+tpm 1
+boot power
+# SELECT.EXE (docs/re/select.md): Option mode's memory card screens.
+# Cards: the port's default (slot 1 a blank formatted card, slot 2 empty). The card the run
+# leaves is checked against the port's (web/test/select.test.ts).
+card 2 none
+# Title: START shows the menu, START again goes on to the mode select (SELECT main at counter 2401).
+2300 4 START
+2400 4 START
+# Mode select (tiles from tick 2459): the cursor in every direction, a diagonal (ignored).
+2470 2 RIGHT
+2480 2 RIGHT
+2490 2 RIGHT
+2500 2 DOWN
+2510 2 DOWN
+2520 2 LEFT
+2530 2 LEFT
+2540 2 UP
+2550 2 UP
+2560 2 UP+RIGHT
+2570 2 LEFT
+2580 2 DOWN
+2590 2 RIGHT
+2600 2 UP
+# Puzzle: open, look, back with Circle.
+2620 2 CROSS
+2660 2 CIRCLE
+# VS: open, Circle during the zoom.
+2700 2 RIGHT
+2710 2 CROSS
+2716 2 CIRCLE
+# Edit, then Classic: open and back.
+2760 2 RIGHT
+2770 2 CROSS
+2810 2 CIRCLE
+2850 2 UP
+2860 2 CROSS
+2900 2 CIRCLE
+# Option: open, Cross, the 75-tick flash, Option mode.
+2940 2 LEFT
+2950 2 CROSS
+2990 2 CROSS
+# Option mode (menu from tick 3068): the memory card rows. Option data load on slot 1 (no save
+# file: "data not found", 120 ticks), slot 2 (no card), Circle. Option data save on slot 1: a new
+# file. Level up, save: overwrite? No, then Yes. Level down, load: the saved level comes back.
+# Ranking data save on slot 1 (overwrite: Yes), load; save on slot 2 (no card); slot 1 again,
+# Circle on the overwrite question and on the slot prompt. Exit to the mode select.
+3080 2 DOWN
+3088 2 DOWN
+3096 2 DOWN
+3104 2 DOWN
+3112 2 DOWN
+3120 2 DOWN
+3128 2 DOWN
+3136 2 DOWN
+3144 2 DOWN
+3152 2 DOWN
+3160 2 CROSS
+3170 2 CROSS
+3310 2 RIGHT
+3318 2 CROSS
+3458 2 CIRCLE
+3468 2 RIGHT
+3476 2 CROSS
+3486 2 CROSS
+3516 2 UP
+3524 2 UP
+3532 2 UP
+3540 2 UP
+3548 2 UP
+3556 2 UP
+3564 2 UP
+3572 2 UP
+3580 2 RIGHT
+3588 2 DOWN
+3596 2 DOWN
+3604 2 DOWN
+3612 2 DOWN
+3620 2 DOWN
+3628 2 DOWN
+3636 2 DOWN
+3644 2 DOWN
+3652 2 CROSS
+3662 2 CROSS
+3682 2 CROSS
+3692 2 CROSS
+3712 2 LEFT
+3720 2 RIGHT
+3728 2 LEFT
+3736 2 CROSS
+3776 2 UP
+3784 2 UP
+3792 2 UP
+3800 2 UP
+3808 2 UP
+3816 2 UP
+3824 2 UP
+3832 2 UP
+3840 2 LEFT
+3848 2 DOWN
+3856 2 DOWN
+3864 2 DOWN
+3872 2 DOWN
+3880 2 DOWN
+3888 2 DOWN
+3896 2 DOWN
+3904 2 DOWN
+3912 2 LEFT
+3920 2 CROSS
+3930 2 CROSS
+3950 2 DOWN
+3958 2 RIGHT
+3966 2 CROSS
+3976 2 CROSS
+3996 2 LEFT
+4004 2 CROSS
+4044 2 LEFT
+4052 2 CROSS
+4062 2 CROSS
+4082 2 RIGHT
+4090 2 CROSS
+4100 2 RIGHT
+4108 2 CROSS
+4248 2 CROSS
+4268 2 CIRCLE
+4278 2 CIRCLE
+4288 2 DOWN
+4296 2 CROSS
+end 4416

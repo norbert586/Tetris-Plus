@@ -1,0 +1,40 @@
+# RANKING.EXE functions named by hand (docs/re/ranking.md). address<TAB>function<TAB>name<TAB>evidence
+0x80094ad0	function	pad_init	PadInit, clears the 8 x 6-byte pad words at 0x800B52EC
+0x80094b54	function	pad_read	PadRead; held/pressed words for both pads; the tracer's sample point (0x80094B64)
+0x80094c70	function	se_play	same as PAZLE's se_play (0x80095778); no callers in RANKING
+0x80094e98	function	bgm_play_track	same as PAZLE's; reached only from bgm_request
+0x80094f64	function	bgm_poll	called each tick from main; acts only after a CD error flagged by bgm_report_callback
+0x8009507c	function	bgm_report_callback	CdReadyCallback set by bgm_play_track
+0x800951a4	function	bgm_request	same as PAZLE's bgm_request (0x80095DA8); no callers in RANKING
+0x800954ec	function	sound_init	SsInit, VAB, serial volume from 0x800ABC90, reverb, CdMix by setting S+0x4B4FC bit 0
+0x800956c0	function	ranking_main	called by start; the main loop (trace v4 equality, docs/re/ranking.md)
+0x8009586c	function	graphics_init	GsInitGraph 320x240, OT headers, sound_init, templates_init
+0x80095950	function	globals_init	zeroes 0x800B2528-0x800B253C
+0x80095970	function	fade_box	unused: full-screen subtractive box
+0x80095a14	function	clear_screens	unused: two cleared frames
+0x80095b44	function	templates_init	decodes and uploads the 102 images of RANKINGE.BIN, templates at S+0x3F074
+0x80095bf0	function	tim_upload	LoadImage of a TIM and its CLUT
+0x80095ca4	function	item_upload	decode item into S+0x2AC74, upload, build template
+0x80095d38	function	sprite_template	GsSPRITE from a TIM (as PAZLE's FUN_80097830)
+0x80095e9c	function	sprite_sort	GsSortSprite of a template at an object's position, scale, rotation, attribute
+0x8009603c	function	item_decode	the data-file LZ decoder (as PAZLE's FUN_80097AF4)
+0x80096314	function	ranking_exit	sound and CD shutdown, StopCallback
+0x8009640c	function	soft_reset_check	Start+Select held > 120 ticks on either pad: TITLE, phase 9 (trace ranking-records)
+0x80096564	function	objects_draw	every object with image > 0x10000, 1049 down to 0, through sprite_sort
+0x80096660	function	objects_clear_all	object_clear on all 1050
+0x8009669c	function	object_clear	zeroes an object's 31 words
+0x80096840	function	param_dispatch	table 0x80094000 by S+0x4C: 0 phase_dispatch, 1 leave for TIT_DEMO, 2/3 nothing
+0x800968a8	function	param0_ranking	calls phase_dispatch
+0x800968c8	function	param1_exit	exit to TIT_DEMO
+0x80096904	function	column_set	object base+32*row+col: a column of the row's layout (0x800AC3CC)
+0x80096a54	function	name_set	a record's 3 name letters (0x1F blank), 8 pixels apart
+0x80096bdc	function	digits_set	a number as digit objects, leading zeros left out
+0x80096db0	function	phase_dispatch	table 0x80094030 by S+0x50
+0x80096e34	function	phase0_clear	objects cleared, background objects 10 and 11
+0x80096ea4	function	phase1_titles	heading (object 20) and table titles (21, 22) placed off screen
+0x80096f70	function	phase2_drop	heading falls 1 px/tick to y 12
+0x80096fbc	function	phase3_tables	both tables built from the records at S+0x4AE60 and S+0x4AE9C
+0x800976d0	function	phase4_slide	titles and rows slide 5 px/tick until rows 5 are in
+0x80097878	function	phase5_wait	300 ticks
+0x800978b4	function	phase6_exit	exit to TIT_DEMO (2), param 0
+0x800978e0	function	phase7_next_param	param + 1 (unreachable)

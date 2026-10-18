@@ -1,0 +1,32 @@
+tpm 1
+boot power
+end 1320
+# title-skip: buttons TIT_DEMO and TITLE ignore, START skipping the story, START leaving the title
+# (docs/re/title.md §5). Power-on, no input through SW_ON.
+#   TIT_DEMO: START on its 2nd tick (phase 0: ignored), then Cross, Circle, Square, Triangle,
+#   Select, L1-R2, the d-pad and pad 2's START (all ignored), then pad 1 START (2 ticks): phase 3,
+#   TITLE named with phase 9.
+#   TITLE: starts on the finished screen (phase 9); the same ignored buttons, then START: effect
+#   0 and SELECT is named.
+372 1 START
+600 4 CROSS
+620 4 CIRCLE
+640 4 SQUARE
+660 4 TRIANGLE
+680 4 SELECT
+700 4 L1+R1+L2+R2
+720 20 UP+LEFT
+750 20 DOWN+RIGHT
+780 4 2:START
+800 4 2:CROSS
+900 2 START
+1000 4 CROSS
+1020 4 CIRCLE
+1040 4 SQUARE+TRIANGLE
+1060 4 SELECT
+1080 4 L1+R1+L2+R2
+1100 20 UP+LEFT
+1130 20 DOWN+RIGHT
+1160 4 2:START
+1180 4 2:CROSS
+1300 4 START

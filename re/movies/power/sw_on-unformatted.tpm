@@ -1,0 +1,12 @@
+tpm 1
+boot power
+# SW_ON with an unformatted card in slot 1 (TP_MEMCARD1=unformatted.mcd, tools/mcd.ts) and none in
+# slot 2: "memory card is not initialized: initialize?". Right/Left move the cursor, Cross on No
+# shows the unusable-card screen, Cross there checks again; Left, Cross on Yes formats the card.
+end 500
+20 1 RIGHT
+30 1 LEFT
+40 1 CROSS
+60 1 CROSS
+80 1 LEFT
+100 1 CROSS

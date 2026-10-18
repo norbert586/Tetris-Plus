@@ -1,0 +1,8 @@
+tpm 1
+boot power
+card 1 re/movies/cards/saved-bad-a.mcd
+card 2 none
+# SW_ON from power-on with no input, slot 1 holding a save file (card-save's card, copy A
+# corrupted: one byte flipped, so its checksum fails and copy B is used); slot 2 empty. The card check
+# loads the save into the state block; then the copyright screen and TIT_DEMO.
+end 372

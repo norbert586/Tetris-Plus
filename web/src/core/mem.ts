@@ -34,7 +34,12 @@ export class Mem {
 
   /** Loads the program's data ranges, as the boot program's loader does before `start`. */
   loadRom(): void {
-    for (const r of romRanges()) this.bytes.set(r.bytes, r.address & (RAM_SIZE - 1));
+    this.loadImage(romRanges());
+  }
+
+  /** Loads a program's ranges (another mode program's image, src/flow/). */
+  loadImage(ranges: { address: number; bytes: Uint8Array }[]): void {
+    for (const r of ranges) this.bytes.set(r.bytes, r.address & (RAM_SIZE - 1));
   }
 
   clone(): Mem {

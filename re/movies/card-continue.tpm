@@ -1,0 +1,40 @@
+tpm 1
+boot puzzle
+end 2700
+card 1 re/movies/cards/saved.mcd
+card 2 none
+# card-continue: continues a game saved on the card (re/movies/cards/saved.mcd: card-save's card,
+# a game at Egypt stage 1 in save slot 2). Menu: Down, Cross (Continue); the card slot chooser:
+# Right, Left, Cross; the save slots; Circle backs out to the menu. Down, Cross, Cross, Down (slot
+# 2), Cross: the saved game starts (Egypt stage 1, play from tick 495). The pause-retire inputs
+# retire it; the countdown runs out; at the save screen (tick 2350) Cross (card slot 1), Down
+# (slot 2, in use), Cross asks to overwrite ("no"): Left, Right, Left, Cross: yes; Puzzle Mode exits.
+100 1 DOWN
+110 1 CROSS
+130 1 RIGHT
+150 1 LEFT
+170 1 CROSS
+200 1 CIRCLE
+230 1 DOWN
+240 1 CROSS
+260 1 CROSS
+290 1 DOWN
+310 1 CROSS
+534 1 START
+564 1 SELECT
+594 1 DOWN
+624 1 CROSS
+694 1 CROSS
+724 1 DOWN
+744 1 DOWN
+774 1 CROSS
+804 1 RIGHT
+824 1 LEFT
+854 1 CROSS
+2370 1 CROSS
+2400 1 DOWN
+2420 1 CROSS
+2440 1 LEFT
+2450 1 RIGHT
+2460 1 LEFT
+2480 1 CROSS

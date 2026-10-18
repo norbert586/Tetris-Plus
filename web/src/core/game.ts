@@ -10,6 +10,7 @@ import { pauseCheck } from './pause';
 import { objectsClearAll, objectsDraw, uploadQueueFlush, type Box } from './objects';
 import { traceRow } from './trace';
 import type { SoundCall } from './sound';
+import { MemoryCards } from '../flow/memcard';
 
 export interface GameOptions {
   /** Global frame counter when pazle_main starts (it carries over from earlier programs). */
@@ -20,12 +21,25 @@ export interface GameOptions {
   difficulty?: number;
   /** Start from this RAM image instead of a fresh program (debugging aid: emulator dumps). */
   ram?: Uint8Array;
+  /**
+   * Run inside the whole game (src/flow/console.ts): this RAM and rand(), with the shared state
+   * block as earlier programs left it. PAZLE.EXE's data is loaded and its BSS cleared, as the
+   * boot program's loader and `start` do; `counter` and `seed` are then ignored.
+   */
+  shared?: { m: Mem; rng: Rng; cards?: MemoryCards };
+  /** The memory cards (default: a formatted empty card in slot 1, slot 2 empty). */
+  cards?: MemoryCards;
 }
+
+/** PAZLE.EXE's BSS, cleared by `start` (docs/re/static-bootstrap.md §1). */
+const PAZLE_BSS = 0x800ed800;
+const PAZLE_BSS_END = 0x800f3704;
 
 /** Thrown when the original reaches code the port doesn't have. */
 export class NotPorted extends Error {}
 
 export class Game {
+  readonly name = 'PAZLE' as const;
   m: Mem;
   rng: Rng;
   /** Sound effects started this tick (se_play arguments). */
@@ -45,12 +59,32 @@ export class Game {
   boxColors: number[] = [];
   /** Ticks run so far; tick 1 is the main loop's first iteration. */
   tick = 0;
+  /** The memory cards (the save screen and the menu's Continue; card.ts). */
+  readonly cards: MemoryCards;
   /** Set when the program leaves Puzzle Mode (exit flag). */
   get exited(): boolean {
     return this.m.s32(A.EXIT_FLAG) !== 0;
   }
 
+  /**
+   * Started by the previous program (src/flow/console.ts): that program's last iteration called
+   * rand() after the tracer's last sample of it, so the first row counts it (the injected seed
+   * already includes it), as the other programs' ports do.
+   */
+  private afterProgram = false;
+
   constructor(opts: GameOptions) {
+    this.cards = opts.shared?.cards ?? opts.cards ?? new MemoryCards();
+    this.cards.init(); // system_init's card_init (0x800B5C94: InitCARD, StartCARD, _bu_init)
+    if (opts.shared) {
+      this.afterProgram = true;
+      this.rng = opts.shared.rng;
+      this.m = opts.shared.m;
+      this.m.loadRom();
+      this.m.fill(PAZLE_BSS, PAZLE_BSS_END - PAZLE_BSS);
+      this.startup();
+      return;
+    }
     this.rng = new Rng(opts.seed);
     if (opts.ram) {
       this.m = new Mem(opts.ram);
@@ -117,7 +151,7 @@ export class Game {
     this.uploads = [];
     this.boxes = [];
     this.boxColors = [];
-    this.rng.calls = 0;
+    this.rng.calls = this.tick === 0 && this.afterProgram ? 1 : 0;
     if (this.tick > 0) {
       this.padRead(pad);
       this.rand();

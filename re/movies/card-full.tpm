@@ -1,0 +1,49 @@
+tpm 1
+boot puzzle
+end 5300
+card 2 re/movies/cards/full.mcd
+# card-full: the save screen with a full card in slot 2 (re/movies/cards/full.mcd: 15 one-block
+# files of another game; web/tools/mcd.ts full). The card-save route to the save screen (tick
+# 4916); Down (slot 2), Cross: no save file and no room: "card full" for 120 ticks, back to the
+# options. Up (slot 1: blank), Cross: three empty slots; Cross saves in slot 1; Puzzle Mode exits.
+100 4 CROSS
+220 4 CROSS
+340 4 CROSS
+460 4 CROSS
+580 4 CROSS
+700 4 CROSS
+820 4 CROSS
+940 4 CROSS
+1060 4 CROSS
+1180 4 CROSS
+1300 4 CROSS
+1420 4 CROSS
+1540 4 CROSS
+1660 4 CROSS
+1780 4 CROSS
+1900 4 CROSS
+2020 4 CROSS
+2140 4 CROSS
+2260 4 CROSS
+2380 4 CROSS
+2500 4 CROSS
+2620 4 CROSS
+2740 4 CROSS
+2860 4 CROSS
+2980 4 CROSS
+3100 1 START
+3130 1 SELECT
+3160 1 DOWN
+3190 1 CROSS
+3260 1 CROSS
+3290 1 DOWN
+3310 1 DOWN
+3340 1 CROSS
+3370 1 RIGHT
+3390 1 LEFT
+3420 1 CROSS
+4930 1 DOWN
+4950 1 CROSS
+5100 1 UP
+5120 1 CROSS
+5150 1 CROSS

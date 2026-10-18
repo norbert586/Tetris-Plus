@@ -4,7 +4,7 @@
 #
 # Usage: scripts/run-movie.sh MOVIE.tpm OUT_DIR
 #   Optional: TP_SHOTS, TP_SAVE_AT, TP_LOAD, TP_RAM_AT, TP_UNTIL, TP_SAVE_UNTIL, TP_SPEED,
-#   TP_REALTIME, TP_PADLOG (see re/lua/movie.lua), TP_TIMEOUT (below).
+#   TP_REALTIME, TP_PADLOG, TP_MAIN_RAM (see re/lua/movie.lua), TP_TIMEOUT, TP_MEMCARD1/2 (below).
 #   Example: scripts/run-movie.sh re/movies/egypt1-idle.tpm ../tp-private/runs/idle
 set -euo pipefail
 
@@ -24,6 +24,26 @@ rm -f "$TP_OUT"/trace.jsonl "$TP_OUT"/ram_*.bin "$TP_OUT"/shot_*.raw
 # A fresh HOME per run: Redux keeps its settings and memory cards under ~/.config/pcsx-redux,
 # and a card written by an earlier run would change what the game does.
 rm -rf "$TP_OUT/home" && mkdir -p "$TP_OUT/home"
+# TP_MEMCARD1 / TP_MEMCARD2: start with this card image (128 KB .mcd) in the slot instead of
+# the empty formatted card Redux creates, or "none": no card in the slot (re/lua/movie.lua takes
+# it out). The card as the run left it stays in $TP_OUT/home/.config/pcsx-redux/memcard1.mcd.
+# A movie can name its cards ("card SLOT none|blank|PATH", PATH from the repository root);
+# TP_MEMCARD1/2 take precedence.
+for n in 1 2; do
+  var="TP_MEMCARD$n"
+  spec="$(awk -v n="$n" '$1 == "card" && $2 == n { print $3 }' "$TP_MOVIE" | tail -1)"
+  if [ -z "${!var:-}" ] && [ -n "$spec" ] && [ "$spec" != blank ]; then
+    if [ "$spec" = none ]; then printf -v "$var" none; else printf -v "$var" '%s' "$REPO_ROOT/$spec"; fi
+  fi
+done
+export TP_MEMCARD1 TP_MEMCARD2
+for n in 1 2; do
+  var="TP_MEMCARD$n"
+  if [ -n "${!var:-}" ] && [ "${!var}" != none ]; then
+    mkdir -p "$TP_OUT/home/.config/pcsx-redux"
+    cp "${!var}" "$TP_OUT/home/.config/pcsx-redux/memcard$n.mcd"
+  fi
+done
 # The emulator occasionally hangs in the host (parked on a lock, using no CPU); TP_TIMEOUT
 # (seconds, default 1800) turns that into a failure instead of a wait.
 status=0

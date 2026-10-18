@@ -1,23 +1,35 @@
-// Plays Puzzle Mode's sound in the browser (docs/re/audio.md §8). Each tick, the audio model
-// (model.ts) turns the program's sound calls into SPU register writes and CD events on the
-// original's clock; the player maps that clock onto the AudioContext's, sends the writes to the
-// SPU worklet and plays the CD's sectors from the encoded tracks, through the CD volume.
-import type { Game } from '../core/game';
-import { MUSIC_VOLUME, SETTING_4FC } from '../core/addr';
+// Plays the game's sound in the browser (docs/re/audio.md §8, §11). Each tick, the audio model
+// (model.ts) turns the running program's sound calls into SPU register writes and CD events on
+// the original's clock; the player maps that clock onto the AudioContext's, sends the writes to
+// the SPU worklet and plays the CD's sectors from the encoded tracks, through the CD volume. When
+// another program starts, the model runs that program's sound set-up, as the console does.
+import type { Mem } from '../core/mem';
+import type { SoundCall } from '../core/sound';
+import { SETTING_4FC } from '../core/addr';
 import type { Disc } from './cd';
 import { CYCLES_PER_VBLANK } from './driver';
-import { AudioModel } from './model';
+import { AudioModel, tickExtras } from './model';
+import { PROGRAM_AUDIO, type ProgramAudio } from './programs';
 import { VAB_SPU_BASE, Vab } from './vab';
 import type { TimedWrite, WorkletMessage } from './worklet';
 import workletUrl from './worklet.ts?worker&url';
 
-/** The music volume table (0x800DC45C) the CD volume starts from. */
-const MUSIC_VOLUME_TABLE = 0x800dc45c;
 /** How far ahead of the audio clock ticks are scheduled, and how late they may run. */
 const LEAD = 0.12;
 const MIN_LEAD = 0.03;
 /** CdMix's attenuation (0x7F of 0x80) and the level a real console's CD path gives (Redux). */
 const CD_LEVEL = (0x7f / 0x80) * (31130 / 32768) * (31880 / 32768);
+
+/**
+ * What the player follows: the running program (a flow Program or Puzzle Mode's Game): the RAM
+ * it runs in (its sound tables and the settings), its name and its sound calls this tick. Another
+ * source than the last tick's is a program change.
+ */
+export interface SoundSource {
+  m: Mem;
+  sound: SoundCall[];
+  name?: string;
+}
 
 interface DiscFiles extends Disc {
   fileStart: number[];
@@ -26,6 +38,11 @@ interface DiscFiles extends Disc {
 
 export class AudioPlayer {
   private model?: AudioModel;
+  private vab?: Vab;
+  /** The source the last tick came from. */
+  private running?: SoundSource;
+  private mono?: boolean;
+  private cdMatrix: { gain: GainNode; same: boolean }[] = [];
   private node?: AudioWorkletNode;
   private disc?: DiscFiles;
   private readonly tracks = new Map<number, Promise<AudioBuffer | undefined>>();
@@ -39,6 +56,8 @@ export class AudioPlayer {
   private cdInput?: AudioNode;
   private anchorCycle = 0;
   private anchorTime = -1;
+  /** Master volume (the shell's setting), after the SPU and the CD. */
+  private master?: GainNode;
 
   private constructor(
     readonly ctx: AudioContext,
@@ -46,53 +65,86 @@ export class AudioPlayer {
     private readonly tickSeconds: number,
   ) {}
 
-  /** Creates the player; call `resume` from a user gesture for sound to start. */
-  static async create(game: Game, base: string, tickSeconds: number): Promise<AudioPlayer> {
+  /**
+   * Creates the player; call `resume` from a user gesture for sound to start. The model starts
+   * with the first tick, from the program that tick comes from.
+   */
+  static async create(base: string, tickSeconds: number): Promise<AudioPlayer> {
     const ctx = new AudioContext({ sampleRate: 44100 });
     const p = new AudioPlayer(ctx, base, tickSeconds);
-    await p.init(game);
+    await p.init();
     return p;
   }
 
-  private async init(game: Game): Promise<void> {
+  private async init(): Promise<void> {
     const get = async (name: string) => new Uint8Array(await (await fetch(`${this.base}${name}`)).arrayBuffer());
     const [vh, vb, disc] = await Promise.all([get('EF.VH'), get('EF.VB'), get('disc.json')]);
     this.disc = JSON.parse(new TextDecoder().decode(disc));
     const vab = new Vab(vh, vb);
-    const mono = (game.m.u8(SETTING_4FC) & 1) !== 0;
-    this.model = new AudioModel(vab, game.m, this.disc!,
-      () => game.m.s16(MUSIC_VOLUME_TABLE + 2 * game.m.u8(MUSIC_VOLUME)), mono);
+    this.vab = vab;
     await this.ctx.audioWorklet.addModule(workletUrl);
     this.node = new AudioWorkletNode(this.ctx, 'tp-spu', { numberOfInputs: 0, outputChannelCount: [2] });
-    this.node.connect(this.ctx.destination);
+    this.master = this.ctx.createGain();
+    this.master.connect(this.ctx.destination);
+    this.node.connect(this.master);
     this.node.port.postMessage({ type: 'ram', address: VAB_SPU_BASE, data: vab.body } satisfies WorkletMessage);
     // The CD's path: CdMix (the ATV matrix; mono sends both sides to both), then the SPU's CD volume.
     const split = this.ctx.createChannelSplitter(2);
     const merge = this.ctx.createChannelMerger(2);
     this.cdLeft = this.ctx.createGain();
     this.cdRight = this.ctx.createGain();
-    for (const [from, to, gain] of mono ? [[0, 0, 0.5], [1, 0, 0.5], [0, 1, 0.5], [1, 1, 0.5]] : [[0, 0, 1], [1, 1, 1]]) {
+    for (const [from, to] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
       const g = this.ctx.createGain();
-      g.gain.value = gain * CD_LEVEL;
+      g.gain.value = 0;
       split.connect(g, from);
       g.connect(to === 0 ? this.cdLeft : this.cdRight);
+      this.cdMatrix.push({ gain: g, same: from === to });
     }
     this.cdLeft.connect(merge, 0, 0);
     this.cdRight.connect(merge, 0, 1);
-    merge.connect(this.ctx.destination);
+    merge.connect(this.master);
     this.cdInput = split;
+  }
+
+  /** CdMix as each program's sound set-up calls it: stereo, or both CD channels to both sides at half level. */
+  private setMono(mono: boolean, at: number): void {
+    if (mono === this.mono) return;
+    this.mono = mono;
+    for (const { gain, same } of this.cdMatrix) gain.gain.setValueAtTime((mono ? 0.5 : same ? 1 : 0) * CD_LEVEL, at);
   }
 
   resume(): void {
     if (this.ctx.state !== 'running') void this.ctx.resume();
   }
 
-  /** After each game tick. */
-  tick(game: Game): void {
+  /** Stops the clock while the game is paused (the next tick re-anchors it). */
+  suspend(): void {
+    if (this.ctx.state === 'running') void this.ctx.suspend();
+  }
+
+  /** Master volume, 0-1. */
+  set volume(v: number) {
+    if (this.master) this.master.gain.value = v;
+  }
+
+  /**
+   * After each game tick. `extraVblanks`: vblanks the tick waited on the original beyond its
+   * own (memory card calls, VSync(n)): the sound runs on through them (libsnd's flushes, the
+   * CD's sectors), so the shell holds the next tick back by as long.
+   */
+  tick(game: SoundSource, extraVblanks = 0): void {
+    if (!this.vab || !this.node) return;
+    const changed = this.running !== undefined && game !== this.running;
+    const program: ProgramAudio | undefined = game.name ? PROGRAM_AUDIO[game.name as keyof typeof PROGRAM_AUDIO] : undefined;
+    if (!this.model) this.model = new AudioModel(this.vab, game.m, this.disc!, { program });
     const model = this.model;
-    if (!model || !this.node) return;
-    const s = model.step(game.sound, 1);
+    const first = this.running === undefined;
+    this.running = game;
+    // A program without an entry in PROGRAM_AUDIO keeps the last one's addresses.
+    const s = model.step(game.sound, 1 + extraVblanks, changed ? program : undefined, tickExtras(game));
     const now = this.ctx.currentTime;
+    if (first || (changed && program)) this.setMono((game.m.u8(SETTING_4FC) & 1) !== 0, now);
+    for (const x of s.mix) this.setMono(x.mono, Math.max(now, this.time(x.cycle)));
     if (this.anchorTime < 0 || this.time(s.cycle) < now + MIN_LEAD) {
       this.anchorCycle = s.cycle;
       this.anchorTime = now + LEAD;

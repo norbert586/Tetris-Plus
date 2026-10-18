@@ -15,7 +15,9 @@ const PACK = join(ROOT, 'web/public/assets/pazlee.pack');
 const movies = readdirSync(join(ROOT, 're/movies'))
   .filter((f) => f.endsWith('.tpm'))
   .map((f) => f.replace(/\.tpm$/, ''))
-  .filter((n) => existsSync(join(ROOT, 're/traces', `${n}.jsonl.gz`)));
+  .filter((n) => existsSync(join(ROOT, 're/traces', `${n}.jsonl.gz`)))
+  // Power-route movies run several programs; the program tests (test/flow.ts) replay them.
+  .filter((n) => !/^boot power/m.test(readFileSync(join(ROOT, 're/movies', `${n}.tpm`), 'utf8')));
 
 describe('frames', () => {
   const items = readPack(new Uint8Array(readFileSync(PACK)));

@@ -1,0 +1,5 @@
+tpm 1
+boot power
+# SW_ON from power-on with no input: the copyright screen (slot 1: a formatted empty card,
+# slot 2: none), then TIT_DEMO starts.
+end 372

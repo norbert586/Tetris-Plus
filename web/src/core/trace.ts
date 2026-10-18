@@ -85,6 +85,13 @@ const FIELDS: Field[] = [
   ['prof_sy', A.S + 0x5c + 40 * 0x7c + 0x04, 's32'],
   ['pw_symbols', 0x800ee58c, 's32', 6],
   ['pw_cursor', 0x800f0bbc, 's32'],
+  ['card_slot', 0x800f2d1c, 's32', 2],
+  ['card_pick', 0x800ed320, 's32', 2],
+  ['card_lock', 0x800f2ac8, 's32'],
+  ['card_res', 0x800eeae0, 's32'],
+  ['card_timer', 0x800f35b0, 's32', 2],
+  ['card_yesno', 0x800ee43c, 's32', 2],
+  ['save_slots', A.S + 0x4aed8, 'u8', 6],
 ];
 
 const SIZE = { s32: 4, u32: 4, s16: 2, u16: 2, u8: 1 } as const;

@@ -219,3 +219,38 @@
 0x800bff24	function	textbox_b_run	S; T atlantis20-ending: the ending's text box
 0x800c00bc	function	textbox_b_type	S; T
 0x800c07d4	function	textbox_b_wait	S; T
+# Memory card (docs/re/memcard.md §5; T = trace, frame and card-image equality on re/movies/card-*.tpm).
+0x8009af70	function	menu_continue_00_draw	S, T: Continue screen, card slot chooser
+0x8009b290	function	menu_continue_03_check	S, T: VSync(90), card status
+0x8009b444	function	menu_continue_04_read	S, T: save file read, slots into the state
+0x8009b61c	function	menu_continue_06_pick	S, T: slot list input; Circle copies best times (k=1)
+0x8009c1c4	function	save_05_check	S, T: VSync(90), card status
+0x8009c400	function	save_08_read	S, T
+0x8009c628	function	save_10_pick	S, T
+0x8009cb68	function	save_13_write	S, T: game into slot, copies k=slot+5 and 1, write
+0x8009d404	function	save_25_create	S, T
+0x8009d4c8	function	save_26_room	S, T: used blocks < 15 -> defaults
+0x800b709c	function	card_lock	S, T: 0x800F2AC8 (bit 0x10: new file)
+0x800b7118	function	card_unlock	S, T
+0x800b6074	function	card_status	S, T: 1 ok, 0 none, -1 error, 2 new card, 3 unformatted
+0x800b61b4	function	save_read	S, T: 4 tries (FUN_800B61DC; $s2 tested unset)
+0x800b62e8	function	save_create	S, T: FCREAT, then both copies from the state block
+0x800b6638	function	save_write	S, T: copy A also to B, 4 tries
+0x800b6858	function	save_header	S, U: magic 0x10 0x14 0x13 0x01, title 0x800D5204, icon
+0x800b6b94	function	save_sums	S
+0x800b6c08	function	card_used_blocks	S, T
+0x800b6c98	function	save_check	S
+0x800b6d24	function	save_copy_b_to_a	S
+0x800b6174	function	card_format	S
+0x800b3184	function	save_defaults	S, U: 9999 times, tables 0x800E2F8C, 0x800E300C, 0x800E361C
+0x800b7128	function	save_to_state	U: copy A -> state block by section k
+0x800b7714	function	state_to_save	U: state block -> copy A; not the mirror of save_to_state
+0x800b8918	function	save_slot_list	S, T
+0x800b6dd4	function	card_slot_ask	S, T
+0x800b6ef4	function	card_slot_input	S, T
+0x800b921c	function	save_overwrite_ask	S, T
+0x800b9334	function	save_overwrite_input	S, T
+0x800b8c78	function	card_format_ask	S
+0x800b8d80	function	card_format_input	S
+0x800aeb9c	function	anim_start_upload	S
+0x800aedfc	function	anim_tick_upload	S, T

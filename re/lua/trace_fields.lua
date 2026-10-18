@@ -95,4 +95,12 @@ return {
     -- password entry
     { 'pw_symbols', 0x800ee58c, 's32', 6 },
     { 'pw_cursor', 0x800f0bbc, 's32' },
+    -- memory card (save screen, Continue; docs/re/memcard.md)
+    { 'card_slot', 0x800f2d1c, 's32', 2 },
+    { 'card_pick', 0x800ed320, 's32', 2 },
+    { 'card_lock', 0x800f2ac8, 's32' },
+    { 'card_res', 0x800eeae0, 's32' },
+    { 'card_timer', 0x800f35b0, 's32', 2 },
+    { 'card_yesno', 0x800ee43c, 's32', 2 },
+    { 'save_slots', S + 0x4aed8, 'u8', 6 },
 }
