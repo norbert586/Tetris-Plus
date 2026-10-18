@@ -38,7 +38,7 @@
 -- Output: TP_OUT/trace.jsonl (re/tools/tptrace.py reads it), TP_OUT/run.log lines
 -- "tick N: ..." and the files above.
 
-local TRACE_VERSION = 2
+local TRACE_VERSION = 3
 
 local ffi = require('ffi')
 
@@ -240,7 +240,7 @@ end
 do
     local names = {}
     for i, f in ipairs(fields) do names[i] = '"' .. f.name .. '"' end
-    trace:write(string.format('{"tptrace":%d,"movie":"%s","boot":"%s","fields":[%s,"board","rand","se","bgm","up","ot","fb"]}\n',
+    trace:write(string.format('{"tptrace":%d,"movie":"%s","boot":"%s","fields":[%s,"board","rand","se","bgm","up","ot","fb","vs","kon","koff","spu","rev","cd","cdr"]}\n',
                               TRACE_VERSION, movie.name, movie.boot, table.concat(names, ',')))
 end
 
@@ -254,6 +254,12 @@ end
 
 -- Per-tick event lists, filled by the breakpoints below.
 local randCalls, sounds, music, uploads = 0, {}, {}, {}
+-- Audio events (trace version 3, docs/re/audio.md): SPU key-ons and key-offs, CD commands and
+-- CD position reports, filled by the breakpoints in the audio section below.
+local keyOns, keyOffs, cdCommands, cdReports = {}, {}, {}, {}
+-- Vblanks since the previous sample: libsnd's flush runs once per vblank, not per tick.
+local vblanks = 0
+local spuGlobals, spuReverb -- functions, defined below
 
 -- Frame hashes: FNV-1a over 32-bit (ot) or 16-bit (fb) words, kept as signed 32-bit numbers.
 -- h * 16777619 mod 2^32 is split as (h << 24) + h * 403 so the product stays exact.
@@ -320,8 +326,18 @@ local function record(t)
     if #uploads > 0 then parts[#parts + 1] = '"up":' .. jsonValue(uploads) end
     put('ot', hashOrderingTable())
     put('fb', hashFrame())
+    put('vs', vblanks)
+    if #keyOns > 0 then parts[#parts + 1] = '"kon":' .. jsonValue(keyOns) end
+    if #keyOffs > 0 then parts[#parts + 1] = '"koff":' .. jsonValue(keyOffs) end
+    put('spu', spuGlobals())
+    put('rev', spuReverb())
+    if #cdCommands > 0 then parts[#parts + 1] = '"cd":' .. jsonValue(cdCommands) end
+    if #cdReports > 0 then parts[#parts + 1] = '"cdr":' .. jsonValue(cdReports) end
     trace:write('{' .. table.concat(parts, ',') .. '}\n')
+    if TpAudioLog then TpAudioLog('sample') end
     randCalls, sounds, music, uploads = 0, {}, {}, {}
+    keyOns, keyOffs, cdCommands, cdReports = {}, {}, {}, {}
+    vblanks = 0
 end
 
 ------------------------------------------------------------------------------ run state
@@ -363,7 +379,7 @@ local function saveState(t)
     file:writeMoveSlice(PCSX.createSaveState())
     file:close()
     local side = io.open(name .. '.json', 'w')
-    side:write(string.format('{"tick":%d,"base":%d,"movie":"%s"}\n', t, base, movie.name))
+    side:write(string.format('{"tick":%d,"base":%d,"movie":"%s","spu":%s}\n', t, base, movie.name, TpSpuSnapshot()))
     side:close()
     log('save state ' .. name .. '.sstate')
 end
@@ -395,7 +411,13 @@ addExec(AFTER_PADREAD, 'tp_padread', function(regs)
         tick = t
         -- After a save state the first tick's sounds and rand() calls were partly counted
         -- before the save, so the trace resumes one tick later.
-        if t > resumeAfter then record(t) else randCalls, sounds, music, uploads = 0, {}, {}, {} end
+        if t > resumeAfter then
+            record(t)
+        else
+            randCalls, sounds, music, uploads = 0, {}, {}, {}
+            keyOns, keyOffs, cdCommands, cdReports = {}, {}, {}, {}
+            vblanks = 0
+        end
         if t > resumeAfter and not quitCode then
             for _, u in ipairs(untils) do
                 local v = previous[u.name]
@@ -457,6 +479,127 @@ addExec(ITEM_QUEUE, 'tp_item_queue', function(regs)
     if uploadLog then log(string.format('upq %d from 0x%08x', regs.GPR.n.a0, regs.GPR.n.ra)) end
 end)
 
+------------------------------------------------------------------------------ audio
+-- Trace version 3. Redux doesn't expose the SPU's registers to Lua, so a write breakpoint on
+-- the whole register block (0x1F801C00-0x1F801FFF) keeps a copy of everything the program
+-- writes: the breakpoint fires before the store, which is decoded from the instruction at pc
+-- (sb/sh/sw; sw writes two registers). Reads (ENVX, the current volumes) aren't needed.
+--   kon  each key-on: voice, then its registers when KON is written: volume left, right,
+--        pitch, start address, ADSR1, ADSR2, repeat address (libsnd's SpuVmFlush, run by the
+--        VSync interrupt, writes them all just before KON)
+--   koff each non-zero write to KOFF: voices 0-15 low, 16-23 high
+--   spu  main volume L/R, reverb volume L/R, CD volume L/R, external volume L/R, SPUCNT, EON
+--        (24 bits), PMON, NON, reverb work area start: the mix state, written when it changes
+--   rev  the 32 reverb registers (0x1DC0-0x1DFF)
+--   cd   CdControl / CdControlF / CdControlB calls: command, then the parameter bytes for
+--        Setloc (3), Play (1, when given) and Setmode (1)
+--   cdr  each call of bgm_report_callback (0x80095C5C): interrupt type, then the result bytes
+--        stat, track, index, minute, second (+0x80: relative), sector
+local rom = PCSX.getRomPtr()
+-- TP_AUDIO_LOG=1 writes audio.log: "TICK sample|cd|cdr CYCLE ..." with the CPU cycle counter,
+-- to time CD commands and reports within a tick (docs/re/audio.md).
+local audioLog = os.getenv('TP_AUDIO_LOG') == '1' and io.open(outDir .. '/audio.log', 'w') or nil
+function TpAudioLog(kind, text)
+    if audioLog then audioLog:write(string.format('%d %s %s %s\n', tick, kind, (tostring(PCSX.getCPUCycles()):gsub('ULL', '')), text or '')) end
+end
+local spuRegs = {}
+for i = 0, 0x1ff do spuRegs[i] = 0 end
+local function spuReg(offset) return spuRegs[bit.rshift(offset, 1)] end
+local function setSpuReg(offset, value)
+    local r = bit.rshift(offset, 1)
+    spuRegs[r] = value
+    if not active then return end
+    if offset == 0x188 or offset == 0x18a then
+        local first = offset == 0x188 and 0 or 16
+        for b = 0, 15 do
+            if bit.band(value, bit.lshift(1, b)) ~= 0 then
+                local v = first + b
+                local o = v * 16
+                TpAudioLog('kon', tostring(v))
+                keyOns[#keyOns + 1] = { v, spuReg(o), spuReg(o + 2), spuReg(o + 4), spuReg(o + 6), spuReg(o + 8),
+                                        spuReg(o + 10), spuReg(o + 14) }
+            end
+        end
+    elseif (offset == 0x18c or offset == 0x18e) and value ~= 0 then
+        keyOffs[#keyOffs + 1] = offset == 0x18c and value or value * 65536
+    end
+end
+-- The register copy travels with save states (their side file), since a run started from one
+-- never sees the writes made before it.
+function TpSpuSnapshot()
+    local values = {}
+    for i = 0, 0x1ff do values[i + 1] = spuRegs[i] end
+    return '[' .. table.concat(values, ',') .. ']'
+end
+function TpSpuRestore(text)
+    if not text then return end
+    local i = 0
+    for v in text:gmatch('%d+') do spuRegs[i] = tonumber(v); i = i + 1 end
+end
+spuGlobals = function()
+    return { spuReg(0x180), spuReg(0x182), spuReg(0x184), spuReg(0x186), spuReg(0x1b0), spuReg(0x1b2),
+             spuReg(0x1b4), spuReg(0x1b6), spuReg(0x1aa), spuReg(0x198) + 65536 * spuReg(0x19a),
+             spuReg(0x190) + 65536 * spuReg(0x192), spuReg(0x194) + 65536 * spuReg(0x196), spuReg(0x1a2) }
+end
+spuReverb = function()
+    local values = {}
+    for k = 0, 31 do values[k + 1] = spuReg(0x1c0 + 2 * k) end
+    return values
+end
+
+local STORES = { [0x28] = 1, [0x29] = 2, [0x2b] = 4 }
+TpSpuBreakpoint = PCSX.addBreakpoint(0x1f801c00, 'Write', 0x400, 'tp_spu', function(address)
+    local regs = PCSX.getRegisters()
+    local pc = regs.pc
+    local insn
+    if bit.band(pc, 0x1fc00000) == 0x1fc00000 then
+        insn = tonumber(ffi.cast('uint32_t*', rom + bit.band(pc, 0x7ffff))[0])
+    else
+        insn = readers.u32(phys(pc))
+    end
+    local size = STORES[bit.rshift(insn, 26)]
+    if not size then fail(string.format('SPU write from a non-store at 0x%08x', regs.pc)) end
+    local value = regs.GPR.r[bit.band(bit.rshift(insn, 16), 31)]
+    local offset = bit.band(address, 0x3fe)
+    if size == 4 then
+        setSpuReg(offset, bit.band(value, 0xffff))
+        setSpuReg(offset + 2, bit.band(bit.rshift(value, 16), 0xffff))
+    elseif size == 2 then
+        setSpuReg(offset, bit.band(value, 0xffff))
+    else
+        local old = spuReg(offset)
+        local shift = bit.band(address, 1) * 8
+        setSpuReg(offset, bit.bor(bit.band(old, bit.bnot(bit.lshift(0xff, shift))), bit.lshift(bit.band(value, 0xff), shift)))
+    end
+    return true
+end)
+
+local CD_FUNCTIONS = { 0x800c5ee8, 0x800c6020, 0x800c614c } -- CdControl, CdControlF, CdControlB
+local CD_PARAMS = { [0x02] = 3, [0x0e] = 1 } -- libcd sends Play (0x03) without a parameter
+for _, address in ipairs(CD_FUNCTIONS) do
+    addExec(address, 'tp_cd', function(regs)
+        if slotFingerprint() ~= PAZLE_FINGERPRINT then return end
+        local com = bit.band(regs.GPR.n.a0, 0xff)
+        local entry = { com }
+        if regs.GPR.n.a1 ~= 0 and CD_PARAMS[com] then
+            local p = phys(regs.GPR.n.a1)
+            for k = 0, CD_PARAMS[com] - 1 do entry[#entry + 1] = mem[p + k] end
+        end
+        cdCommands[#cdCommands + 1] = entry
+        TpAudioLog('cd', table.concat(entry, ' '))
+    end)
+end
+addExec(0x80095c5c, 'tp_cd_report', function(regs)
+    if slotFingerprint() ~= PAZLE_FINGERPRINT then return end
+    local entry = { regs.GPR.n.a0 }
+    if regs.GPR.n.a1 ~= 0 then
+        local p = phys(regs.GPR.n.a1)
+        for k = 0, 5 do entry[#entry + 1] = mem[p + k] end
+    end
+    cdReports[#cdReports + 1] = entry
+    TpAudioLog('cdr', table.concat(entry, ' '))
+end)
+
 ------------------------------------------------------------------------------ per vblank
 
 local function applyRoute()
@@ -473,11 +616,16 @@ end
 
 TpMovieListener = PCSX.Events.createEventListener('GPU::Vsync', function()
     frame = frame + 1
+    if active then
+        vblanks = vblanks + 1
+        TpAudioLog('vsync')
+    end
     if loadPath and frame == 1 then
         local side = io.open((loadPath:gsub('%.sstate$', '.json'))):read('*a')
         tick = tonumber(side:match('"tick":(%d+)'))
         resumeAfter = tick + 1
         base = tonumber(side:match('"base":(%d+)'))
+        TpSpuRestore(side:match('"spu":%[([%d,]*)%]'))
         PCSX.loadSaveState(Support.File.open(loadPath, 'READ'))
         active = true
         previous = {}

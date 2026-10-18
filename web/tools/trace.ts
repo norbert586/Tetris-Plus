@@ -1,10 +1,10 @@
 // Reads traces written by re/lua/movie.lua (docs/re/oracle-harness.md §3): a header line, then
-// one line per tick with only the fields that changed. Event lists (se, bgm, up) appear only on
+// one line per tick with only the fields that changed. Event lists (se, bgm, up, kon, koff, cd, cdr) appear only on
 // ticks that have events. The TypeScript twin of re/tools/tptrace.py's reader.
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 
-export type Value = number | number[] | string;
+export type Value = number | string | Value[];
 export type Row = Record<string, Value>;
 
 export interface Trace {
@@ -13,17 +13,17 @@ export interface Trace {
   rows: Row[];
 }
 
-export const EVENT_FIELDS = ['se', 'bgm', 'up'];
+export const EVENT_FIELDS = ['se', 'bgm', 'up', 'kon', 'koff', 'cd', 'cdr'];
 
 export function parseTrace(text: string): Trace {
   const lines = text.split('\n').filter((l) => l.length > 0);
   const header = JSON.parse(lines[0]);
-  if (header.tptrace !== 1 && header.tptrace !== 2) throw new Error('not a version 1 or 2 trace');
+  if (![1, 2, 3].includes(header.tptrace)) throw new Error('not a version 1, 2 or 3 trace');
   const rows: Row[] = [];
   let current: Row = {};
   for (let i = 1; i < lines.length; i++) {
     const delta = JSON.parse(lines[i]) as Row;
-    current = { ...current, se: [], bgm: [], up: [], ...delta };
+    current = { ...current, ...Object.fromEntries(EVENT_FIELDS.map((f) => [f, []])), ...delta };
     rows.push(current);
   }
   return { movie: header.movie, fields: header.fields, rows };
@@ -35,6 +35,6 @@ export function loadTrace(path: string): Trace {
 }
 
 export function sameValue(a: Value | undefined, b: Value | undefined): boolean {
-  if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((v, i) => v === b[i]);
+  if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((v, i) => sameValue(v, b[i]));
   return a === b;
 }
