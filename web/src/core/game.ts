@@ -20,12 +20,23 @@ export interface GameOptions {
   difficulty?: number;
   /** Start from this RAM image instead of a fresh program (debugging aid: emulator dumps). */
   ram?: Uint8Array;
+  /**
+   * Run inside the whole game (src/flow/console.ts): this RAM and rand(), with the shared state
+   * block as earlier programs left it. PAZLE.EXE's data is loaded and its BSS cleared, as the
+   * boot program's loader and `start` do; `counter` and `seed` are then ignored.
+   */
+  shared?: { m: Mem; rng: Rng };
 }
+
+/** PAZLE.EXE's BSS, cleared by `start` (docs/re/static-bootstrap.md §1). */
+const PAZLE_BSS = 0x800ed800;
+const PAZLE_BSS_END = 0x800f3704;
 
 /** Thrown when the original reaches code the port doesn't have. */
 export class NotPorted extends Error {}
 
 export class Game {
+  readonly name = 'PAZLE' as const;
   m: Mem;
   rng: Rng;
   /** Sound effects started this tick (se_play arguments). */
@@ -51,6 +62,14 @@ export class Game {
   }
 
   constructor(opts: GameOptions) {
+    if (opts.shared) {
+      this.rng = opts.shared.rng;
+      this.m = opts.shared.m;
+      this.m.loadRom();
+      this.m.fill(PAZLE_BSS, PAZLE_BSS_END - PAZLE_BSS);
+      this.startup();
+      return;
+    }
     this.rng = new Rng(opts.seed);
     if (opts.ram) {
       this.m = new Mem(opts.ram);

@@ -27,11 +27,14 @@ def read(path):
     """Returns (header, rows): every row holds every field's value at its tick."""
     with open_text(path) as f:
         header = json.loads(f.readline())
-        if header.get('tptrace') not in (1, 2, 3):
-            raise SystemExit(f'{path}: not a version 1, 2 or 3 trace')
+        if header.get('tptrace') not in (1, 2, 3, 4):
+            raise SystemExit(f'{path}: not a version 1-4 trace')
         rows, current = [], {}
         for line in f:
             delta = json.loads(line)
+            # Route "power" (version 4): a row that starts another program lists all its fields.
+            if 'prog' in delta and delta['prog'] != current.get('prog'):
+                current = {}
             for name in EVENT_FIELDS:
                 current[name] = []
             current.update(delta)
@@ -55,6 +58,8 @@ def shapes():
 def cmd_rows(args):
     header, rows = read(args.trace)
     names = args.fields.split(',') if args.fields else header['fields']
+    if not args.fields and 'programs' in header:
+        names = ['prog'] + sorted({n for fs in header['programs'].values() for n in fs if n != 'prog'})
     previous = None
     for row in rows:
         if args.start is not None and row['t'] < args.start:
