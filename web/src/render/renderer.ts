@@ -55,6 +55,12 @@ export function fnv(h: number, w: number): number {
 }
 export const FNV_BASIS = 0x811c9dc5 | 0;
 
+/**
+ * Whether renderers hash each frame's packets and pixels (`ot`, `fb`): the tests compare them
+ * with the oracle's; the shell turns it off (the hashes are 0 then).
+ */
+export const hashing = { frames: true };
+
 export interface Frame {
   /** The display buffer drawn this tick, 0 (y 0) or 1 (y 240). */
   buffer: number;
@@ -132,11 +138,11 @@ export class Renderer {
     this.packets = [];
     for (const words of ot.packets()) {
       this.packets.push(words);
-      for (const w of words) otHash = fnv(otHash, w | 0);
+      if (hashing.frames) for (const w of words) otHash = fnv(otHash, w | 0);
       gpu.command(words);
     }
     let fb = FNV_BASIS;
-    for (let y = top; y < top + 240; y++) {
+    if (hashing.frames) for (let y = top; y < top + 240; y++) {
       const row = y * VRAM_WIDTH;
       for (let x = 0; x < 320; x++) fb = fnv(fb, gpu.vram[row + x]);
     }

@@ -10,6 +10,7 @@ import { LocalStorageBackend, MemoryCards } from '../flow/memcard';
 import type { Program, ProgramName, ProgramRenderer } from '../flow/program';
 import { PROGRAMS } from '../flow/registry';
 import { toRgba } from '../render/present';
+import { hashing } from '../render/renderer';
 import { Input } from './input';
 import { SettingsPanel } from './panel';
 import { loadSettings, type Settings } from './settings';
@@ -19,7 +20,14 @@ const TICK_MS = 1000 / 59.826;
 /** At most this much catch-up after a stall (a background tab, a slow frame). */
 const MAX_BEHIND_MS = 250;
 
+/** Timing counters, readable as `tetrisPlusStats` in the console (docs/re/shell.md). */
+const stats = { ticks: 0, frames: 0, busyMs: 0, worstMs: 0 };
+(globalThis as { tetrisPlusStats?: typeof stats }).tetrisPlusStats = stats;
+
 type Mode = 'gate' | 'logo' | 'run' | 'paused' | 'settings' | 'stopped';
+
+// The frame hashes are for comparing with the original's traces; the browser doesn't need them.
+hashing.frames = false;
 
 class Shell {
   settings: Settings = loadSettings();
@@ -149,8 +157,10 @@ class Shell {
     const c = this.console!;
     this.acc = Math.min(this.acc + now - this.last, MAX_BEHIND_MS);
     this.last = now;
+    const start = performance.now();
     try {
       while (this.acc >= TICK_MS) {
+        stats.ticks++;
         c.step(this.input.read());
         const p = c.program;
         if (p !== this.rendererFor) this.newRenderer(p);
@@ -169,6 +179,10 @@ class Shell {
       this.image.data.set(toRgba(this.renderer.pixels(this.buffer)));
       this.ctx.putImageData(this.image, 0, 0);
     }
+    const busy = performance.now() - start;
+    stats.frames++;
+    stats.busyMs += busy;
+    stats.worstMs = Math.max(stats.worstMs, busy);
     requestAnimationFrame((t) => this.frame(t));
   }
 
@@ -287,6 +301,12 @@ class Shell {
     if (document.fullscreenElement) void document.exitFullscreen();
     else void document.documentElement.requestFullscreen?.().catch(() => undefined);
   }
+}
+
+// Offline play and installing as an app (public/sw.js); not in development, where Vite serves
+// modules that change.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch((e) => console.warn('no offline play:', e));
 }
 
 const shell = new Shell();

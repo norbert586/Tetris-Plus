@@ -48,6 +48,29 @@ and its memory-card save, as on the console.
 When the window loses focus or the tab is hidden, the game stops between ticks and the audio
 context is suspended; a click or key resumes it. Keys held while focus left are released.
 
+## Offline
+
+Installing and offline play (Phase 10).
+
+The production build is a progressive web app. `public/manifest.webmanifest` names it, sets
+fullscreen landscape and its icons, so browsers offer to install it. `public/sw.js`, the service
+worker, is registered only in the production build:
+- on install it caches the page, the manifest and the icons; the script, packs, sound bank and
+  music are cached on first use, so one complete visit makes the game playable offline;
+- pages are fetched from the network first, falling back to the cached `index.html` offline;
+- everything else comes from the cache, and files without a content hash in their name (packs,
+  music) are refreshed in the background, so a deploy reaches players on their next visit;
+- range requests (the logo video) go to the network.
+Bump `CACHE` in `sw.js` to drop old caches.
+
+## Performance
+
+Frame hashes (`ot`, `fb`) are only for comparing with the original's traces; the shell turns them
+off (`hashing.frames` in `src/render/renderer.ts`). `tetrisPlusStats` in the browser console
+counts ticks, frames and the time spent per frame (`busyMs`, `worstMs`). `npx tsx tools/bench.ts`
+times every program of the full-run movie in Node (`--hash` with hashing on). Measured figures
+are in `docs/re/phase10.md`.
+
 ## Development
 
 `?start=NAME` starts at another program (for example `?start=PAZLE`) with the power-on state

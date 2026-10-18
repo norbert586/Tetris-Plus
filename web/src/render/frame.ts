@@ -6,7 +6,7 @@
 import type { Tim } from '../assets/tim';
 import { Gpu, VRAM_WIDTH } from './gpu';
 import type { OrderingTable } from './libgs';
-import { FNV_BASIS, fnv, type Frame } from './renderer';
+import { FNV_BASIS, fnv, hashing, type Frame } from './renderer';
 
 export abstract class FrameRenderer {
   readonly gpu = new Gpu();
@@ -33,11 +33,11 @@ export abstract class FrameRenderer {
     this.packets = [];
     for (const words of ot.packets()) {
       this.packets.push(words);
-      for (const w of words) otHash = fnv(otHash, w | 0);
+      if (hashing.frames) for (const w of words) otHash = fnv(otHash, w | 0);
       gpu.command(words);
     }
     let fb = FNV_BASIS;
-    for (let y = top; y < top + 240; y++) {
+    if (hashing.frames) for (let y = top; y < top + 240; y++) {
       const row = y * VRAM_WIDTH;
       for (let x = 0; x < 320; x++) fb = fnv(fb, this.gpu.vram[row + x]);
     }
