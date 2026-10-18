@@ -1,7 +1,8 @@
-// A preview of the port in the browser: the core and the renderer at the original's frame
-// rate, with keyboard input on pad 1. The real shell (menus, settings, gamepad, persistence,
-// audio) is Phase 9; this page is for looking at the renderer.
+// A preview of the port in the browser: the core, the renderer and the sound at the original's
+// frame rate, with keyboard input on pad 1. The real shell (menus, settings, gamepad,
+// persistence) is Phase 9. Sound starts with the first key press (browsers need a gesture).
 import { readPack } from '../assets/pack';
+import { AudioPlayer } from '../audio/player';
 import { Game } from '../core/game';
 import { Renderer } from '../render/renderer';
 import { toRgba } from '../render/present';
@@ -33,9 +34,14 @@ async function main() {
   // The frame counter and BIOS seed the corpus runs start with (docs/re/oracle-harness.md §2).
   const game = new Game({ counter: 1000, seed: 0x4327d505 });
   const image = ctx.createImageData(320, 240);
+  const audio = await AudioPlayer.create(game, 'assets/', TICK_MS / 1000).catch((e) => {
+    console.warn('no sound:', e);
+    return undefined;
+  });
 
   let pad = 0;
   addEventListener('keydown', (e) => {
+    audio?.resume();
     if (e.code in KEYS) {
       pad |= KEYS[e.code];
       e.preventDefault();
@@ -54,6 +60,7 @@ async function main() {
     while (acc >= TICK_MS && !game.exited) {
       game.step(pad & 0xffff); // pad 2 stays released until two-player mode exists
       buffer = renderer.frame(game).buffer;
+      audio?.tick(game);
       acc -= TICK_MS;
     }
     if (buffer >= 0) {
