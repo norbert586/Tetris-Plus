@@ -270,7 +270,7 @@ exit is identical; frames are compared for SELECT.
   (the audio layer's drive does it). `cdRecover` (CD error recovery) is ported in
   `web/src/programs/select/sound.ts`.
 - **Power-on state.** The music test and `bgm_request` read the CD's track count at S+0x206E0
-  (52). The entry state includes it; the power-on state used by `Console` must too.
+  (52). `src/flow/power-state.ts` and the entry states include it.
 - **Uploads.** The trace's `up` is the address the decompressor is given (0x800F4000 + the
   item's offset from 0x800B23EC); the port records item numbers in `Select.uploads` and maps
   them in `trace.ts`.
