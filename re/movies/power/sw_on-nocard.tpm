@@ -1,0 +1,7 @@
+tpm 1
+boot power
+# SW_ON with no memory card in either slot (TP_MEMCARD1=none TP_MEMCARD2=none): "memory card is
+# not inserted"; Cross retries (the check runs again), Circle goes on without the card.
+end 500
+60 1 CROSS
+120 1 CIRCLE

@@ -1,0 +1,7 @@
+tpm 1
+boot power
+end 2720
+# title-anim: the story plays to its end; START during the title's logo animation (phase 3)
+# jumps to the finished screen (phase 9); START there leaves for SELECT (docs/re/title.md §5).
+2400 4 START
+2600 4 START

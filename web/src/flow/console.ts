@@ -6,7 +6,9 @@
 import * as A from '../core/addr';
 import { decodeBase64, Mem } from '../core/mem';
 import { Rng } from '../core/rng';
+import { MemoryCards } from './memcard';
 import { POWER_STATE } from './power-state';
+import { runStandIn, STAND_INS } from './stand-ins';
 import { PROGRAM_NAMES, type Program, type ProgramFactory, type ProgramName, type Shared } from './program';
 
 export interface ConsoleOptions {
@@ -16,6 +18,8 @@ export interface ConsoleOptions {
   first?: ProgramName;
   /** Start from this RAM image (an emulator dump at the first program's main) instead of power-on. */
   ram?: Uint8Array;
+  /** The memory cards (default: a formatted empty card in slot 1, slot 2 empty, kept in memory). */
+  cards?: MemoryCards;
 }
 
 export class Console {
@@ -30,7 +34,7 @@ export class Console {
   ) {
     const m = new Mem(opts.ram ?? new Uint8Array(0x200000));
     if (!opts.ram) for (const r of POWER_STATE) m.bytes.set(decodeBase64(r.base64), (A.S + r.offset) & 0x1fffff);
-    this.shared = { m, rng: new Rng(opts.seed ?? 0) };
+    this.shared = { m, rng: new Rng(opts.seed ?? 0), cards: opts.cards ?? new MemoryCards() };
     this.program = this.start(opts.first ?? 'SW_ON', !opts.ram);
   }
 
@@ -59,6 +63,14 @@ export class Console {
   }
 
   private start(name: ProgramName, settle = true): Program {
+    // Programs the port skips (stand-ins.ts) run to their end at once, as boot_settle and
+    // the stand-in leave the state, and the program they name starts instead.
+    for (let s = STAND_INS[name]; s && !this.factories[name]; s = STAND_INS[name]) {
+      if (settle) this.m.fill(A.S + 0x4b508, 0x4b538 - 0x4b508);
+      this.started.push(name);
+      runStandIn(this.m, s);
+      name = this.next;
+    }
     const factory = this.factories[name];
     if (!factory) throw new Error(`program ${name} is not ported`);
     // boot_settle (0x80024C2C): both players' screen, step and sub-step words are cleared.

@@ -10,6 +10,7 @@ import { pauseCheck } from './pause';
 import { objectsClearAll, objectsDraw, uploadQueueFlush, type Box } from './objects';
 import { traceRow } from './trace';
 import type { SoundCall } from './sound';
+import { MemoryCards } from '../flow/memcard';
 
 export interface GameOptions {
   /** Global frame counter when pazle_main starts (it carries over from earlier programs). */
@@ -25,7 +26,9 @@ export interface GameOptions {
    * block as earlier programs left it. PAZLE.EXE's data is loaded and its BSS cleared, as the
    * boot program's loader and `start` do; `counter` and `seed` are then ignored.
    */
-  shared?: { m: Mem; rng: Rng };
+  shared?: { m: Mem; rng: Rng; cards?: MemoryCards };
+  /** The memory cards (default: a formatted empty card in slot 1, slot 2 empty). */
+  cards?: MemoryCards;
 }
 
 /** PAZLE.EXE's BSS, cleared by `start` (docs/re/static-bootstrap.md §1). */
@@ -56,12 +59,15 @@ export class Game {
   boxColors: number[] = [];
   /** Ticks run so far; tick 1 is the main loop's first iteration. */
   tick = 0;
+  /** The memory cards (the save screen and the menu's Continue; card.ts). */
+  readonly cards: MemoryCards;
   /** Set when the program leaves Puzzle Mode (exit flag). */
   get exited(): boolean {
     return this.m.s32(A.EXIT_FLAG) !== 0;
   }
 
   constructor(opts: GameOptions) {
+    this.cards = opts.shared?.cards ?? opts.cards ?? new MemoryCards();
     if (opts.shared) {
       this.rng = opts.shared.rng;
       this.m = opts.shared.m;

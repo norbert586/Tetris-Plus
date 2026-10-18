@@ -2,6 +2,7 @@
 // compares it with the original's trace, tick by tick: the fields each program's port reports
 // (Program.traceRow), its frames when a renderer is given, and which program runs.
 import { Console } from '../src/flow/console';
+import type { MemoryCards } from '../src/flow/memcard';
 import type { Program, ProgramFactory, ProgramName } from '../src/flow/program';
 import type { Movie } from '../tools/movie';
 import { sameValue, type Row, type Trace } from '../tools/trace';
@@ -22,6 +23,8 @@ export interface FlowOptions {
   start?: { prog: ProgramName; ram: Uint8Array };
   /** Stop at the end of the first run of `start.prog` (or of the first program). */
   onlyFirst?: boolean;
+  /** The memory cards the movie was recorded with (default: Console's, src/flow/memcard.ts). */
+  cards?: MemoryCards;
   ignore?: string[];
   to?: number;
   context?: number;
@@ -49,6 +52,7 @@ export function compareFlow(movie: Movie, trace: Trace, opts: FlowOptions): Flow
     first: first.prog as ProgramName,
     seed: first.mainseed as number,
     ram: opts.start?.ram,
+    cards: opts.cards,
   });
   let renderer = opts.renderers?.[c.program.name]?.(c.program);
   const to = Math.min(opts.to ?? Infinity, movie.last);
@@ -70,7 +74,10 @@ export function compareFlow(movie: Movie, trace: Trace, opts: FlowOptions): Flow
     c.step(movie.inputs.get(t) ?? 0);
     const p = c.program as Traced;
     const got: Row = { t, prog: p.name, ...(p.traceRow?.() ?? {}) };
-    if (renderer) Object.assign(got, renderer.frame(p));
+    if (renderer) {
+      const f = renderer.frame(p);
+      Object.assign(got, { ot: f.ot, fb: f.fb });
+    }
     for (const poke of movie.pokes.get(t) ?? []) {
       if (poke.size === 4) c.m.w32(poke.address, poke.value);
       else if (poke.size === 2) c.m.w16(poke.address, poke.value);

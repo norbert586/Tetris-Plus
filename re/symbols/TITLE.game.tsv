@@ -1,0 +1,32 @@
+# TITLE.EXE names (docs/re/title.md). address<TAB>function<TAB>name<TAB>evidence
+0x80094c14	function	pad_read	PadRead (unused copy; the main loop inlines it)
+0x80094d30	function	se_play	same as PAZLE se_play: tables 0x800AD878/0x800AD888
+0x80094f58	function	bgm_cd_start	Setmode, Setloc, Play, CdReadyCallback
+0x80094fc0	function	bgm_report_callback	CdReadyCallback: loop or mute at the track end
+0x800950e8	function	bgm_request	same as PAZLE bgm_request (state 0x800B4294)
+0x80095518	function	sound_init	SsVabOpenHead, reverb, CD mix, bgm state = 0x34
+0x80095704	function	title_main	start jumps here; main loop (pad read and CD poll inlined)
+0x80095a34	function	graphics_init	GsInitGraph, ordering tables, sound_init, sprite_templates_init
+0x80095b18	function	vars_init	player 0, zones 0, state+0x4B53C = 0
+0x80095d14	function	sprite_templates_init	unpacks and uploads all 143 items, templates at state+0x3F074
+0x80095dc0	function	item_load	unpack item n and LoadImage it
+0x80095e28	function	tim_upload	LoadImage of an unpacked TIM and its CLUT
+0x80096314	function	item_unpack	LZ decoder into state+0x2AC74
+0x800966e4	function	soft_reset_check	START+SELECT 121 ticks: TITLE phase 9. Never called
+0x8009683c	function	objects_draw	every object 1049..0, GsSortSprite at priority +0x40 + 10
+0x80096a1c	function	object_clear	zeroes object n
+0x80096b3c	function	object_move	x, y, scale += velocities
+0x80096c28	function	object_velocity	vx, vy = args << 16
+0x80096dc8	function	anim_start_upload	first frame of the object animation, unpacked and uploaded
+0x80096e98	function	anim_step	next frame when the timer runs out (table 0x800AE100)
+0x80096f4c	function	anim_step_upload	anim_step, unpacking and uploading the new frame
+0x8009713c	function	param_dispatch	table 0x80094000 by state+0x4C
+0x800971a8	function	title_setup	param 0: clear objects, PRESS START (object 100, anim 3)
+0x80097244	function	title_frame	param 1: START -> phase 9, or in phase 9 se 0 and param 3
+0x800972c0	function	title_attract	param 2: names HOW_N / HOW_VS by state+0x4B540
+0x80097378	function	title_exit_select	param 3: names SELECT
+0x800973a4	function	image_viewer	param 4: d-pad steps objects 0/1 through images; unreachable
+0x80097514	function	phase_dispatch	table 0x80094014 by state+0x50
+0x800975a0	function	phase0_music	bgm_request(0x22)
+0x80099340	function	phase9_setup	the finished title
+0x80099470	function	phase9_wait	1801 ticks, then param 2

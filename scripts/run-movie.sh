@@ -25,11 +25,12 @@ rm -f "$TP_OUT"/trace.jsonl "$TP_OUT"/ram_*.bin "$TP_OUT"/shot_*.raw
 # and a card written by an earlier run would change what the game does.
 rm -rf "$TP_OUT/home" && mkdir -p "$TP_OUT/home"
 # TP_MEMCARD1 / TP_MEMCARD2: start with this card image (128 KB .mcd) in the slot instead of
-# the empty formatted card Redux creates. The card as the run left it stays in
-# $TP_OUT/home/.config/pcsx-redux/memcard1.mcd.
+# the empty formatted card Redux creates, or "none": no card in the slot (re/lua/movie.lua takes
+# it out). The card as the run left it stays in $TP_OUT/home/.config/pcsx-redux/memcard1.mcd.
+export TP_MEMCARD1 TP_MEMCARD2
 for n in 1 2; do
   var="TP_MEMCARD$n"
-  if [ -n "${!var:-}" ]; then
+  if [ -n "${!var:-}" ] && [ "${!var}" != none ]; then
     mkdir -p "$TP_OUT/home/.config/pcsx-redux"
     cp "${!var}" "$TP_OUT/home/.config/pcsx-redux/memcard$n.mcd"
   fi

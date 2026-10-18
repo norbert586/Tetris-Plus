@@ -54,6 +54,9 @@ local ffi = require('ffi')
 -- change: traces are identical either way (docs/re/oracle-harness.md §6). (UseNullSync, the
 -- obvious switch, hangs the emulator.)
 if os.getenv('TP_REALTIME') ~= '1' then PCSX.settings.spu.Speed = tonumber(os.getenv('TP_SPEED') or '32') end
+-- TP_MEMCARD1/2=none (scripts/run-movie.sh): no card in that slot.
+if os.getenv('TP_MEMCARD1') == 'none' then PCSX.settings.emulator.Mcd1Inserted = false end
+if os.getenv('TP_MEMCARD2') == 'none' then PCSX.settings.emulator.Mcd2Inserted = false end
 local outDir = os.getenv('TP_OUT') or '.'
 local mem = PCSX.getMemPtr()
 local pad = PCSX.SIO0.slots[1].pads[1]

@@ -1,0 +1,7 @@
+tpm 1
+boot power
+end 26000
+# attract-cycle: power-on with no input, one full attract cycle (docs/re/title.md §4): SW_ON,
+# TIT_DEMO, TITLE; the title times out into HOW_N (Classic demo), then HOW_P (Puzzle demo),
+# RANKING, TIT_DEMO, TITLE again, whose timeout now runs HOW_VS (VS demo), then RANKING and
+# TIT_DEMO.

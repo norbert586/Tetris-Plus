@@ -1,0 +1,37 @@
+# TIT_DEMO.EXE names (docs/re/title.md). address<TAB>function<TAB>name<TAB>evidence
+0x80094b28	function	pad_init	zeroes the pad state (8 x 6 bytes at 0x800B8BA0) after PadInit
+0x80094bac	function	pad_read	PadRead: held / newly pressed for pads 1 and 2 (0x800B8BA2-AA)
+0x80094cc8	function	se_play	same as PAZLE se_play: SsVoKeyOn from tables 0x800AECEC/0x800AECFC
+0x80094e30	function	bgm_track_end	end position of a CD track (state+0x20550 TOC + 0x800AEE8C)
+0x80094ef0	function	bgm_play_track	track check (99 or <= state+0x206E0), Setmode, Setloc, Play
+0x80094fbc	function	cd_poll	main loop: CdReset and replay after a CD error (0x800B5DDC)
+0x800950d4	function	bgm_report_callback	CdReadyCallback: loop or mute at the track end
+0x800951fc	function	bgm_request	same as PAZLE bgm_request (state 0x800B5D80)
+0x80095544	function	sound_init	SsVabOpenHead, reverb, CD mix, bgm state = 0x34
+0x80095718	function	tit_demo_main	start jumps here; main loop
+0x800958bc	function	graphics_init	GsInitGraph, ordering tables, sound_init, sprite_templates_init
+0x800959a0	function	vars_clear	zeroes 0x800B5CF8-0x800B5D70
+0x80095bf8	function	sprite_templates_init	unpacks and uploads all 409 items, GsSPRITE templates at state+0x3F074
+0x80095e88	function	item_unpack_upload_template	FUN_8009632C + LoadImage + FUN_80095F1C
+0x80095f1c	function	sprite_template	GsSPRITE from a TIM, as PAZLE FUN_80097830
+0x80096080	function	sort_object_sprite	GsSortSprite of an object with scale, rotation, palette row
+0x8009632c	function	item_unpack	LZ decoder (as PAZLE) into state+0x2AC74
+0x80096604	function	tit_demo_shutdown	after the main loop: sound off, CdFlush, StopCallback
+0x800966fc	function	soft_reset_check	START+SELECT 121 ticks: TITLE phase 9. Never called
+0x80096854	function	objects_draw	every object 1049..0 at priority 20 - n/50; kinds -1,-2,-3 boxes
+0x80096ad4	function	sort_random_box	kind -1: box with rand()&7 colours
+0x80096b58	function	phase_dispatch	table 0x80094000 by state+0x50
+0x80096be4	function	phase0_setup	subphase table 0x80094028, then bgm_request(2)
+0x80096c0c	function	phase1_story	START: phase 3; else scene_step and caption_step
+0x80096c54	function	phase2_exit_title	names TITLE param 0 phase 0
+0x80096c80	function	phase3_exit_title_skip	names TITLE param 0 phase 9
+0x80096e3c	function	scene_step	table 0x80094038 by 0x800B5CF8
+0x80097428	function	caption_step	table 0x80094070 by 0x800B5D08
+0x80097758	function	page_step	table 0x800940A4 by 0x800B5D38
+0x80097840	function	caption_type_letter	next script word: letter, space, new line, end
+0x80097b08	function	object_clear	zeroes object n
+0x80097acc	function	objects_clear_all	object_clear 0..1049
+0x80097d08	function	sort_dark_box	kind -2: subtractive box by fade level
+0x80097db8	function	sort_light_box	kind -3: additive box by fade level
+0x80097e68	function	fade_up	object +0x4C up to 64
+0x80097eb0	function	fade_down	object +0x4C down to 0

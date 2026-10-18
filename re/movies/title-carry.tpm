@@ -1,0 +1,7 @@
+tpm 1
+boot power
+end 940
+# title-carry: START held for 12 ticks skips the story; TITLE's pad state starts cleared, so the
+# still-held START counts as newly pressed on its first pad read and the title leaves for SELECT
+# at once (docs/re/title.md §5).
+900 12 START

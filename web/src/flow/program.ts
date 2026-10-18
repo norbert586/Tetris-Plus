@@ -9,6 +9,7 @@
 import type { Mem } from '../core/mem';
 import type { Rng } from '../core/rng';
 import type { SoundCall } from '../core/sound';
+import type { MemoryCards } from './memcard';
 import type { Frame } from '../render/renderer';
 
 /** The boot program's program numbers (state+0x48; table at 0x80039A74). */
@@ -21,6 +22,8 @@ export type ProgramName = (typeof PROGRAM_NAMES)[number];
 export interface Shared {
   m: Mem;
   rng: Rng;
+  /** The memory cards (src/flow/memcard.ts); the Console always provides them. */
+  cards?: MemoryCards;
 }
 
 export interface Program {

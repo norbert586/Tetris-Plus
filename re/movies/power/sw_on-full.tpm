@@ -1,0 +1,7 @@
+tpm 1
+boot power
+# SW_ON with a full card in slot 1 (15 blocks of another game, TP_MEMCARD1=full.mcd from
+# tools/mcd.ts) and none in slot 2: "insufficient memory". Cross checks again, Circle goes on.
+end 450
+30 1 CROSS
+60 1 CIRCLE

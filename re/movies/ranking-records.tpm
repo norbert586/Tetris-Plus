@@ -1,0 +1,47 @@
+tpm 1
+boot power
+end 3200
+# ranking-records: power-on, the title (Start, Start), the mode select: Right (Puzzle), Cross,
+# Cross. Puzzle Mode starts on tick 2678 with player 2 idle (screen 8); a poke puts player 1 on
+# screen 8 too, so Puzzle Mode names RANKING.EXE (param 0) as when both players quit. Pokes on
+# the same tick fill both ranking tables with edge cases (blank letters, 7- and 8-digit scores,
+# zero, zone 5's 100-stage entry with no stage, stage bytes past 19 and 0xFF). The tables slide
+# in; during the 300-tick wait pad 2 holds Start + Select: after 121 ticks the soft reset names
+# TITLE (docs/re/ranking.md).
+2300 4 START
+2400 4 START
+2500 4 RIGHT
+2540 4 CROSS
+2600 4 CROSS
+poke 2700 0x80089b70 8
+poke 2700 0x800894c8 2039583
+poke 2700 0x800894cc 9999999
+poke 2700 0x800894d0 6489063
+poke 2700 0x800894d4 1842462
+poke 2700 0x800894d8 0
+poke 2700 0x800894dc 0
+poke 2700 0x800894e0 335616
+poke 2700 0x800894e4 1234567
+poke 2700 0x800894e8 983140
+poke 2700 0x800894ec 789258
+poke 2700 0x800894f0 12345678
+poke 2700 0x800894f4 196615
+poke 2700 0x800894f8 2038554
+poke 2700 0x800894fc 7
+poke 2700 0x80089500 65537
+poke 2700 0x80089504 1184016
+poke 2700 0x80089508 3210
+poke 2700 0x8008950c 1379
+poke 2700 0x80089510 197151
+poke 2700 0x80089514 9999999
+poke 2700 0x80089518 1043
+poke 2700 0x8008951c 394500
+poke 2700 0x80089520 0
+poke 2700 0x80089524 0
+poke 2700 0x80089528 591879
+poke 2700 0x8008952c 45
+poke 2700 0x80089530 301
+poke 2700 0x80089534 986637
+poke 2700 0x80089538 100
+poke 2700 0x8008953c 1023
+2950 140 2:START+SELECT

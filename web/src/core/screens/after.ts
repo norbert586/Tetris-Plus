@@ -1,7 +1,8 @@
 // Screens 6 (continue), 7 (rank check), 9 (stage clear) and 13 (save / password).
 import * as A from '../addr';
-import { NotPorted, type Game } from '../game';
-import { animSet, animStartLoad, animTick, animTickLoad, objectClear, objectPut2 } from '../objects';
+import type { Game } from '../game';
+import { animSet, animStartLoad, animTick, animTickLoad, itemLoad, objectClear, objectLoad2, objectPut2 } from '../objects';
+import * as C from '../card';
 import { bgmRequest, sePlay } from '../sound';
 import * as V from '../vars';
 import { profDispatch, objectsClearLineFlash } from '../professor';
@@ -445,6 +446,15 @@ function saveOptions(g: Game, first: number): void {
   }
 }
 
+const SLOT_PICK = 0x800ed320; // [2] the save slot chosen, 0-2
+const CARD_TIMER = 0x800f35b0; // [2]
+const YES_NO = 0x800ee43c; // [2] 0 yes, 1 no
+const SLOT_IMAGES = 0x80094968; // int[12]: by (row chosen?): label, empty, cleared, zone, "STAGE", digits
+
+const nothing = () => {};
+const substepNext = (g: Game, n = 1) => g.m.add32(g.pv(A.SUBSTEP), n);
+const substepSet = (g: Game, n: number) => g.m.w32(g.pv(A.SUBSTEP), n);
+
 const SAVE: ((g: Game) => void)[] = [
   // 0 (0x8009BC7C): the play area's objects move to the top of the range.
   (g) => {
@@ -487,16 +497,390 @@ const SAVE: ((g: Game) => void)[] = [
     saveOptions(g, 0xd3);
     sePlay(g, 3);
   },
-  // 3 (0x8009C01C): 0 and 1 save to the memory card, 2 quits.
+  // 3 (0x8009C01C): 0 and 1 save to the card in that slot, 2 quits.
   (g) => {
     const c = v(g, SAVE_CURSOR);
     if (c === 2) toScreen(g, 8);
     else if (c === 0 || c === 1) g.m.add32(g.pv(A.SUBSTEP), 1);
   },
+  // 4 (0x8009C108): the card lock; if held, "busy" for 120 ticks and back.
+  (g) => {
+    if (C.cardLock(g)) {
+      substepNext(g);
+      return;
+    }
+    objectLoad2(g, 0x1a4, 0x4d3, 0x15, 99);
+    cardMessageWait(g, 0x21);
+  },
+  // 5 (0x8009C1C4): check the card.
+  (g) => {
+    const m = g.m;
+    m.w32(C.CARD_INDEX, v(g, C.CARD_SLOT));
+    const r = C.cardStatus(g);
+    m.w32(C.CARD_RESULT, r);
+    if (r === 1) {
+      substepSet(g, 8);
+    } else if (r === 3) {
+      substepSet(g, 0x1c);
+    } else if (r !== 2) {
+      objectLoad2(g, 0x1a4, r === 0 ? 0x440 : 0x444, 0x10, 0x44);
+      cardMessageWait(g, 6);
+    }
+  },
+  // 6 (0x8009C328): the message's time, then 7.
+  (g) => cardMessageTimer(g),
+  // 7 (0x8009C3B4): back to the options.
+  (g) => {
+    C.cardUnlock(g);
+    substepSet(g, 1);
+  },
+  // 8 (0x8009C400): read the save file; without one, check for room (26).
+  (g) => {
+    if (!C.saveRead(g)) {
+      substepSet(g, 0x1a);
+      return;
+    }
+    C.saveToState(g, 4);
+    substepNext(g);
+  },
+  // 9 (0x8009C49C): the three save slots.
+  (g) => {
+    const m = g.m;
+    objectClear(g, g.ob + 0x194);
+    for (let i = 0; i < 6; i++) objectClear(g, i + g.ob + 0x196);
+    objectPut2(g, 0xd2, m.s32(0x80094240 + 4 * v(g, C.CARD_SLOT)), 0x17, 0x16);
+    objectPut2(g, 0xd3, 0x3b0, 0x2d, 0xd4);
+    objectPut2(g, 0xd4, 0, 0x11, 0x41);
+    animSet(g, g.ob + 0xd4, 0x33);
+    objectClear(g, g.ob + 0xd5);
+    objectClear(g, g.ob + 0xd6);
+    slotList(g, 0, 0x5d);
+    itemLoad(g, 0x4c5);
+    m.w32(g.pv(SLOT_PICK), 0);
+    substepNext(g);
+  },
+  // 10 (0x8009C628): Up/Down pick a slot; Cross saves there (asking first if it holds a game);
+  // Circle backs out.
+  (g) => {
+    const m = g.m;
+    const pressed = g.pressed();
+    if (pressed & 0x20) {
+      sePlay(g, 0x12);
+      for (let i = -1; i < 0x15; i++) objectClear(g, i + g.ob + 400);
+      substepSet(g, 7);
+      return;
+    }
+    if (pressed & 0x40) {
+      sePlay(g, 0);
+      objectClear(g, g.ob + 399);
+      if (m.u8(C.SAVE_SLOTS + 2 * v(g, SLOT_PICK)) !== 0xff) {
+        overwriteAsk(g, 0x59);
+        substepNext(g);
+        return;
+      }
+      if (m.s32(C.CARD_LOCK) & 0x10) {
+        substepSet(g, 0x18);
+        return;
+      }
+      savingMessage(g);
+      objectClear(g, g.ob + 0x1a6);
+      substepNext(g, 2);
+      return;
+    }
+    if (pressed & 0x1000) {
+      const c = v(g, SLOT_PICK) - 1;
+      m.w32(g.pv(SLOT_PICK), c < 0 ? 2 : c);
+    } else if (pressed & 0x4000) {
+      const c = v(g, SLOT_PICK) + 1;
+      m.w32(g.pv(SLOT_PICK), c > 2 ? 0 : c);
+    } else {
+      animTick(g, g.ob + 0xd4);
+      return;
+    }
+    slotList(g, v(g, SLOT_PICK), 0x5d);
+    sePlay(g, 3);
+    animTick(g, g.ob + 0xd4);
+  },
+  // 11 (0x8009C9DC): overwrite? Yes: save (37); no: back to the slots.
+  (g) => {
+    const r = yesNo(g, 0x35, 0x25, 0x69 + 0x28 * v(g, SLOT_PICK));
+    if (r === 1) {
+      g.m.w32(g.pv(CARD_TIMER), 2);
+      substepSet(g, 0x25);
+    } else if (r === 2) {
+      itemLoad(g, 0x4c5);
+      slotList(g, v(g, SLOT_PICK), 0x5d);
+      objectClear(g, g.ob + 0x1a1);
+      objectClear(g, g.ob + 0x1a2);
+      substepNext(g, -1);
+    }
+  },
+  // 12 (0x8009CAF0)
+  (g) => substepNext(g),
+  // 13 (0x8009CB68): the game into the slot, the slots and best times into copy A; write.
+  (g) => {
+    const m = g.m;
+    const slot = C.SAVE_SLOTS + 2 * v(g, SLOT_PICK);
+    m.w8(slot, m.u8(g.pv(V.SAVED_STAGE)));
+    m.w8(slot + 1, m.u8(g.pv(V.ZONES_CLEARED)));
+    C.stateToSave(g, v(g, SLOT_PICK) + 5);
+    C.stateToSave(g, 1);
+    if (C.saveWrite(g) === 0) {
+      cardMessage(g, 0x44b);
+      cardMessageWait(g, 6);
+      return;
+    }
+    substepNext(g);
+  },
+  // 14 (0x8009CD48)
+  (g) => {
+    for (const n of [0x1a1, 0x1a2, 0x1a3, 0x1a4]) objectClear(g, g.ob + n);
+    C.cardUnlock(g);
+    substepNext(g);
+  },
+  // 15 (0x8009CDE0)
+  (g) => toScreen(g, 8),
+  // 16 (0x8009CE38: unused)
+  (g) => toScreen(g, 1),
+  nothing,
+  nothing,
+  nothing,
+  // 20-23: as 28-31 (no path leads here).
+  (g) => formatAsk(g),
+  (g) => formatAnswer(g),
+  (g) => substepNext(g),
+  (g) => formatRun(g),
+  // 24 (0x8009D25C): a new file: check the card again.
+  (g) => {
+    const m = g.m;
+    const r = C.cardStatus(g);
+    m.w32(C.CARD_RESULT, r);
+    if (r === 1) {
+      savingMessage(g);
+      objectClear(g, g.ob + 0x1a2);
+      objectClear(g, g.ob + 0x1a6);
+      substepNext(g);
+      m.w32(g.pv(CARD_TIMER), 3);
+    } else {
+      cardMessage(g, 0x44b);
+      cardMessageWait(g, 6);
+    }
+  },
+  // 25 (0x8009D404): after 3 ticks, create the file, then write the game (13); else 26.
+  (g) => {
+    const m = g.m;
+    if (m.add32(g.pv(CARD_TIMER), -1) >= 1) return;
+    const r = C.saveCreate(g);
+    m.w32(C.CARD_RESULT, r);
+    if (r === 0) substepNext(g);
+    else substepSet(g, 0xd);
+  },
+  // 26 (0x8009D4C8): room for a file: start from the defaults (32); else "card full".
+  (g) => {
+    const r = C.usedBlocks(g);
+    g.m.w32(C.CARD_RESULT, r);
+    if (r < 0xf) {
+      substepSet(g, 0x20);
+      return;
+    }
+    cardMessage(g, 0x448);
+    cardMessageWait(g, 6);
+  },
+  nothing,
+  // 28 (0x8009CEA8): the card isn't formatted: format it?
+  (g) => formatAsk(g),
+  // 29 (0x8009CF00)
+  (g) => formatAnswer(g),
+  // 30 (0x8009D100)
+  (g) => substepNext(g),
+  // 31 (0x8009D13C)
+  (g) => formatRun(g),
+  // 32 (0x8009D5F8): a new file from the defaults.
+  (g) => {
+    C.saveDefaults(g);
+    C.saveToState(g, 4);
+    g.m.w32(C.CARD_LOCK, g.m.s32(C.CARD_LOCK) | 0x10);
+    substepSet(g, 9);
+  },
+  // 33 (0x8009C328), after "busy"
+  (g) => cardMessageTimer(g),
+  // 34 (0x8009D66C)
+  (g) => substepSet(g, 1),
+  // 35 (0x8009C328: unused)
+  (g) => cardMessageTimer(g),
+  nothing,
+  // 37 (0x8009D6B0): overwrite: after 2 ticks, check the card again, then save (12).
+  (g) => {
+    const m = g.m;
+    if (m.add32(g.pv(CARD_TIMER), -1) >= 1) return;
+    if (C.cardStatus(g) === 1) {
+      savingMessage(g);
+      objectClear(g, g.ob + 0x1a1);
+      objectClear(g, g.ob + 0x1a2);
+      objectClear(g, g.ob + 0x1a6);
+      substepSet(g, 0xc);
+    } else {
+      cardMessage(g, 0x44b);
+      cardMessageWait(g, 6);
+    }
+  },
 ];
 
 export function scr13Save(g: Game): void {
-  const s = g.m.s32(g.pv(A.SUBSTEP));
-  if (s >= SAVE.length) throw new NotPorted(`save screen substep ${s} (memory card)`);
-  SAVE[s](g);
+  SAVE[g.m.s32(g.pv(A.SUBSTEP))](g);
 }
+
+// ---- the card screens' helpers (screen 13 and the menu's Continue) ----
+
+
+/** A card message (object 0x1A4 at 16, 68, the player's palette, its image uploaded). */
+function cardMessage(g: Game, image: number): void {
+  objectLoad2(g, 0x1a4, image, 0x10, 0x44);
+}
+
+/** The message stays 120 ticks (substep 6 or 33 counts them), then `substep`. */
+function cardMessageWait(g: Game, substep: number): void {
+  g.m.w32(g.pv(CARD_TIMER), 0x78);
+  substepSet(g, substep);
+}
+
+/** FUN_8009C328 */
+function cardMessageTimer(g: Game): void {
+  if (g.m.add32(g.pv(CARD_TIMER), -1) < 1) {
+    objectClear(g, g.ob + 0x1a4);
+    substepNext(g);
+  }
+}
+
+/** "Saving" (0x44A). */
+function savingMessage(g: Game): void {
+  cardMessage(g, 0x44a);
+}
+
+/**
+ * FUN_800B8918(chosen, y): the three save slots, the chosen one highlighted: each with its zone
+ * and stage, "empty" (stage 0xFF) or "cleared" (all five zones).
+ */
+export function slotList(g: Game, chosen: number, y: number): void {
+  const m = g.m;
+  const img = (k: number) => m.s32(SLOT_IMAGES + 4 * k);
+  for (let i = 0; i < 3; i++) {
+    const stage = m.u8(C.SAVE_SLOTS + 2 * i);
+    const zones = m.u8(C.SAVE_SLOTS + 2 * i + 1);
+    const hi = chosen === i ? 1 : 0;
+    if (hi) {
+      objectPut2(g, 399, 0x4c6, 0x10, i * 0x28 + y - 6);
+      m.w32(A.obj(g.ob + 399) + A.O_PALETTE, g.p);
+    }
+    const row = i * 0x28;
+    objectPut2(g, i + 400, i + img(hi), 0x16, row + y);
+    const k = i * 4;
+    let last: number;
+    let lastImage: number;
+    let ly: number;
+    if (stage === 0xff || (zones & 0x1f) === 0x1f) {
+      if (stage === 0xff) objectPut2(g, k + 0x195, img(hi + 2), 0x41, y + row + 0x13);
+      else objectPut2(g, k + 0x195, img(hi + 4), 0x5a, y + row + 0x13);
+      ly = y + row + 0x14;
+      objectPut2(g, k + 0x196, 0, 0x52, ly);
+      objectPut2(g, k + 0x197, 0, 0x73, ly);
+      last = k + 0x198;
+      lastImage = 0;
+    } else {
+      ly = y + row + 0x14;
+      objectPut2(g, k + 0x195, Math.trunc(stage / 0x14) + img(hi + 6), 0x1b, ly);
+      objectPut2(g, k + 0x196, img(hi + 8), 0x50, y + row + 0x13);
+      objectPut2(g, k + 0x197, Math.trunc(((stage % 0x14) + 1) / 10) + img(hi + 10), 0x73, ly);
+      last = k + 0x198;
+      lastImage = ((stage + 1) % 10) + img(hi + 10);
+    }
+    objectPut2(g, last, lastImage, 0x7b, ly);
+  }
+}
+
+/** FUN_800B921C(y): the overwrite question's yes/no cursor (on "no") and text, by the chosen slot. */
+function overwriteAsk(g: Game, y: number): void {
+  const m = g.m;
+  m.w32(g.pv(YES_NO), 1);
+  objectPut2(g, 0x1a2, 0, 0x5a, v(g, SLOT_PICK) * 0x28 + 0x69);
+  animSet(g, g.ob + 0x1a2, v(g, YES_NO) + 0x36);
+  objectPut2(g, 0x1a1, 0x4c7, 0xe, v(g, SLOT_PICK) * 0x28 + y);
+}
+
+/**
+ * FUN_800B9334 (x = 0x35 * c + 0x25, y by the slot) and FUN_800B8D80 (x = 0x29 * c + 0x30,
+ * y 0x92): Cross answers (1 yes, 2 no), Circle is no, Left/Right move the cursor.
+ */
+function yesNo(g: Game, dx: number, x0: number, y: number): number {
+  const m = g.m;
+  const pressed = g.pressed();
+  if (pressed & 0x40) {
+    sePlay(g, 0);
+    if (v(g, YES_NO) === 0) return 1;
+    if (v(g, YES_NO) === 1) return 2;
+  }
+  if (pressed & 0x20) {
+    sePlay(g, 0x12);
+    return 2;
+  }
+  if ((pressed & 0xa000) === 0) {
+    animTick(g, g.ob + 0x1a2);
+    return 0;
+  }
+  const c = v(g, YES_NO) ^ 1;
+  m.w32(g.pv(YES_NO), c);
+  objectPut2(g, 0x1a2, 0, c * dx + x0, y);
+  animSet(g, g.ob + 0x1a2, c + 0x36);
+  sePlay(g, 3);
+  return 0;
+}
+
+/** FUN_8009CEA8 / FUN_800B8C78: "format the card?", the cursor on "no". */
+function formatAsk(g: Game): void {
+  const m = g.m;
+  m.w32(g.pv(YES_NO), 1);
+  objectPut2(g, 0x1a2, 0, 0x59, 0x92);
+  animSet(g, g.ob + 0x1a2, v(g, YES_NO) + 0x36);
+  objectLoad2(g, 0x1a1, 0x445, 0x12, 0x50);
+  substepNext(g);
+}
+
+/** FUN_8009CF00: yes formats if the card is still unformatted; no backs out (7). */
+function formatAnswer(g: Game): void {
+  const m = g.m;
+  const r = yesNo(g, 0x29, 0x30, 0x92);
+  m.w32(C.CARD_RESULT, r);
+  if (r === 1) {
+    objectClear(g, g.ob + 0x1a1);
+    objectClear(g, g.ob + 0x1a2);
+    const s = C.cardStatus(g);
+    m.w32(C.CARD_RESULT, s);
+    if (s === 3) {
+      cardMessage(g, 0x446);
+      substepNext(g);
+      return;
+    }
+    cardMessage(g, 0x447);
+    cardMessageWait(g, 6);
+  } else if (r === 2) {
+    objectClear(g, g.ob + 0x1a1);
+    objectClear(g, g.ob + 0x1a2);
+    substepSet(g, 7);
+  }
+}
+
+/** FUN_8009D13C: format; then a new file (the next substep, 32 from 31). */
+function formatRun(g: Game): void {
+  const r = C.cardFormat(g);
+  g.m.w32(C.CARD_RESULT, r);
+  if (r === 0) {
+    cardMessage(g, 0x447);
+    cardMessageWait(g, 6);
+    return;
+  }
+  objectClear(g, g.ob + 0x1a4);
+  substepNext(g);
+}
+
+// Used by the menu's Continue.
+export { substepNext, substepSet, SLOT_PICK, CARD_TIMER };
