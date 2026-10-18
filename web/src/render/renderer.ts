@@ -64,6 +64,11 @@ export interface Frame {
   fb: number;
 }
 
+const ZERO_TEMPLATE: Sprite = {
+  attribute: 0, x: 0, y: 0, w: 0, h: 0, tpage: 0, u: 0, v: 0, cx: 0, cy: 0, r: 0, g: 0, b: 0,
+  mx: 0, my: 0, scalex: 0, scaley: 0, rotate: 0,
+};
+
 export class Renderer {
   readonly gpu = new Gpu();
   readonly tims: Tim[];
@@ -187,7 +192,9 @@ export class Renderer {
         continue;
       }
       const item = image - 0x10001;
-      const t = this.templates[item];
+      // Image 0x10000 (an object put with image 0, e.g. the card screens' save slots) reads the
+      // template before the first: zeros in RAM (state+0x3F050), a 0x0 sprite (docs/re/memcard.md).
+      const t = item === -1 ? ZERO_TEMPLATE : this.templates[item];
       if (!t) throw new Error(`object ${n}: image 0x${image.toString(16)} has no template`);
       const s: Sprite = { ...t };
       s.scalex = s16(m.s16(o + A.O_SCALE_X) + 0x1000);

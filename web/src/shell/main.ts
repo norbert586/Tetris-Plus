@@ -5,7 +5,6 @@
 // refresh rate. Escape opens the settings; the game pauses when the window loses focus.
 import { readPack } from '../assets/pack';
 import { AudioPlayer } from '../audio/player';
-import { Mem } from '../core/mem';
 import { Console } from '../flow/console';
 import type { Program, ProgramName, ProgramRenderer } from '../flow/program';
 import { PROGRAMS } from '../flow/registry';
@@ -133,11 +132,8 @@ class Shell {
 
   private async startAudio(): Promise<void> {
     try {
-      // Puzzle Mode's sound tables stay in their own RAM image while other programs run.
-      const rom = new Mem();
-      rom.loadRom();
-      const source = { m: rom, sound: [] };
-      this.audio = await AudioPlayer.create(source, 'assets/', TICK_MS / 1000, rom);
+      // The player follows the running program (its sound tables are in the console's RAM).
+      this.audio = await AudioPlayer.create('assets/', TICK_MS / 1000);
       this.audio.volume = this.settings.volume / 100;
       this.audio.resume();
     } catch (e) {

@@ -5,6 +5,7 @@
 import type { Mem } from '../core/mem';
 import { CYCLES_PER_SAMPLE, Envelopes } from './envelope';
 import { Libsnd, type RegWrite } from './libsnd';
+import type { ProgramAudio } from './programs';
 import { VAB_SPU_BASE, type Vab } from './vab';
 
 /** CPU cycles per vblank on the oracle (NTSC: 33.8688 MHz / ~60.01 Hz). */
@@ -15,7 +16,7 @@ const FLUSH_WRITE = 18_100;
 /** The flush's history index when tick 1 starts (measured: 14 at tick 2's sample, after 332 flushes). */
 const BOOT_HISTORY_INDEX = 2;
 
-/** The SPU state right after Puzzle Mode's sound setup (trace tick 1): `spu` and `rev` fields. */
+/** The SPU state right after a program's sound setup (its first tick): `spu` and `rev` fields. */
 const BOOT_KOFF = [0xffff, 0xffff * 65536, 0xff * 65536];
 const BOOT_GLOBALS: [number, number][] = [
   [0x180, 16383], [0x182, 16383], [0x184, 8256], [0x186, 8256], [0x1aa, 49281], [0x1a2, 64296],
@@ -34,7 +35,8 @@ export interface TickAudio {
 }
 
 export class SoundDriver {
-  readonly libsnd: Libsnd;
+  /** The running program's libsnd (each program links its own; a new one starts with it). */
+  libsnd: Libsnd;
   readonly envelopes: Envelopes;
   /** The register file as the program has written it (0x1F801C00-0x1F801DFF, by halfword). */
   readonly regs = new Uint16Array(0x100);
@@ -43,22 +45,34 @@ export class SoundDriver {
   private vblank = 0;
 
   constructor(
-    vab: Vab,
-    rom: Mem,
+    private readonly vab: Vab,
+    private readonly rom: Mem,
     mono = false,
+    pitchTable?: number,
   ) {
     this.ram.set(vab.body, VAB_SPU_BASE);
-    this.libsnd = new Libsnd(vab, rom, mono);
+    this.libsnd = new Libsnd(vab, rom, mono, pitchTable);
     this.envelopes = new Envelopes(this.ram);
   }
 
-  /** The writes Puzzle Mode's sound setup leaves behind, reported on its first tick. */
-  boot(cdVolume: number): TickAudio {
+  /**
+   * The writes a program's sound setup leaves behind, reported on its first tick (every program
+   * runs the same setup, FUN_800961C4 in PAZLE.EXE). `restart`: a program after the first, whose
+   * libsnd starts afresh (all voices free); `historyIndex`: its flush ring index from here.
+   */
+  boot(cdVolume: number, opts: { cycle?: number; historyIndex?: number; restart?: { program: ProgramAudio; mono: boolean } } = {}): TickAudio {
+    const cycle = opts.cycle ?? 0;
+    if (opts.restart) this.libsnd = new Libsnd(this.vab, this.rom, opts.restart.mono, opts.restart.program.pitchTable);
     const out: TickAudio = { kon: [], koff: [...BOOT_KOFF], writes: [] };
-    this.libsnd.historyIndex = BOOT_HISTORY_INDEX;
-    for (const [o, v] of BOOT_GLOBALS) this.write(out, o, v, 0);
-    this.setCdVolume(out, cdVolume, 0);
-    BOOT_REVERB.forEach((v, i) => this.write(out, 0x1c0 + 2 * i, v, 0));
+    for (const [o, v] of [[0x18c, 0xffff], [0x18e, 0xffff], [0x18e, 0xff]]) {
+      this.regs[o >> 1] = v;
+      out.writes.push({ cycle, offset: o, value: v });
+      this.envelopes.write(o, v, cycle);
+    }
+    this.libsnd.historyIndex = opts.historyIndex ?? BOOT_HISTORY_INDEX;
+    for (const [o, v] of BOOT_GLOBALS) this.write(out, o, v, cycle);
+    this.setCdVolume(out, cdVolume, cycle);
+    BOOT_REVERB.forEach((v, i) => this.write(out, 0x1c0 + 2 * i, v, cycle));
     return out;
   }
 

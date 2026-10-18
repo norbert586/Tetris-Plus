@@ -27,6 +27,15 @@ rm -rf "$TP_OUT/home" && mkdir -p "$TP_OUT/home"
 # TP_MEMCARD1 / TP_MEMCARD2: start with this card image (128 KB .mcd) in the slot instead of
 # the empty formatted card Redux creates, or "none": no card in the slot (re/lua/movie.lua takes
 # it out). The card as the run left it stays in $TP_OUT/home/.config/pcsx-redux/memcard1.mcd.
+# A movie can name its cards ("card SLOT none|blank|PATH", PATH from the repository root);
+# TP_MEMCARD1/2 take precedence.
+for n in 1 2; do
+  var="TP_MEMCARD$n"
+  spec="$(awk -v n="$n" '$1 == "card" && $2 == n { print $3 }' "$TP_MOVIE" | tail -1)"
+  if [ -z "${!var:-}" ] && [ -n "$spec" ] && [ "$spec" != blank ]; then
+    if [ "$spec" = none ]; then printf -v "$var" none; else printf -v "$var" '%s' "$REPO_ROOT/$spec"; fi
+  fi
+done
 export TP_MEMCARD1 TP_MEMCARD2
 for n in 1 2; do
   var="TP_MEMCARD$n"

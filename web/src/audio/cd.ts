@@ -18,7 +18,7 @@ const SETTLE = ms(750);
 const SEEK_START = ms(20);
 const seekTime = (distance: number) => Math.trunc(((distance * 3 + 1000) * CPU_HZ) / 1e6);
 
-/** The program's per-track table (0x800DC610, from track 2, 12 bytes): end offset, loop mode. */
+/** PAZLE.EXE's per-track table (0x800DC610, from track 2, 12 bytes): end offset, loop mode. */
 const TRACK_TABLE = 0x800dc610;
 
 /** The disc as the drive sees it: each track's index 01 and pregap, in sectors from 00:00:00. */
@@ -72,6 +72,8 @@ export class CdDrive {
   private posInt = 0;
 
   readonly events: CdEvent[] = [];
+  /** Where the running program keeps its track table (programs.ts). */
+  trackTable = TRACK_TABLE;
 
   constructor(
     private readonly disc: Disc,
@@ -92,7 +94,7 @@ export class CdDrive {
     this.loop = mode;
     const toc = tocSector(this.disc, track);
     this.startInt = toInt(toc);
-    this.endInt = toInt(toc) + this.rom.s32(TRACK_TABLE + (track - 2) * 12);
+    this.endInt = toInt(toc) + this.rom.s32(this.trackTable + (track - 2) * 12);
     this.posInt = this.startInt;
     this.command(cycle, [0x0e, 5]);
     this.report = true;
@@ -163,6 +165,22 @@ export class CdDrive {
         : [0x82, loc[0], loc[1], loc[2], loc[3] | 0x80, loc[4]];
       this.callback(at + this.callbackDelay, result);
     }
+  }
+
+  /**
+   * A program change at `cycle` (docs/re/audio.md §11): the boot program's loader reads the next
+   * program's files, which ends CD-DA play and its reports and leaves the head at `position`;
+   * the new program starts with its own callback state (its BSS is cleared).
+   */
+  load(cycle: number, position: number, trackTable: number): void {
+    this.run(cycle);
+    this.events.splice(0, this.events.length, ...this.events.filter((e) => e.cycle < cycle));
+    this.state = IDLE;
+    this.next = Infinity;
+    this.report = false;
+    this.position = position;
+    this.track = this.loop = this.startInt = this.endInt = this.posInt = 0;
+    this.trackTable = trackTable;
   }
 
   /** The callback (0x80095C5C) for a DataReady report. */

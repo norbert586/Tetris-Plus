@@ -155,6 +155,8 @@ local function loadMovie(path)
         elseif words[1] == 'end' then
             movie.last = tonumber(words[2])
         elseif words[1] == 'mark' then
+        elseif words[1] == 'card' then
+            -- card SLOT none|blank|PATH: the card in that slot (scripts/run-movie.sh sets it up)
         elseif words[1] == 'poke' then
             -- poke TICK ADDRESS VALUE [SIZE]: write memory right after tick TICK is recorded
             local t, address, value = tonumber(words[2]), tonumber(words[3]), tonumber(words[4])
