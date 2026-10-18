@@ -2,7 +2,8 @@
 // (model.ts) turns the program's sound calls into SPU register writes and CD events on the
 // original's clock; the player maps that clock onto the AudioContext's, sends the writes to the
 // SPU worklet and plays the CD's sectors from the encoded tracks, through the CD volume.
-import type { Game } from '../core/game';
+import type { Mem } from '../core/mem';
+import type { SoundCall } from '../core/sound';
 import { MUSIC_VOLUME, SETTING_4FC } from '../core/addr';
 import type { Disc } from './cd';
 import { CYCLES_PER_VBLANK } from './driver';
@@ -18,6 +19,12 @@ const LEAD = 0.12;
 const MIN_LEAD = 0.03;
 /** CdMix's attenuation (0x7F of 0x80) and the level a real console's CD path gives (Redux). */
 const CD_LEVEL = (0x7f / 0x80) * (31130 / 32768) * (31880 / 32768);
+
+/** What the player follows: the running program's RAM (settings) and its sound calls this tick. */
+export interface SoundSource {
+  m: Mem;
+  sound: SoundCall[];
+}
 
 interface DiscFiles extends Disc {
   fileStart: number[];
@@ -39,6 +46,8 @@ export class AudioPlayer {
   private cdInput?: AudioNode;
   private anchorCycle = 0;
   private anchorTime = -1;
+  /** Master volume (the shell's setting), after the SPU and the CD. */
+  private master?: GainNode;
 
   private constructor(
     readonly ctx: AudioContext,
@@ -46,25 +55,31 @@ export class AudioPlayer {
     private readonly tickSeconds: number,
   ) {}
 
-  /** Creates the player; call `resume` from a user gesture for sound to start. */
-  static async create(game: Game, base: string, tickSeconds: number): Promise<AudioPlayer> {
+  /**
+   * Creates the player; call `resume` from a user gesture for sound to start. `rom`: the RAM
+   * holding Puzzle Mode's sound tables (libsnd's pitch table, the CD track table), when the
+   * running program's RAM may hold another program.
+   */
+  static async create(game: SoundSource, base: string, tickSeconds: number, rom: Mem = game.m): Promise<AudioPlayer> {
     const ctx = new AudioContext({ sampleRate: 44100 });
     const p = new AudioPlayer(ctx, base, tickSeconds);
-    await p.init(game);
+    await p.init(game, rom);
     return p;
   }
 
-  private async init(game: Game): Promise<void> {
+  private async init(game: SoundSource, rom: Mem): Promise<void> {
     const get = async (name: string) => new Uint8Array(await (await fetch(`${this.base}${name}`)).arrayBuffer());
     const [vh, vb, disc] = await Promise.all([get('EF.VH'), get('EF.VB'), get('disc.json')]);
     this.disc = JSON.parse(new TextDecoder().decode(disc));
     const vab = new Vab(vh, vb);
     const mono = (game.m.u8(SETTING_4FC) & 1) !== 0;
-    this.model = new AudioModel(vab, game.m, this.disc!,
+    this.model = new AudioModel(vab, rom, this.disc!,
       () => game.m.s16(MUSIC_VOLUME_TABLE + 2 * game.m.u8(MUSIC_VOLUME)), mono);
     await this.ctx.audioWorklet.addModule(workletUrl);
     this.node = new AudioWorkletNode(this.ctx, 'tp-spu', { numberOfInputs: 0, outputChannelCount: [2] });
-    this.node.connect(this.ctx.destination);
+    this.master = this.ctx.createGain();
+    this.master.connect(this.ctx.destination);
+    this.node.connect(this.master);
     this.node.port.postMessage({ type: 'ram', address: VAB_SPU_BASE, data: vab.body } satisfies WorkletMessage);
     // The CD's path: CdMix (the ATV matrix; mono sends both sides to both), then the SPU's CD volume.
     const split = this.ctx.createChannelSplitter(2);
@@ -79,7 +94,7 @@ export class AudioPlayer {
     }
     this.cdLeft.connect(merge, 0, 0);
     this.cdRight.connect(merge, 0, 1);
-    merge.connect(this.ctx.destination);
+    merge.connect(this.master);
     this.cdInput = split;
   }
 
@@ -87,8 +102,18 @@ export class AudioPlayer {
     if (this.ctx.state !== 'running') void this.ctx.resume();
   }
 
+  /** Stops the clock while the game is paused (the next tick re-anchors it). */
+  suspend(): void {
+    if (this.ctx.state === 'running') void this.ctx.suspend();
+  }
+
+  /** Master volume, 0-1. */
+  set volume(v: number) {
+    if (this.master) this.master.gain.value = v;
+  }
+
   /** After each game tick. */
-  tick(game: Game): void {
+  tick(game: SoundSource): void {
     const model = this.model;
     if (!model || !this.node) return;
     const s = model.step(game.sound, 1);

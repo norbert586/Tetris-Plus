@@ -9,6 +9,7 @@
 import type { Mem } from '../core/mem';
 import type { Rng } from '../core/rng';
 import type { SoundCall } from '../core/sound';
+import type { Frame } from '../render/renderer';
 
 /** The boot program's program numbers (state+0x48; table at 0x80039A74). */
 export const PROGRAM_NAMES = [
@@ -40,3 +41,19 @@ export interface Program {
 
 /** Makes a program, running on the shared RAM (its image loaded, its BSS cleared). */
 export type ProgramFactory = (shared: Shared) => Program;
+
+/** Draws a program's frames (made anew for each run of the program: its VRAM starts cleared). */
+export interface ProgramRenderer {
+  /** Renders the frame of the program's last tick (uploads first), with the oracle's hashes. */
+  frame(p: Program): Frame;
+  /** The 320x240 frame in display buffer `buffer`, as 15-bit pixels. */
+  pixels(buffer: number): Uint16Array;
+}
+
+/** A ported program: how to run it and how to draw it. */
+export interface ProgramModule {
+  create: ProgramFactory;
+  /** Its asset pack in public/assets (tools/extract-assets.ts: its data file's decoded items). */
+  pack: string;
+  renderer(items: Uint8Array[]): ProgramRenderer;
+}

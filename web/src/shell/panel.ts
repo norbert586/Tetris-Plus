@@ -1,0 +1,183 @@
+// The settings panel (Escape): controls for keyboard and gamepad, display, volume. Plain HTML
+// over the paused game; every change is saved at once.
+import { Input } from './input';
+import { BINDABLE, DEFAULTS, saveSettings, type Button, type Settings } from './settings';
+
+const LABELS: Record<Button, string> = {
+  UP: 'Up', DOWN: 'Down', LEFT: 'Left', RIGHT: 'Right', CROSS: 'Cross', CIRCLE: 'Circle', SQUARE: 'Square',
+  TRIANGLE: 'Triangle', START: 'Start', SELECT: 'Select', L1: 'L1', R1: 'R1', L2: 'L2', R2: 'R2',
+};
+
+const keyName = (code: string) =>
+  code.replace(/^Key/, '').replace(/^Digit/, '').replace(/^Arrow/, '').replace(/^Numpad/, 'Num ').replace(/(Left|Right)$/, ' $1').trim();
+
+export interface PanelHost {
+  settings: Settings;
+  input: Input;
+  apply(settings: Settings): void;
+  toggleFullscreen(): void;
+  close(): void;
+}
+
+export class SettingsPanel {
+  readonly el: HTMLElement;
+  /** A binding in progress: the button and whether a key or a gamepad button is awaited. */
+  private binding?: { button: Button; kind: 'key' | 'pad'; poll?: number };
+
+  constructor(private readonly host: PanelHost) {
+    this.el = document.createElement('div');
+    this.el.className = 'panel';
+    this.el.hidden = true;
+    document.body.append(this.el);
+  }
+
+  get open(): boolean {
+    return !this.el.hidden;
+  }
+
+  show(): void {
+    this.el.hidden = false;
+    this.render();
+  }
+
+  hide(): void {
+    this.cancelBinding();
+    this.el.hidden = true;
+  }
+
+  /** Handles a key press while the panel is open; true when the panel used it. */
+  key(code: string): boolean {
+    if (!this.open) return false;
+    if (this.binding?.kind === 'key') {
+      if (code !== 'Escape') this.bindKey(this.binding.button, code);
+      this.cancelBinding();
+      this.render();
+      return true;
+    }
+    if (code === 'Escape') {
+      this.host.close();
+      return true;
+    }
+    return false;
+  }
+
+  private change(fn: (s: Settings) => void): void {
+    const s = structuredClone(this.host.settings);
+    fn(s);
+    saveSettings(s);
+    this.host.apply(s);
+    this.render();
+  }
+
+  private bindKey(button: Button, code: string): void {
+    this.change((s) => {
+      // A key drives one button only.
+      for (const b of BINDABLE) s.keys[b] = s.keys[b].filter((k) => k !== code);
+      s.keys[button] = [code];
+    });
+  }
+
+  private bindPad(button: Button, index: number): void {
+    this.change((s) => {
+      for (const b of BINDABLE) s.pad[b] = s.pad[b].filter((k) => k !== index);
+      s.pad[button] = [index];
+    });
+  }
+
+  private cancelBinding(): void {
+    if (this.binding?.poll) clearInterval(this.binding.poll);
+    this.binding = undefined;
+  }
+
+  private startBinding(button: Button, kind: 'key' | 'pad'): void {
+    this.cancelBinding();
+    this.binding = { button, kind };
+    if (kind === 'pad') {
+      // Wait for every button to be released first, then take the next one pressed.
+      let released = Input.padButton() === undefined;
+      this.binding.poll = window.setInterval(() => {
+        const i = Input.padButton();
+        if (i === undefined) released = true;
+        else if (released) {
+          this.bindPad(button, i);
+          this.cancelBinding();
+          this.render();
+        }
+      }, 16);
+    }
+    this.render();
+  }
+
+  private render(): void {
+    const s = this.host.settings;
+    const el = this.el;
+    el.replaceChildren();
+    const h = (tag: string, text?: string, cls?: string) => {
+      const e = document.createElement(tag);
+      if (text !== undefined) e.textContent = text;
+      if (cls) e.className = cls;
+      return e;
+    };
+    const button = (text: string, fn: () => void, cls?: string) => {
+      const b = h('button', text, cls) as HTMLButtonElement;
+      b.addEventListener('click', fn);
+      return b;
+    };
+    el.append(h('h2', 'Settings'));
+
+    const controls = h('table', undefined, 'controls');
+    const head = h('tr');
+    head.append(h('th', 'Button'), h('th', 'Keyboard'), h('th', 'Gamepad'));
+    controls.append(head);
+    for (const b of BINDABLE) {
+      const row = h('tr');
+      const waiting = (kind: 'key' | 'pad') => this.binding?.button === b && this.binding.kind === kind;
+      const keyText = waiting('key') ? 'press a key…' : s.keys[b].map(keyName).join(', ') || '—';
+      const padText = waiting('pad') ? 'press a button…' : s.pad[b].map((i) => `#${i}`).join(', ') || '—';
+      const kc = h('td');
+      kc.append(button(keyText, () => this.startBinding(b, 'key'), waiting('key') ? 'wait' : ''));
+      const pc = h('td');
+      pc.append(button(padText, () => this.startBinding(b, 'pad'), waiting('pad') ? 'wait' : ''));
+      row.append(h('td', LABELS[b]), kc, pc);
+      controls.append(row);
+    }
+    el.append(h('h3', 'Controls'), controls);
+
+    const display = h('div', undefined, 'row');
+    display.append(
+      button(s.scale === 'integer' ? 'Scale: whole pixels' : 'Scale: fill window', () =>
+        this.change((x) => (x.scale = x.scale === 'integer' ? 'fit' : 'integer'))),
+      button(s.scanlines ? 'Scanlines: on' : 'Scanlines: off', () => this.change((x) => (x.scanlines = !x.scanlines))),
+      button('Fullscreen (Alt+Enter)', () => this.host.toggleFullscreen()),
+    );
+    el.append(h('h3', 'Display'), display);
+
+    const sound = h('div', undefined, 'row');
+    const vol = h('input') as HTMLInputElement;
+    vol.type = 'range';
+    vol.min = '0';
+    vol.max = '100';
+    vol.value = String(s.volume);
+    vol.addEventListener('input', () => this.change((x) => (x.volume = Number(vol.value))));
+    const volLabel = h('label', `Volume ${s.volume}%`);
+    volLabel.prepend(vol);
+    sound.append(volLabel);
+    el.append(h('h3', 'Sound'), sound);
+
+    const other = h('div', undefined, 'row');
+    other.append(
+      button(s.pauseOnBlur ? 'Pause when in background: on' : 'Pause when in background: off', () =>
+        this.change((x) => (x.pauseOnBlur = !x.pauseOnBlur))),
+      button(s.logo ? 'Logo video at start: on' : 'Logo video at start: off', () => this.change((x) => (x.logo = !x.logo))),
+    );
+    el.append(h('h3', 'Other'), other);
+
+    const foot = h('div', undefined, 'row');
+    foot.append(
+      button('Reset to defaults', () => this.change((x) => Object.assign(x, structuredClone(DEFAULTS)))),
+      button('Back to the game (Esc)', () => this.host.close(), 'primary'),
+    );
+    el.append(foot);
+    el.append(h('p', 'The game\'s own settings (turn buttons, sound, music) are in its Option mode.', 'note'));
+  }
+}

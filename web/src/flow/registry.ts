@@ -1,8 +1,23 @@
 // The ported programs, by name (src/flow/program.ts). Each mode program's port registers its
-// factory here.
+// module here.
 import { Game } from '../core/game';
-import type { ProgramFactory, ProgramName } from './program';
+import { Renderer } from '../render/renderer';
+import type { ProgramFactory, ProgramModule, ProgramName } from './program';
 
-export const FACTORIES: Partial<Record<ProgramName, ProgramFactory>> = {
-  PAZLE: (shared) => new Game({ counter: 0, seed: 0, shared }),
+export const PROGRAMS: Partial<Record<ProgramName, ProgramModule>> = {
+  PAZLE: {
+    create: (shared) => new Game({ counter: 0, seed: 0, shared }),
+    pack: 'pazlee.pack',
+    renderer: (items) => {
+      const r = new Renderer(items);
+      // Player 2's side stays hidden until two-player mode exists (an approved deviation;
+      // verification draws it).
+      r.hidePlayer2 = true;
+      return { frame: (p) => r.frame(p as Game), pixels: (b) => r.pixels(b) };
+    },
+  },
 };
+
+export const FACTORIES: Partial<Record<ProgramName, ProgramFactory>> = Object.fromEntries(
+  Object.entries(PROGRAMS).map(([name, mod]) => [name, mod.create]),
+);
