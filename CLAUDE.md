@@ -4,7 +4,13 @@ A faithful browser version of Tetris Plus's Puzzle Mode (the professor mode), re
 original PS1 game (US, SLUS-00338) and verified against it in an emulator.
 
 - **Plan:** `docs/RESEARCH_AND_PLAN.md` (phases, fidelity rules, verification layers, ground rules).
-- **Latest results:** `docs/re/audio.md` (Phase 8: the sound in `web/src/audio/`: libsnd's voice
+- **Latest results:** `docs/re/flow.md` (Phase 9: the whole game from power-on: every program
+  around Puzzle Mode ported in `web/src/programs/` and chained by `web/src/flow/console.ts`, the
+  memory card in browser storage (`docs/re/memcard.md`), the shell in `web/src/shell/`
+  (`docs/re/shell.md`); a complete run, power-on to the ending, is identical to the original on
+  every tick and frame, `test/full-run.test.ts`). Per program: `docs/re/sw_on.md`, `title.md`,
+  `select.md`, `ranking.md`.
+  `docs/re/audio.md` (Phase 8: the sound in `web/src/audio/`: libsnd's voice
   manager, the SPU, the CD drive and the program's CD callback; every key-on, register write, CD
   command and report of the corpus matches the original's, checked by `npm test` in `web/`).
   `docs/re/renderer.md` (Phase 7: the renderer in `web/src/render/` and the
@@ -42,7 +48,7 @@ original PS1 game (US, SLUS-00338) and verified against it in an emulator.
     [--audio] [MOVIE...]`: replays movies and prints the first difference with the original's trace
     (`--render` also compares each frame's GPU packets and pixels, `--audio` the sound and CD
     events). `npm run typecheck`.
-  - `npm run dev`: the browser preview (keyboard on pad 1; sound starts with the first key).
+  - `npm run dev`: the game in the browser from power-on (`?start=PAZLE` starts at a program).
   - Frames as PNG: `npx tsx tools/frames.ts ../re/movies/<name>.tpm <out> <ticks> [--hide-p2] [--scale N]`.
   - Rebuild the web assets after a disc fetch: `npx tsx tools/extract-assets.ts` (writes
     `public/assets/pazlee.pack`, committed) and `npx tsx tools/extract-audio.ts` (the sound bank,
@@ -65,6 +71,14 @@ original PS1 game (US, SLUS-00338) and verified against it in an emulator.
     Unicorn fixtures (needs `pip install unicorn capstone`):
     `python3 re/tools/unicorn_fixtures.py ../tp-private/files/PAZLE.EXE web/test/fixtures/unicorn`.
 
+- **Programs other than Puzzle Mode:** each lives in `web/src/programs/<name>/` and registers a
+  `ProgramModule` in `web/src/flow/registry.ts`; its tracer hooks are in `re/lua/programs.lua`
+  and its fields in `re/lua/fields/<NAME>.lua`. Power-on movies (`boot power`, many in
+  `re/movies/power/`) trace every program; `card SLOT none|blank|PATH` sets the memory cards.
+  `test/flow.ts` `compareFlow` replays them on the Console. Decompiles of every EXE:
+  `/home/user/tp-private/work/decomp/` (gp fixed by `re/ghidra/SetGlobalPointer.java`); carry
+  PAZLE's names to another EXE with `re/tools/match_functions.py`.
+  - The logo video: `npx tsx tools/extract-video.ts` (in `web/`, needs FFmpeg).
 - **Play a movie on the original and trace it** (one row per logic tick; format and fields in
   `docs/re/oracle-harness.md`):
   `bash scripts/run-movie.sh re/movies/egypt1-idle.tpm ../tp-private/runs/<name>`
@@ -83,7 +97,7 @@ original PS1 game (US, SLUS-00338) and verified against it in an emulator.
     Re-record every corpus trace: `bash scripts/record-corpus.sh`.
   - Build a movie that places pieces (closed loop with the emulator):
     `python3 re/tools/tpplan.py re/movies/plans/<scenario>.py`.
-  - Don't run more than about 3 emulators at once.
+  - Don't run more than about 3 emulators at once: run them through `bash scripts/emu-slot.sh <command>`.
 
 - **Wrap Puzzle Mode for REA:**
   `python3 re/tools/psxexe2elf.py ../tp-private/work/PAZLE.elf ../tp-private/files/SLUS_003.38 ../tp-private/files/PAZLE.EXE`
