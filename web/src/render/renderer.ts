@@ -71,8 +71,10 @@ export class Renderer {
   /** Packets of the last frame, in drawing order (for debugging). */
   packets: number[][] = [];
   /**
-   * Leave out player 2's sprite objects (400-799): the "PRESS START" panel and its character,
-   * hidden until two-player mode exists (docs/RESEARCH_AND_PLAN.md §9). Off for verification.
+   * Leave out player 2's sprite objects (from 400 up, player field 1; player 1 also has objects
+   * above 400): the "PRESS START" panel and its character,
+   * hidden until two-player mode exists (docs/RESEARCH_AND_PLAN.md §9); the brick wall behind
+   * them stays. Off for verification.
    */
   hidePlayer2 = false;
 
@@ -151,7 +153,8 @@ export class Renderer {
       const o = A.obj(n);
       const image = m.s32(o + A.O_IMAGE);
       if (image <= 0) continue;
-      if (this.hidePlayer2 && n >= 400 && n < 800) {
+      // The brick wall behind player 2's idle screen (object 0x1E, item 299) stays.
+      if (this.hidePlayer2 && n >= 400 && m.s32(o + A.O_PLAYER) === 1 && !(n === 400 + 0x1e && m.s32(A.SCREEN + 4) === 8)) {
         // Its box-fill objects still used their rand() colours.
         if (m.s32(o + A.O_KIND) === -1) randomBox++;
         continue;

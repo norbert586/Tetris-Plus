@@ -5,12 +5,15 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "trace": "tsx tools/trace-check.ts"
+    "trace": "tsx tools/trace-check.ts",
+    "dev": "vite",
+    "build": "vite build"
   },
   "devDependencies": {
     "@types/node": "22.19.1",
     "tsx": "4.20.6",
     "typescript": "5.9.3",
+    "vite": "6.4.3",
     "vitest": "3.2.7"
   }
 }
