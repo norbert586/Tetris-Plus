@@ -76,13 +76,11 @@ describe('SELECT.EXE', () => {
       });
       expect(result.report).toMatch(/^identical/);
       expect(result.ticks).toBe(rows.length);
-      // The card the run leaves. Each program's setup runs InitCARD, StartCARD and _bu_init
-      // (SELECT's 0x8009AF68), and on the emulator that rewrites the card's last directory
-      // frame (63) as a copy of frame 0 ("MC", checksum 0x0E), which src/flow/memcard.ts
-      // doesn't model: a later start of SELECT (select-format: after the soft reset) shows it.
-      const image = cards.image(0)!;
-      if (trace.rows.slice(end).some((r) => r.prog === 'SELECT')) image.copyWithin(63 * 0x80, 0, 0x80);
-      expect(sha256(image)).toBe(after);
+      // The card the run leaves. In select-format SELECT starts again after the soft reset to
+      // the title, and its card set-up rewrites the card's frame 63 (MemoryCards.init). The
+      // soft reset is beyond compareFlow, so the test runs that set-up itself.
+      if (trace.rows.slice(end).some((r) => r.prog === 'SELECT')) cards.init();
+      expect(sha256(cards.image(0)!)).toBe(after);
     }, 60_000);
 
     it(`${name} from power-on (ticks 1-${rows[rows.length - 1].t})`, () => {

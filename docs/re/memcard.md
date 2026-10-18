@@ -35,6 +35,16 @@ default `new MemoryCards()`); SW_ON uses `shared.cards`; Puzzle Mode's `Game.car
 - `formattedCard()` is byte-identical to Redux's fresh card. The BIOS's `format` writes the same
   block 0 except frame 63: zeros with `[0x60] = 0x02`, `[0x68] = 0xFF` (checked against SW_ON's
   format in `sw_on-unformatted`).
+- **The programs' card set-up rewrites frame 63.** SW_ON, SELECT and PAZLE (not TIT_DEMO, TITLE,
+  RANKING or the how-to programs) run InitCARD, StartCARD and `_bu_init` when they start
+  (`card_init`: SW_ON 0x800973EC, SELECT 0x8009AF68, PAZLE 0x800B5C94). On the emulator's BIOS
+  (OpenBIOS) every inserted card's frame 63 then becomes a copy of frame 0 when frame 0 starts with
+  "MC" (a bad checksum is copied as is), else the frame a format leaves (zeros, `[0x60] = 0x02`,
+  `[0x68] = 0xFF`). Slot 2 too, though SW_ON never reads it. Measured with cards whose frame 63
+  differed (a marker byte in frame 0; a broken checksum; an unformatted card), each through SW_ON
+  alone (to tick 372). It shows only on a card the game formatted. Sony's BIOS was not checked
+  (the documentation calls frame 63 the "write test" frame, normally a copy of frame 0).
+  `MemoryCards.init()` models it; `SwOn`, `Select` and `Game` call it in their constructors.
 - `.mcd` layout: frame 0 "MC" (XOR checksum at 0x7F); directory frames 1-15 (state 0xA0 free,
   0x51 first, 0x52 middle, 0x53 last block; size at +4, next block at +8, 0xFFFF none; name at
   +0x0A; XOR checksum at 0x7F); frames 16-35 the broken-sector list (FFFFFFFF, next FFFF).

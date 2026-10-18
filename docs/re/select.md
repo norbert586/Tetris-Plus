@@ -239,11 +239,11 @@ original's RAM at SELECT's main (`web/test/fixtures/select-starts.ts`, made by
   belong to the audio layer;
 - the program named next: PAZLE in the tour, TITLE (soft reset) in the format movie.
 
-Each program's setup runs InitCARD, StartCARD and `_bu_init` (`card_init` 0x8009AF68). On the
-emulator this rewrites the card's frame 63 (the last directory frame) as a copy of frame 0 ("MC",
-checksum 0x0E). That changes nothing on a card formatted by Redux or by `memcard.ts`, but it does
-on a card the game formatted, whose frame 63 differs. `src/flow/memcard.ts` does not model it, so
-the test applies it for `select-format`, where SELECT starts again after the format.
+Each program's setup runs InitCARD, StartCARD and `_bu_init` (`card_init` 0x8009AF68), which
+rewrites the cards' frame 63 ([memcard.md](memcard.md) §1.1; `MemoryCards.init`, called by
+`Select`'s constructor). It shows on a card the game formatted: in `select-format` SELECT starts
+again after the soft reset, which `compareFlow` doesn't run, so the test calls `cards.init()`
+for that start.
 
 The first row of a program counts the previous program's last `rand()` (its loop's tail runs
 after the tracer's last sample of it), so `Select` starts tick 0 with one call counted, as the

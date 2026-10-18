@@ -118,6 +118,8 @@ export class Select implements Program {
     this.m = shared.m;
     this.rng = shared.rng;
     this.cards = shared.cards;
+    // The program's set-up: card_init (0x8009AF68: InitCARD, StartCARD, _bu_init).
+    this.cards?.init();
     const m = this.m;
     m.loadImage(ROM.map((r) => ({ address: r.address, bytes: decodeBase64(r.base64) })));
     m.fill(BSS, BSS_END - BSS);

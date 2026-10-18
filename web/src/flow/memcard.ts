@@ -197,6 +197,32 @@ export class MemoryCards {
     this.backend.save(slot, this.images[slot]);
   }
 
+  // ---- the programs' card set-up ----
+
+  /**
+   * InitCARD, StartCARD and _bu_init, which SW_ON, SELECT and PAZLE run when they start
+   * (card_init): the BIOS writes each inserted card's frame 63 (the last frame of the directory
+   * block): a copy of frame 0 when it starts with "MC" (its checksum isn't checked), else the
+   * frame a format leaves there (zeros, [0x60] = 0x02, [0x68] = 0xFF). Measured on the
+   * emulator's BIOS (OpenBIOS) with cards whose frame 63 differed: docs/re/memcard.md §1.1.
+   */
+  init(): void {
+    for (let slot = 0; slot < 2; slot++) {
+      const c = this.images[slot];
+      if (!c) continue;
+      const frame = new Uint8Array(FRAME);
+      if (c[0] === 0x4d && c[1] === 0x43) frame.set(c.subarray(0, FRAME));
+      else {
+        frame[0x60] = 0x02;
+        frame[0x68] = 0xff;
+      }
+      const at = 63 * FRAME;
+      if (c.subarray(at, at + FRAME).every((b, i) => b === frame[i])) continue;
+      c.set(frame, at);
+      this.changed(slot);
+    }
+  }
+
   // ---- libcard: the checks the programs wait for (the event their TestEvent loop returns) ----
 
   /** _card_info(chan): is there a card, and is it new. `chan` is 0x00 (slot 1) or 0x10 (slot 2). */

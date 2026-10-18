@@ -84,6 +84,7 @@ export class SwOn implements Program {
     this.m = shared.m;
     this.rng = shared.rng;
     this.cards = shared.cards ?? new MemoryCards();
+    this.cards.init(); // system_init's card_init (0x800973EC: InitCARD, StartCARD, _bu_init)
     rom ??= ROM.map((r) => ({ address: r.address, bytes: decodeBase64(r.base64) }));
     this.m.loadImage(rom);
     this.m.fill(BSS, BSS_END - BSS);

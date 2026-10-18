@@ -75,6 +75,7 @@ export class Game {
 
   constructor(opts: GameOptions) {
     this.cards = opts.shared?.cards ?? opts.cards ?? new MemoryCards();
+    this.cards.init(); // system_init's card_init (0x800B5C94: InitCARD, StartCARD, _bu_init)
     if (opts.shared) {
       this.afterProgram = true;
       this.rng = opts.shared.rng;
