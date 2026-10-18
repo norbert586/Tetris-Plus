@@ -1,0 +1,77 @@
+tpm 1
+boot power
+# SELECT.EXE (docs/re/select.md): Option mode with an unformatted card in slot 1
+# (TP_MEMCARD1=unformatted.mcd, tools/mcd.ts) and none in slot 2.
+card 2 none
+# The startup screen finds an unformatted card in slot 1: "initialize?" No (Cross), then
+# "you won't be able to save" cancelled with Circle; the title starts 897 ticks later.
+800 2 CROSS
+900 2 CIRCLE
+# Title: START shows the menu, START again goes on to the mode select (SELECT main at counter 3298).
+3197 4 START
+3297 4 START
+# Mode select (tiles from tick 3356): to Option mode.
+3367 2 RIGHT
+3377 2 RIGHT
+3387 2 RIGHT
+3397 2 DOWN
+3407 2 DOWN
+3417 2 LEFT
+3427 2 LEFT
+3437 2 UP
+3447 2 UP
+3457 2 UP+RIGHT
+3467 2 LEFT
+3477 2 DOWN
+3487 2 RIGHT
+3497 2 UP
+# Puzzle: open, look, back with Circle.
+3517 2 CROSS
+3557 2 CIRCLE
+# VS: open, Circle during the zoom.
+3597 2 RIGHT
+3607 2 CROSS
+3613 2 CIRCLE
+# Edit, then Classic: open and back.
+3657 2 RIGHT
+3667 2 CROSS
+3707 2 CIRCLE
+3747 2 UP
+3757 2 CROSS
+3797 2 CIRCLE
+# Option: open, Cross, the 75-tick flash, Option mode.
+3837 2 LEFT
+3847 2 CROSS
+3887 2 CROSS
+# Option mode (menu from tick 3965): option data load on slot 1 (not formatted: "data not
+# found"); save on slot 1: initialize? No; again: Yes, the card is formatted and a new file
+# written; load it back; exit to the mode select.
+3977 2 DOWN
+3985 2 DOWN
+3993 2 DOWN
+4001 2 DOWN
+4009 2 DOWN
+4017 2 DOWN
+4025 2 DOWN
+4033 2 DOWN
+4041 2 DOWN
+4049 2 DOWN
+4057 2 CROSS
+4067 2 CROSS
+4207 2 CIRCLE
+4217 2 RIGHT
+4225 2 CROSS
+4235 2 CROSS
+4255 2 CROSS
+4265 2 CROSS
+4285 2 LEFT
+4293 2 CROSS
+4333 2 LEFT
+4341 2 CROSS
+4351 2 CROSS
+4371 2 DOWN
+4379 2 DOWN
+4387 2 CROSS
+# Soft reset on the mode select: Start+Select held for 121 ticks starts TITLE.
+4460 140 START+SELECT
+end 4620

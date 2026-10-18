@@ -121,7 +121,10 @@ export function compareFlow(movie: Movie, trace: Trace, opts: FlowOptions): Flow
     mine.push(got);
     theirs.push(want);
     ticks++;
-    const bad = Object.keys(got).filter((f) => !ignore.has(f) && !sameField(f, got[f], want[f]));
+    // Fields the trace's program doesn't record (added to the port after the trace) are skipped.
+    const recorded = trace.programs?.[p.name];
+    const bad = Object.keys(got).filter((f) => !ignore.has(f) && (!recorded || recorded.includes(f) || f in want)
+      && !sameField(f, got[f], want[f]));
     for (const [f, events] of timed) {
       const problem = events.check(f, t);
       if (problem) return { ok: false, ticks, report: `difference by tick ${t} (${p.name}): ${problem}` };

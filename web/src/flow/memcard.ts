@@ -143,15 +143,17 @@ export function formattedCard(): Uint8Array {
  * waits in plus the BIOS's own transfers. Informative only (the port never waits).
  */
 export const CARD_VBLANKS = {
-  info: 2,
-  clear: 2,
-  load: 4,
-  open: 1,
-  read: 4,
-  write: 5,
+  info: 37, // info + load: 75 on Puzzle Mode's card check (the split is a guess)
+  timeout: 3, // info with no card in the slot
+  clear: 37,
+  load: 38,
+  open: 2,
+  create: 8, // open with FCREAT
+  read: 128, // 8 KB: open + read + close of the save file is 130
+  write: 130,
   close: 0,
-  delete: 1,
-  firstfile: 0,
+  delete: 2,
+  firstfile: 2,
   nextfile: 0,
   format: 5,
 } as const;
@@ -200,8 +202,11 @@ export class MemoryCards {
   /** _card_info(chan): is there a card, and is it new. `chan` is 0x00 (slot 1) or 0x10 (slot 2). */
   info(chan: number): CardEvent {
     const slot = slotOfChan(chan);
+    if (!this.images[slot]) {
+      this.vblanks += CARD_VBLANKS.timeout;
+      return TIMEOUT;
+    }
     this.vblanks += CARD_VBLANKS.info;
-    if (!this.images[slot]) return TIMEOUT;
     return this.fresh[slot] ? NEWCARD : IOE;
   }
 
@@ -227,7 +232,7 @@ export class MemoryCards {
 
   /** open(path, mode): a file descriptor, or -1. FCREAT | (blocks << 16) creates the file. */
   open(path: string, mode: number): number {
-    this.vblanks += CARD_VBLANKS.open;
+    this.vblanks += mode & FCREAT ? CARD_VBLANKS.create : CARD_VBLANKS.open;
     const p = parsePath(path);
     const c = p && this.images[p.slot];
     if (!p || !c || !isFormatted(c)) return -1;

@@ -202,6 +202,9 @@ export class Select implements Program {
     this.mix = [];
     this.rng.calls = 0;
     if (this.tick === 0) {
+      // The previous program's last iteration called rand() after the tracer's last sample of
+      // it; the injected seed (the trace's mainseed) already includes that call.
+      this.rng.calls = 1;
       this.startup();
     } else {
       this.padRead(pad);

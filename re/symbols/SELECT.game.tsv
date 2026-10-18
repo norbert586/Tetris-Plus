@@ -1,0 +1,76 @@
+# SELECT.EXE names (docs/re/select.md). address<TAB>function<TAB>name<TAB>evidence
+# Evidence: S = read in the decompiled code, E = traced in the emulator (re/movies/power/select-*.tpm),
+# P = ported and checked by web/test/select.test.ts.
+0x80094d2c	function	se_play	S P: same as PAZLE se_play; tables 0x800B1FC4 (volume), 0x800B1FD4 (effects)
+0x80094ff4	function	bgm_report_callback	S E: CdReadyCallback; loops or stops the track at its end (the trace's async cd commands)
+0x800950c0	function	bgm_cd_play	S P: Setloc and Play (after Setmode CD-DA with reports)
+0x80095140	function	bgm_request	S P: same as PAZLE bgm_request (priority 0x800B2170, zone tracks 0x800B23D8)
+0x800955f0	function	sound_init	S P: SsSetSerialVol(CD) at the music volume, bgm state = 0x34, stereo/mono
+0x80095800	function	select_main	S E: start jumps here; main loop (PadRead, CD error recovery, rand, soft reset inlined)
+0x80095ffc	function	items_upload_all	S E P: decompresses and uploads all 177 SELECTE items and makes their sprite templates
+0x80096120	function	item_upload	S E: LoadImage of one decompressed TIM
+0x80096314	function	sprite_template	S P: the GsSPRITE template of an item (state+0x3F074, 0x24 bytes each)
+0x80096620	function	item_decompress	S E: the trace's up hook (0x800F4000 + the item's offset)
+0x800969f4	function	soft_reset_check	S E P: Start+Select held 121 ticks on either pad: TITLE, param 0, phase 9
+0x80096b7c	function	objects_draw	S E P: GsSortSprite of every object with an image, 1049 down to 0
+0x80096d64	function	object_clear	S P: zeroes an object
+0x80096e5c	function	anim_start_load	S P: starts an object's animation, uploading its first image
+0x80096f38	function	anim_tick	S P: advances an object's animation
+0x80096ff4	function	anim_tick_load	S P: advances an object's animation, uploading each new image
+0x80097114	function	select_logic	S P: dispatch on state+0x4C: 0 mode select, 1 Option mode, 2 start mode directly, 3 nothing
+0x800971d0	function	select_direct	S P: state+0x4C = 2: exits to program 9 + cursor (cursor cleared: NOMAL); port refuses
+0x80097298	function	ms_background	S E P: mode select step 0: backgrounds, music 0x2F
+0x80097330	function	ms_title_in	S E P: step 1: "SELECT MODE" comes in, effect 6
+0x800973b0	function	ms_title_slide	S E P: step 2
+0x8009740c	function	ms_tiles	S E P: step 3: tiles, shadows, names, covers, cursor
+0x80097650	function	ms_choose	S E P: step 4: cursor ring over the 5 tiles; Cross opens a tile
+0x80097868	function	ms_zoom	S E P: step 5: the tile grows for 16 ticks; Circle shrinks it back
+0x80097b3c	function	ms_confirm	S E P: step 6: Cross starts the mode (effect 0), Circle goes back; port: Cross only on Puzzle/Option
+0x80097c8c	function	ms_shrink	S E P: step 7: the tile shrinks back to step 4
+0x80097e18	function	ms_flash	S E P: step 8: the frame flashes 75 ticks
+0x80097e74	function	ms_leave	S E P: step 9: program 9 + (tile & 3), or Option mode (state+0x4C + 1)
+0x80097f74	function	option_setup	S E P: Option mode phase 0: the menu, settings copied to the row variables, state+0x4B538 = 1
+0x80098228	function	option_menu	S E P: Option mode phase 1: the cursor and the 13 rows
+0x800983dc	function	option_exit	S E P: phase 7: back to the mode select (state+0x4C, 0x50, 0x54 = 0)
+0x800983f8	function	opt_left_turn	S E P: row 0: the left-turn button per pad (state+0x4B4EC/0x4B4F0)
+0x800987dc	function	opt_right_turn	S E P: row 1: the right-turn button per pad (state+0x4B4F4/0x4B4F8)
+0x80098bc4	function	opt_level	S E P: row 2: level (state+0x4B4FE)
+0x80098cf8	function	opt_matches	S E P: row 3: number of matches (state+0x4B501)
+0x80098e4c	function	opt_sound	S E P: row 4: stereo/mono (state+0x4B4FC bit 0), SsSetMono/SsSetStereo, CdMix
+0x80098f7c	function	opt_music_mode	S E P: row 5: music console/arcade (state+0x4B4FD)
+0x800990f8	function	opt_bgm_test	S E P: row 6: the music sound test (tracks 1-49 as tracks 3-51)
+0x80099414	function	opt_se_test	S E P: row 7: the effect sound test
+0x80099668	function	opt_music_volume	S E P: row 8: music volume (state+0x4B4FF), SsSetSerialVol
+0x80099844	function	opt_effect_volume	S E P: row 9: effect volume (state+0x4B500)
+0x800999d0	function	opt_option_card	S E P: row 10: option data load/save toggle; Cross: phase 2/3
+0x80099b34	function	opt_ranking_card	S E P: row 11: ranking data load/save toggle; Cross: phase 4/5
+0x80099c98	function	opt_exit	S E P: row 12: phase 7
+0x80099d24	function	object_put	S P: object n shows an image at (x, y)
+0x80099e24	function	card_load_prompt	S E P: load: "select a slot"
+0x80099ea8	function	card_choose_slot	S E P: slot 1 / slot 2; Circle back to the menu
+0x80099f9c	function	card_check_load	S E P: checks the card and reads the file
+0x8009a114	function	card_message_wait	S E P: a message for 120 ticks, then back to the slot prompt
+0x8009a168	function	card_back	S E P: back to the Option menu
+0x8009a1ac	function	card_apply_options	S E P: copies the loaded file's settings (24 bytes at copy offset 0x768)
+0x8009a1dc	function	card_apply_ranking	S E P: copies the loaded file's ranking data (0x78 bytes at copy offset 0xDC)
+0x8009a2fc	function	card_save_prompt	S E P: save: "select a slot"
+0x8009a380	function	card_check_save	S E P: checks the card before saving (not formatted: initialize?)
+0x8009a514	function	card_check_file	S E P: overwrite? if the file exists, else is there a free block
+0x8009a668	function	card_save_new	S E P: creates the file
+0x8009a6f4	function	card_ask_overwrite	S E P: yes/no: overwrite
+0x8009a838	function	card_overwrite	S E P: writes the file back
+0x8009a8e0	function	card_format	S E P: formats; the result is also stored in the CD error flag (0x800B911C)
+0x8009a9c8	function	card_fill_options	S E P: puts the settings into copy A
+0x8009aa04	function	card_fill_ranking	S E P: puts the ranking data into copy A
+0x8009aa40	function	card_ask_initialize	S E P: yes/no: initialize the card
+0x8009ac3c	function	card_overwrite_check	S E P: after the overwrite question's message: card ready goes on to the write (subphase 8), else "unable to save"
+0x8009b348	function	card_check	S E P: _card_info/_card_clear/_card_load; 1 ready, 3 unformatted, 2 new card, 0 none, -1 error
+0x8009b678	function	card_read_options	S E P: reads the file (7 tries)
+0x8009b6b4	function	card_read_ranking	S E P: reads the file (7 tries)
+0x8009b7d0	function	card_create_file	S E P: creates and writes the file (10 tries); deletes it on failure
+0x8009bb1c	function	card_header	S E P: the file header (magic d8 dc: a bug, the low bytes of the strings' addresses), title, icon
+0x8009bbe0	function	card_header_copy	S E P: copies the header into the file buffer
+0x8009be54	function	card_checksums	S P: XOR checksum of each copy, stored when they agree
+0x8009bec8	function	card_used_blocks	S E P: firstfile/nextfile over bu00:*
+0x8009bf50	function	card_verify	S P: 1 copy A good, 2 copy B good, 0 neither
+0x8009d214	function	card_write_back	S E P: writes the file back with copy A (16 tries)

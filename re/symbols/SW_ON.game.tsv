@@ -1,0 +1,19 @@
+# SW_ON.EXE names (docs/re/sw_on.md). address<TAB>function<TAB>name<TAB>evidence
+# Evidence: S = read in the decompiled code, U = Unicorn, T = trace equality (web/test/sw_on.test.ts).
+0x800957b0	function	swon_main_loop	S, T: counter, logic by state+0x4C, draw, VSync, swap, pad, CD reset, rand
+0x800940f8	data	swon_states	S, T: 36 states by state+0x4C
+0x80099178	function	swon_s00_defaults	S, T: objects cleared, defaults into the saved block, no-save flag
+0x80099384	function	swon_s03_card_check	S, T: one slot per tick; read, defaults, used blocks, screens
+0x800977cc	function	swon_card_status	S, T: _card_info/_card_clear/_card_load: 1 ok, 0 none, -1 error, 2 new, 3 unformatted
+0x80097b24	function	swon_save_read	S, T: 10 tries; $s2 tested unset (never 1)
+0x80097c2c	function	swon_save_create	S: unreachable (state 19)
+0x80097f80	function	swon_save_header	S, T: magic 0xC8 0xCC (low bytes of string addresses), title, icon
+0x80098044	function	swon_save_icon	S: palette and three frames from 0x800AEB28/0x800AEBE8/0x800AECA8
+0x800983b4	function	swon_save_check	S: 1 copy A ok, 2 copy B ok, 0 neither
+0x80098438	function	swon_save_copy_b_to_a	S
+0x80098598	function	swon_save_defaults	S, T: 9999 times, tables 0x800AF5A4, 0x800AF624, 0x800AFC34
+0x80096a48	function	swon_objects_draw	S, T: GsSortSprite per object 1049..0
+0x800961e0	function	swon_sprite_templates	S, T
+0x80095ec8	function	swon_images_upload	S, T: all 24 images at start
+0x80099934	function	swon_s06_fade	S, T: subtractive box fill
+0x800b5d04	data	swon_format_result	S, T: format()'s result, also the main loop's CdReset flag

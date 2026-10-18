@@ -1,0 +1,124 @@
+tpm 1
+boot power
+# SELECT.EXE (docs/re/select.md): the mode select and every Option-mode setting, then Puzzle Mode.
+# Cards: the port's default (slot 1 a blank formatted card, slot 2 empty).
+card 2 none
+# Title: START shows the menu, START again goes on to the mode select (SELECT main at counter 2401).
+2300 4 START
+2400 4 START
+# Mode select (tiles from tick 2459): the cursor in every direction, a diagonal (ignored).
+2470 2 RIGHT
+2480 2 RIGHT
+2490 2 RIGHT
+2500 2 DOWN
+2510 2 DOWN
+2520 2 LEFT
+2530 2 LEFT
+2540 2 UP
+2550 2 UP
+2560 2 UP+RIGHT
+2570 2 LEFT
+2580 2 DOWN
+2590 2 RIGHT
+2600 2 UP
+# Puzzle: open, look, back with Circle.
+2620 2 CROSS
+2660 2 CIRCLE
+# VS: open, Circle during the zoom.
+2700 2 RIGHT
+2710 2 CROSS
+2716 2 CIRCLE
+# Edit, then Classic: open and back.
+2760 2 RIGHT
+2770 2 CROSS
+2810 2 CIRCLE
+2850 2 UP
+2860 2 CROSS
+2900 2 CIRCLE
+# Option: open, Cross, the 75-tick flash, Option mode.
+2940 2 LEFT
+2950 2 CROSS
+2990 2 CROSS
+# Option mode (menu from tick 3068). Row 0, left turn: pad 1 right, right, left; pad 2 right,
+# left; Right+Cross together (not a lone direction: ignored); Up at the top row.
+3080 2 RIGHT
+3088 2 RIGHT
+3096 2 LEFT
+3104 2 2:RIGHT
+3112 2 2:LEFT
+3120 2 RIGHT+CROSS
+3128 2 UP
+# Row 1, right turn: pad 1 right three times (skipping the left turn's button), left; pad 2.
+3136 2 DOWN
+3144 2 RIGHT
+3152 2 RIGHT
+3160 2 RIGHT
+3168 2 LEFT
+3176 2 2:RIGHT
+# Row 2, level: round past hard, then back.
+3184 2 DOWN
+3192 2 RIGHT
+3200 2 RIGHT
+3208 2 RIGHT
+3216 2 RIGHT
+3224 2 LEFT
+# Row 3, matches.
+3232 2 DOWN
+3240 2 LEFT
+3248 2 RIGHT
+3256 2 RIGHT
+# Row 4, sound: mono, stereo, mono, stereo.
+3264 2 DOWN
+3272 2 RIGHT
+3280 2 LEFT
+3288 2 RIGHT
+3296 2 LEFT
+# Row 5, music mode.
+3304 2 DOWN
+3312 2 RIGHT
+3320 2 LEFT
+3328 2 RIGHT
+# Row 6, sound test music: down to 49 and play (track 51), up to 1 and play (track 3).
+3336 2 DOWN
+3344 2 LEFT
+3352 2 CROSS
+3360 2 RIGHT
+3368 2 RIGHT
+3376 2 CROSS
+# Row 7, sound test effects.
+3384 2 DOWN
+3392 2 RIGHT
+3400 2 RIGHT
+3408 2 RIGHT
+3416 2 CROSS
+3424 2 LEFT
+3432 2 CROSS
+# Row 8, music volume (the CD volume follows while a track plays).
+3440 2 DOWN
+3448 2 LEFT
+3456 2 LEFT
+3464 2 RIGHT
+3472 2 RIGHT
+3480 2 RIGHT
+# Row 9, effect volume.
+3488 2 DOWN
+3496 2 LEFT
+3504 2 CROSS
+3512 2 RIGHT
+3520 2 RIGHT
+# Rows 10 and 11: load/save toggles, no Cross.
+3528 2 DOWN
+3536 2 RIGHT
+3544 2 LEFT
+3552 2 RIGHT
+3560 2 DOWN
+3568 2 RIGHT
+# Row 12, exit (Down at the bottom row first): back to the mode select.
+3576 2 DOWN
+3584 2 DOWN
+3592 2 CROSS
+# The mode select again: Puzzle, Cross, Cross: Puzzle Mode starts.
+3700 2 RIGHT
+3710 2 CROSS
+3750 2 CROSS
+end 3840

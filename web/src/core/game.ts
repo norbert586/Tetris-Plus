@@ -66,9 +66,17 @@ export class Game {
     return this.m.s32(A.EXIT_FLAG) !== 0;
   }
 
+  /**
+   * Started by the previous program (src/flow/console.ts): that program's last iteration called
+   * rand() after the tracer's last sample of it, so the first row counts it (the injected seed
+   * already includes it), as the other programs' ports do.
+   */
+  private afterProgram = false;
+
   constructor(opts: GameOptions) {
     this.cards = opts.shared?.cards ?? opts.cards ?? new MemoryCards();
     if (opts.shared) {
+      this.afterProgram = true;
       this.rng = opts.shared.rng;
       this.m = opts.shared.m;
       this.m.loadRom();
@@ -142,7 +150,7 @@ export class Game {
     this.uploads = [];
     this.boxes = [];
     this.boxColors = [];
-    this.rng.calls = 0;
+    this.rng.calls = this.tick === 0 && this.afterProgram ? 1 : 0;
     if (this.tick > 0) {
       this.padRead(pad);
       this.rand();

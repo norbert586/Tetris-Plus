@@ -98,9 +98,7 @@ export function traceRow(s: Select): Row {
     }
   }
   row.seed = s.rng.seed;
-  // The first row's count also holds the previous program's last rand() (its loop's tail, which
-  // the port skips: the replay injects the seed SELECT's main found), so it isn't compared.
-  if (s.tick > 1) row.rand = s.rng.calls;
+  row.rand = s.rng.calls;
   row.se = s.se;
   row.bgm = s.bgm;
   row.up = s.uploads.map((i) => uploadAddress(s, i));

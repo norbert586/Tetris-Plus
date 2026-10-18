@@ -6,6 +6,7 @@
 import { readPack } from '../assets/pack';
 import { AudioPlayer } from '../audio/player';
 import { Console } from '../flow/console';
+import { LocalStorageBackend, MemoryCards } from '../flow/memcard';
 import type { Program, ProgramName, ProgramRenderer } from '../flow/program';
 import { PROGRAMS } from '../flow/registry';
 import { toRgba } from '../render/present';
@@ -123,6 +124,8 @@ class Shell {
     const first = new URLSearchParams(location.search).get('start') as ProgramName | null;
     this.console = new Console(Object.fromEntries(Object.entries(PROGRAMS).map(([n, p]) => [n, p.create])), {
       first: first && PROGRAMS[first] ? first : undefined,
+      // The memory card in slot 1 is kept in the browser (docs/re/memcard.md); slot 2 is empty.
+      cards: new MemoryCards(new LocalStorageBackend()),
     });
     this.mode = 'run';
     this.last = performance.now();

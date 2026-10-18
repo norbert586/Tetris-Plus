@@ -6,6 +6,7 @@ import { SW_ON } from '../programs/sw_on';
 import { TIT_DEMO_MODULE } from '../programs/tit_demo';
 import { TITLE_MODULE } from '../programs/title';
 import { RANKING_MODULE } from '../programs/ranking';
+import { SELECT_MODULE } from '../programs/select';
 import type { ProgramFactory, ProgramModule, ProgramName } from './program';
 
 export const PROGRAMS: Partial<Record<ProgramName, ProgramModule>> = {
@@ -13,6 +14,7 @@ export const PROGRAMS: Partial<Record<ProgramName, ProgramModule>> = {
   TIT_DEMO: TIT_DEMO_MODULE,
   TITLE: TITLE_MODULE,
   RANKING: RANKING_MODULE,
+  SELECT: SELECT_MODULE,
   PAZLE: {
     create: (shared) => new Game({ counter: 0, seed: 0, shared }),
     pack: 'pazlee.pack',

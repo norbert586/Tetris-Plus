@@ -13,6 +13,8 @@ const ROOT = join(import.meta.dirname, '..', '..');
 /** SHA-256 of memcard1.mcd as the original's run left it. */
 const CARD_AFTER: Record<string, string> = {
   'card-save': '14edf49bd620578cdddc4c253f0adbacd16bf9e3914ea8a57b06cfcac4f8039b',
+  'card-full': 'ddd7891d6825d33ac9297c92453aa6e8dd2cf6563e90211b9a668713e953a5f2',
+  'card-continue': '14edf49bd620578cdddc4c253f0adbacd16bf9e3914ea8a57b06cfcac4f8039b',
 };
 
 describe('memory card contents', () => {
