@@ -161,7 +161,7 @@ function stageNumberAndHud(g: Game, numberX: number, checkHundred: boolean): voi
 
 const v = (g: Game, a: number) => g.m.s32(g.pv(a));
 
-/** Objects of the stage art: slot 31 (FUN_800B0824) and slot 30 (FUN_800B091C). */
+/** The stage art: slot 31 (FUN_800B0824), record +0x24, a 112 x 56 strip; slot 30 (FUN_800B091C), record +0x20, the 112 x 160 well background. */
 export function stageArt31(g: Game): void {
   const m = g.m;
   const o = A.obj(g.ob + 0x1f);
@@ -185,7 +185,7 @@ export function stageArt30(g: Game): void {
   itemLoad(g, m.s32(o + A.O_IMAGE) - 0x10001);
 }
 
-/** FUN_800B0FAC: the zone emblem, the "last stage" mark and the bonus-stage marker. */
+/** FUN_800B0FAC: the zone backdrop (160 x 224, a second one for stage 20), the "last stage" mark and the bonus-stage marker. */
 function stageEmblem(g: Game): void {
   const m = g.m;
   const p = g.p;

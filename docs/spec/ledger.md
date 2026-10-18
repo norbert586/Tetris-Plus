@@ -15,7 +15,11 @@ verifiers close against it in Phase 6.
 - **Closed by (Phase 6):** the check that passed (`docs/re/core-port.md`): U = the named
   routine's Unicorn fixtures (`web/test/unicorn.test.ts`), T = golden-trace equality
   (`web/test/traces.test.ts`; "all" = every movie of the corpus). Every T and U verifier is
-  closed. P and A wait for Phases 7 and 8.
+  closed. A waits for Phase 8.
+- **P (Phase 7):** closed for every row at once: every frame of the corpus, drawn by the port,
+  equals the original's, GPU packets and pixels (`web/test/render.test.ts`,
+  `docs/re/renderer.md` §5). Each mechanic that shows on screen is drawn the original's way
+  wherever the corpus reaches it.
 - **Owner modules as built:** `core/frame` is `web/src/core/game.ts`; `core/input`, `core/piece`
   and `core/queue` are `play/piece.ts`; `core/lines` is `play/lines.ts`; `core/ceiling` is
   `play/ceiling.ts`; `core/professor` is `professor.ts`; `core/stages` is `play/stage.ts`;
@@ -84,10 +88,10 @@ verifiers close against it in Phase 6.
 | Item | Where it goes |
 |---|---|
 | Which program changes `difficulty` and the rotation buttons (options screen); Puzzle Mode only reads them | Phase 9 (shell), from `TITLE.EXE` or `SELECT.EXE` |
-| ~~Goal sequence substates 1–15 and screen 9's remaining steps~~ Ported and traced in Phase 6 (rows 42, 38–39) | Phase 7 draws them |
+| ~~Goal sequence substates 1–15 and screen 9's remaining steps~~ Ported and traced in Phase 6 (rows 42, 38–39); drawn in Phase 7 | |
 | ~~Screens 7 (name entry), 10, 11 (ending), 13 (save) in detail~~ Ported and traced in Phase 6 (rows 43–45), except the memory card (screen 13's save options, the menu's Continue) | Phase 9: browser storage instead of the card |
 | ~~How the pause menu reaches the hidden stage select~~ Answered in Phase 5; played and traced in Phase 6 (row 46) | |
 | ~~Short-fall landing, sleep/wake and "trapped" timings~~ Checked in Phase 6: the corpus traces and `prof_think`'s Unicorn cases (rows 25, 31) | |
 | Zone-clear scenes of Angkor Wat, Maya and Knossos: ported, not yet traced | Phase 10 (solver runs) |
 | Player 2 joining a game in progress (two-player Puzzle Mode) | Off until two-player mode (`docs/RESEARCH_AND_PLAN.md` §9) |
-| Art items in stage records `+0x20`/`+0x24`: which is the background | Phase 7 |
+| ~~Art items in stage records `+0x20`/`+0x24`: which is the background~~ Answered in Phase 7: `+0x20` the 112×160 well background, `+0x24` a 112×56 strip; the zone backdrop comes from `FUN_800B0FAC` (`docs/re/renderer.md` §3.6) | |

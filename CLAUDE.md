@@ -4,7 +4,10 @@ A faithful browser version of Tetris Plus's Puzzle Mode (the professor mode), re
 original PS1 game (US, SLUS-00338) and verified against it in an emulator.
 
 - **Plan:** `docs/RESEARCH_AND_PLAN.md` (phases, fidelity rules, verification layers, ground rules).
-- **Latest results:** `docs/re/core-port.md` (Phase 6: the TypeScript core in `web/src/core/`,
+- **Latest results:** `docs/re/renderer.md` (Phase 7: the renderer in `web/src/render/` and the
+  asset pipeline; every frame of the corpus is pixel-identical to the original's, checked by
+  `npm test` in `web/`).
+  `docs/re/core-port.md` (Phase 6: the TypeScript core in `web/src/core/`,
   which keeps game state at the original's addresses; golden-trace equality on every movie and
   Unicorn function tests, both under `npm test` in `web/`).
   `docs/re/oracle-harness.md` (Phase 5: input movies, the per-tick tracer, determinism checks,
@@ -31,9 +34,17 @@ original PS1 game (US, SLUS-00338) and verified against it in an emulator.
 
 ## Common commands
 
-- **The TypeScript core** (in `web/`; `npm install` first):
-  - `npm test`: golden traces and Unicorn function tests. `npm run trace -- [MOVIE...]`: replays
-    movies and prints the first difference with the original's trace. `npm run typecheck`.
+- **The TypeScript core and renderer** (in `web/`; `npm install` first):
+  - `npm test`: golden traces, frames and Unicorn function tests. `npm run trace -- [--render]
+    [MOVIE...]`: replays movies and prints the first difference with the original's trace
+    (`--render` also compares each frame's GPU packets and pixels). `npm run typecheck`.
+  - `npm run dev`: the browser preview (keyboard on pad 1).
+  - Frames as PNG: `npx tsx tools/frames.ts ../re/movies/<name>.tpm <out> <ticks> [--hide-p2] [--scale N]`.
+  - Rebuild the web assets after a disc fetch: `npx tsx tools/extract-assets.ts` (writes
+    `public/assets/pazlee.pack`, committed).
+  - The core records presentation events the renderer replays: image uploads (`Game.uploads`,
+    trace field `up`; add `itemLoad`/`itemQueue` wherever the original calls `item_load` or
+    `FUN_8009747C`) and boxes sorted during the logic (`Game.boxes`).
   - Design a movie on the core before running it on the original:
     `npx tsx tools/simulate.ts ../re/movies/<name>.tpm [--to T] [--fields a,b]`.
   - Movies can poke memory after a tick (`poke TICK ADDRESS VALUE [SIZE]`) to set up a scenario;
@@ -53,6 +64,10 @@ original PS1 game (US, SLUS-00338) and verified against it in an emulator.
   - Start from a save state instead of booting (75 s saved): add `TP_SAVE_AT=<tick>` to one run,
     then `TP_LOAD=<dir>/state_<tick>.sstate` (the trace resumes at tick + 2). `TP_UNTIL='pieces>=5,scr!=5'`
     stops early; `TP_SHOTS=<ticks>` takes screenshots.
+  - `TP_VRAM_AT=<ticks>` dumps VRAM and RAM at the sample point. Decode the frame's GPU packets:
+    `python3 re/tools/otdump.py <dir>/ram_<tick>.bin [--raw]`; draw the same frame on the port
+    and compare: `npx tsx tools/render-dump.ts <ram> <vram> [out.ppm]` (in `web/`).
+    `TP_UPLOAD_LOG=1` logs every image upload with its caller's return address.
   - Determinism check (two runs, traces and RAM compared): `bash scripts/check-determinism.sh <movie> <out>`.
     Re-record every corpus trace: `bash scripts/record-corpus.sh`.
   - Build a movie that places pieces (closed loop with the emulator):

@@ -98,6 +98,7 @@ hasn't been stored yet. The harness then:
 | Professor | `prof_state`, `prof_sub`, `prof_col`, `prof_row`, `prof_facing`, `prof_action`, `prof_prev_action`, `prof_channel`, `prof_ch_action[4]`, `prof_ch_script[4]`, `prof_wait`, `prof_done`, `prof_sensors[10]`, `prof_turns`, `prof_lifted`, `prof_fall`, `prof_headroom`, `prof_danger`, `prof_hold`, `prof_fast`, `prof_sx`/`prof_sy` (sprite position) |
 | Password | `pw_symbols[6]`, `pw_cursor` |
 | Added by the harness | `board` (player 1, rows 0–15), `rand` (calls), `se` (sound IDs started), `bgm` (music IDs requested) |
+| Added in Phase 7 (trace version 2) | `up` (image uploads), `ot` (hash of the frame's GPU packets), `fb` (hash of the drawn frame); `docs/re/renderer.md` §4 |
 
 All values are player 1's and raw: 16.16 positions stay 16.16 (`tptrace.py` shows pixels).
 `prof_ch_script` holds RAM pointers into the script table, which are the same in the port only if
@@ -131,7 +132,8 @@ timing doesn't change; a paced and an unpaced run of `input-edges` gave identica
 (`UseNullSync`, the obvious switch, hangs the emulator.) Booting to Puzzle Mode costs about 50
 seconds, which a save state skips. Run at most three emulators at once on this 4-core machine.
 
-**Other options.** `TP_SHOTS` (screenshots at ticks, convert with `re/tools/shot2png.py`),
+**Other options.** `TP_VRAM_AT` (VRAM and RAM dumps; Phase 7), `TP_UPLOAD_LOG` (each upload call's
+return address; Phase 7), `TP_SHOTS` (screenshots at ticks, convert with `re/tools/shot2png.py`),
 `TP_RAM_AT` (RAM dumps), `TP_PADLOG` (logs any non-zero `PadRead` value; confirms the emulated pad
 is idle in Puzzle Mode).
 
