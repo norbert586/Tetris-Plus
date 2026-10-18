@@ -516,6 +516,8 @@ const SAVE: ((g: Game) => void)[] = [
   (g) => {
     const m = g.m;
     m.w32(C.CARD_INDEX, v(g, C.CARD_SLOT));
+    // VSync(90) first: the wait counts with the card's for the audio and the shell (memcard.ts).
+    g.cards.vblanks += 90;
     const r = C.cardStatus(g);
     m.w32(C.CARD_RESULT, r);
     if (r === 1) {

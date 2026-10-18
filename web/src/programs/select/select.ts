@@ -109,6 +109,8 @@ export class Select implements Program {
    * to right at 0x7F; mono: all four at 0x40). Not in SoundCall: for the audio layer.
    */
   mix: MixCall[] = [];
+  /** The main loop's CD recovery ran CdReset this tick (before its `play` call; the audio layer's). */
+  cdReset = false;
 
   get exited(): boolean {
     return this.m.s32(A.EXIT_FLAG) !== 0;
@@ -202,6 +204,7 @@ export class Select implements Program {
     this.bgm = [];
     this.cd = [];
     this.mix = [];
+    this.cdReset = false;
     this.rng.calls = 0;
     if (this.tick === 0) {
       // The previous program's last iteration called rand() after the tracer's last sample of

@@ -210,7 +210,7 @@ level. A console's analogue output stage isn't modelled.
 | Effect 0's registers, sample addresses | `test/audio.test.ts` | as the original wrote them |
 | Mixer voice end vs ENVX model, 50 samples × 4 pitches | `test/audio.test.ts` | identical |
 | ADPCM decoding vs FFmpeg | `tools/check-adpcm.ts` | within 72 / 32,768 (rounding) |
-| The whole game's sound on the flow ports (§11): TIT_DEMO + TITLE runs, RANKING runs, power-on chains | `test/game-audio.test.ts` | identical; CD events within one tick |
+| The whole game's sound on the flow ports (§11): full-run from power-on, TIT_DEMO + TITLE, RANKING, SELECT and SW_ON runs | `test/game-audio.test.ts` | identical; CD events within one tick |
 
 ## 10. Files
 
@@ -277,15 +277,15 @@ Every program's first tick in the traces shows the same thing:
 
 ### Per program (`web/src/audio/programs.ts`)
 
-| Program | Pitch table | Track table | Music volume | Head after loading | History index at first sample | First CD command | Exit stops the CD after |
-|---|---|---|---|---|---|---|---|
-| SW_ON | `800B52BC` | `800AF25C` | `800AF0A8` | 1256 | | | |
-| TIT_DEMO | `800B5338` | `800AEE8C` | `800AECDC` | 1366 | 15 | 206,989 before the sample | 36.0 M cycles |
-| TITLE | `800B38A0` | `800ADA18` | `800AD868` | 1625 | 15 (twice) | (second tick) | 36.0 M |
-| RANKING | `800B1B60` | `800ABE40` | `800ABC90` | 2336 | 8 | (no music) | |
-| SELECT | `800B86B4` | `800B2168` | `800B1FB4` | 2479 | 8 | 683,699 before | 64.5 M |
-| PAZLE | `800EC94C` | `800DC610` | `800DC45C` | 3506 | 13 | (second tick) | 63.0 M |
-| HOW_N, HOW_P, HOW_VS | listed in `programs.ts` | | | | | | |
+| Program | Pitch table | Track table | Music volume | History index at first sample | First CD command (before the sample) | Exit stops the CD after |
+|---|---|---|---|---|---|---|
+| SW_ON | `800B52BC` | `800AF25C` | `800AF0A8` | (tick 1 not modelled) | (no music) | (no music) |
+| TIT_DEMO | `800B5338` | `800AEE8C` | `800AECDC` | 15 | 206,989 (always) | 36.0 M cycles |
+| TITLE | `800B38A0` | `800ADA18` | `800AD868` | 15 (twice) | (second tick) | 34.6 M |
+| RANKING | `800B1B60` | `800ABE40` | `800ABC90` | 8 | (no music) | (no music) |
+| SELECT | `800B86B4` | `800B2168` | `800B1FB4` | 7 (7, 7, 8) | 263,000 (263,007; 262,719; 683,699) | 64.5 M |
+| PAZLE | `800EC94C` | `800DC610` | `800DC45C` | 13 | (second tick) | 63.0 M |
+| HOW_N, HOW_P, HOW_VS | listed in `programs.ts` | | | | | |
 
 NOMAL, VSPUZ and EDIT have tables at:
 
@@ -297,37 +297,55 @@ NOMAL, VSPUZ and EDIT have tables at:
 
 Their sound timings aren't measured, so they have no entry yet.
 
-Where each column comes from:
+Where each column comes from (runs with `TP_AUDIO_LOG=1 TP_VRAM_AT=...` on `ranking-records`,
+`select-tour`, `select-format` and `sw_on-unformatted`):
 
-- **Head after loading.** Each program's data file and EXE sit next to each other on the disc
-  (ISO directory). The head is left at the end of the pair, which places the first Play's seek.
+- **The head after a load: 173 for every program.** The boot program's loader finds each file
+  with `CdSearchFile`, which reads the root directory (LBA 22, MSF 172), so whatever was loaded,
+  the head rests just past the directory. Measured from Setmode to the first report of each
+  program's first Play:
+
+  | Program | Original | Model, head at 173 |
+  |---|---|---|
+  | TIT_DEMO | 30,659,125 | 30,642,592 |
+  | TITLE | 30,888,099 | 30,886,447 |
+  | SELECT | 44,300,841 | 44,298,492 |
+
+  The end of each program's own files, the first guess, put SELECT's first report two ticks
+  early.
 - **History index.** libsnd's flush ring index (§3), read from RAM dumps at the first tick's
-  sample:
-  - `TP_VRAM_AT` on `ranking-records`;
-  - the index address is each program's `SpuVmFlush` global, in the table's `history` column.
-- **First CD command.** In a tick that loads a program, the logic's first CD command comes at a
-  fixed time before the sample, measured with `TP_AUDIO_LOG`. Otherwise §5's rule applies.
+  sample. The index address is each program's `SpuVmFlush` global, in the entry's `history`
+  field. SELECT's varies with the load (7 twice, 8 once). TIT_DEMO, TITLE and RANKING allocate
+  only voice 0 there, so theirs isn't tested by the traces. SELECT's and Puzzle Mode's run under the comparisons
+  (select-format keys voices 0-4 in turn).
+- **First CD command.** In a tick that loads a program, the logic's first CD command comes
+  before the sample, by an amount that depends on where the load ended within a vblank. TIT_DEMO
+  is always 399,853 cycles into a vblank. SELECT varies: 346,814 and 346,880 twice, 490,513 once.
+  The entry has the common value. Otherwise §5's rule applies.
 - **Exit stops the CD after.** From the exiting program's last sample, the drive goes on playing
-  and reporting through the exit until the loader's first read. The value is fitted between:
+  and reporting through the exit until the loader's first read. The value lies between:
   - the last report the loading tick holds;
   - the next report the drive would have made.
 
-  Windows from `audio.log`:
-  - TIT_DEMO 32.8–37.4 M;
-  - TITLE 34.3–38.8 M;
-  - SELECT 62.3–66.8 M;
-  - PAZLE 60.7–65.2 M.
+  Windows:
+
+  | Program | From `audio.log` | From a sweep on `full-run` |
+  |---|---|---|
+  | TIT_DEMO | 32.8–37.4 M | |
+  | TITLE | 34.3–38.8 M and 30.35–34.86 M | 34–37 M |
+  | SELECT | 62.3–66.8 M | 63–66 M |
+  | PAZLE | 60.7–65.2 M | 61–64 M |
 
   A program without a value uses 64 vblanks.
 
 ### The model (`model.ts`)
 
-`step(calls, vblanks, start)` takes the new program's entry on its first tick and does three
-things:
+`step(calls, vblanks, start, extras)` does three things on a program's first tick, when it is
+given the new program's entry as `start`:
 
 1. It runs the drive until the old program's exit stops it. That drive state is the old
    program's (its track, loop mode and end), so its reports land in this tick as on the console.
-2. It moves the head to the new program's load end with fresh callback state.
+2. It moves the head to 173 with fresh callback state.
 3. It runs the set-up:
    - the same key-off, mix, CD volume and reverb writes;
    - a new libsnd (every voice free) with the program's pitch table and mono setting;
@@ -337,23 +355,79 @@ The SPU registers and envelopes carry over. Live (one vblank per tick), the stop
 come just before the new program's logic: the port skips loading (docs/RESEARCH_AND_PLAN.md §9),
 so the old music stops at the program change instead of about a second into the load.
 
+`extras` (`tickExtras(program)`) carries what a port does to the sound outside its SoundCalls:
+
+- **`mix`** (`Select.mix`): Option mode's stereo/mono switch and SELECT's set-up.
+  - `SsSetMono`/`SsSetStereo` sets libsnd's mono flag from that tick's key-ons, so key-on
+    volumes are the louder side on both sides in mono.
+  - `TickSound.mix` passes the switch to the player, which sets the `CdMix` matrix at its time
+    (both channels to both sides at half level, or straight through).
+- **`cdReset`** (`Select.cdReset`, `SwOn.cdReset`): the main loop's CD error recovery, in the
+  tail right after the previous sample.
+  - **`CdReset`** stops the drive's play and reports and leaves the head at 00:02:00 (150).
+    After select-format's format, the Play of track 27 that follows reaches its first report
+    44,302,037 cycles after Setmode, as from the start of the disc.
+  - **SELECT** then records the track's replay as a `play` call (`cdRecover`).
+  - **SW_ON** records nothing. The model plays the TOC entry of the track named by
+    `PROGRAM_AUDIO.SW_ON.cdTrack` (`0x800B5CDC`, which holds 0). TOC entry 0 is 63:46:00
+    (`S+0x20550`), the disc's last 53 sectors: the "garbage Setloc" (99, 70 in decimal).
+- **Disc end → error → reset again.**
+  - The drive plays those 53 sectors (no report: they end before the 750 ms settle) and stops at
+    the disc's end with an error, which the program's callback turns into its CD error flag.
+  - At the next tick, the model runs the same reset for a program with a `cdTrack`.
+  - This is why sw_on-unformatted resets at ticks 104, 199, 296 and 393. Each reset follows the
+    previous Play by 53.79–54.36 M cycles; the model's seek from 150 plus 53 sectors gives 53.9 M.
+
+### Live play: the original's waits (`web/src/shell/main.ts`)
+
+On the original, a tick that calls the memory card or `VSync(n)` takes many vblanks:
+
+- about 165 for a card check, with Puzzle Mode's `VSync(90)` before it;
+- about 130 for an 8 KB read or write;
+- 60 for SW_ON's `VSync(60)`.
+
+The picture holds while the music plays on. The port runs such a tick at once. The decision:
+keep the CD position faithful by holding the game, not by skipping the sound ahead.
+
+- **The shell** reads the tick's waits and passes them to the player as extra vblanks:
+  - SW_ON counts its own, in `SwOn.vblanks`;
+  - the other programs' card calls add up in `MemoryCards.vblanks`, which the shell then clears;
+  - Puzzle Mode's `VSync(90)` before its card checks (save substep 5, Continue substep 3) now
+    adds 90 there too (`src/core/screens/after.ts`, `menu.ts`).
+- **The model** runs that many vblanks of libsnd flushes and CD sectors.
+- **The shell then delays the next tick** by as long, so picture and sound stay together, as on
+  the console.
+
+What the port can't count, live:
+
+- the CD reset's own wait (8–10 vblanks in sw_on-unformatted);
+- loading pauses.
+
 ### What is compared (`test/game-audio.test.ts`, `compareFlow`'s `audio` option)
 
 `compareFlow(..., { audio })` runs one model across the flow and compares `vs`, `kon`, `koff`,
 `spu` and `rev` per tick. As in `compareMovie`, `cd`, `cdr` and the CD volume are timed events
 allowed one tick of slack. Results on the power-route traces, all identical:
 
+- **`full-run` from power-on, every one of its 10,277 ticks:**
+  - SW_ON, then TIT_DEMO, TITLE and SELECT;
+  - Puzzle Mode (password, stage select, a stage, the ending, credits, name entry);
+  - then RANKING and TIT_DEMO.
+
+  That is every program change of a complete game, with 99 key-ons and 1,217 CD reports.
 - **TIT_DEMO then TITLE**, as one run each:
   - `attract-cycle` 371–4622, 11898–16150 and 19571–23822;
   - `title-skip` 371–1301, `title-anim` 371–2601, `title-carry` 371–904.
-
-  This covers TIT_DEMO's music (track 2, which plays once and is silenced by the callback),
-  the TIT_DEMO-to-TITLE change with the 8 reports that come during the load, TITLE's music
-  (track 3), and TITLE's effects (25 in the attract loop, 0 on START).
 - **RANKING**, from its first tick: `attract-cycle` 11458–11897 and 19131–19570, and
-  `ranking-records` 2702–3069. Its set-up comes after HOW_P, HOW_VS or Puzzle Mode.
-- **From power-on** through SW_ON, TIT_DEMO and TITLE: `title-skip` 1–1301 and `title-carry`
-  1–904.
+  `ranking-records` 2702–3069.
+- **SELECT**, from its first tick and from power-on: `select-tour` (2402–3827), `select-card`
+  (2402–4416) and `select-format` (3299–4579). The SELECT runs cover:
+  - the mode select's music (track 27) and effects;
+  - Option mode's sound test, stereo/mono and volumes;
+  - the format's CD reset and the track restarted with it.
+- **SW_ON**, from power-on into TIT_DEMO: every `sw_on-*` movie, including `sw_on-unformatted`'s
+  four CD resets.
+- **From power-on** through SW_ON, TIT_DEMO and TITLE: `title-skip` and `title-carry`.
 
 What can't be compared:
 
@@ -365,26 +439,26 @@ What can't be compared:
 - **The HOW programs** run as stand-ins (`src/flow/stand-ins.ts`). Their music, their effects
   and their effect on the drive are skipped, so a trace can't be followed past them. Everything
   after them is compared from a fresh start (the RANKING runs).
-- **Loading itself:** the vblanks the boot program spends are the trace's `vs`. The test feeds
-  `vs`, but live play has none.
-
-The first-tick CD timing for SELECT and the exit stops for SELECT and PAZLE come from one
-transition each (`ranking-records`). They are in place for when SELECT is ported, but no
-comparison checks them yet.
+- **At a trace's last tick,** an event the port puts there may be the original's next tick's, so
+  it isn't flagged.
 
 ### Adding a program
 
 1. The port records its calls in `Program.sound`. `ModeProgram.sePlay`/`bgmRequest` in
    `web/src/programs/title/common.ts` show the pattern, with addresses from the program's
-   `Layout`.
-2. Its entry in `PROGRAM_AUDIO` has to have the table addresses (run the finder), the load end
-   (the ISO listing), and the history index, first CD command and exit stop. Measure those with
-   one run:
+   `Layout`. Add `mix` and `cdReset` fields if it has them.
+2. Its entry in `PROGRAM_AUDIO` needs the table addresses (run the finder), and the history
+   index, first CD command and exit stop. Measure those with one run:
 
    ```
    TP_AUDIO_LOG=1 TP_VRAM_AT=<first ticks> bash scripts/emu-slot.sh bash scripts/run-movie.sh <movie> <out>
    ```
 
+   A movie's cards come from its `card` lines or `TP_MEMCARD1/2`. For example,
+   `sw_on-unformatted` needs `TP_MEMCARD1=<128 KB of zeros>` and `TP_MEMCARD2=none`, or the run
+   isn't the trace's.
+
 The player (`player.ts`) follows the running program by object identity. The shell passes the
 console's current program each tick, and the player starts the model with the first program it
-sees. `CdMix` is applied anew from the sound setting at each program start, as each set-up does.
+sees. `CdMix` is applied anew from the sound setting at each program start, as each set-up does,
+and on each `mix` event.

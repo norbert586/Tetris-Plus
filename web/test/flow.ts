@@ -2,7 +2,7 @@
 // compares it with the original's trace, tick by tick: the fields each program's port reports
 // (Program.traceRow), its frames when a renderer is given, its sound when an audio model is
 // given, and which program runs.
-import type { AudioModel } from '../src/audio/model';
+import { tickExtras, type AudioModel } from '../src/audio/model';
 import { PROGRAM_AUDIO, type ProgramAudio } from '../src/audio/programs';
 import type { Mem } from '../src/core/mem';
 import { Console } from '../src/flow/console';
@@ -99,7 +99,7 @@ export function compareFlow(movie: Movie, trace: Trace, opts: FlowOptions): Flow
     }
     if (audio) {
       const vs = (want.vs as number | undefined) ?? 1;
-      const s = audio.step(p.sound, vs, started);
+      const s = audio.step(p.sound, vs, started, tickExtras(p));
       Object.assign(got, { vs, kon: s.kon, koff: s.koff, spu: audio.globals(), rev: audio.reverb(), cd: s.cd, cdr: s.cdr });
       if (ticks === 0 && !opts.start) {
         got.kon = want.kon;
@@ -141,8 +141,10 @@ export function compareFlow(movie: Movie, trace: Trace, opts: FlowOptions): Flow
       return { ok: false, ticks, report: lines.join('\n') };
     }
   }
+  // The trace ends at its last row: an event the port puts there may be the original's next.
+  const last = (mine[mine.length - 1]?.t as number | undefined) ?? 0;
   for (const [f, events] of timed) {
-    const problem = events.check(f, Infinity);
+    const problem = events.check(f, last);
     if (problem) return { ok: false, ticks, report: `difference at the end: ${problem}` };
   }
   return { ok: true, ticks, report: `identical over ${ticks} ticks` };

@@ -155,8 +155,11 @@ class Shell {
         const p = c.program;
         if (p !== this.rendererFor) this.newRenderer(p);
         this.buffer = this.renderer!.frame(p).buffer;
-        this.audio?.tick(p);
-        this.acc -= TICK_MS;
+        // Vblanks the original spent waiting inside this tick (memory card calls, VSync(n)):
+        // the picture holds and the sound plays on, so the next tick waits as long.
+        const waited = this.waitedVblanks(c, p);
+        this.audio?.tick(p, waited);
+        this.acc -= TICK_MS * (1 + waited);
       }
     } catch (e) {
       this.stop(e);
@@ -167,6 +170,18 @@ class Shell {
       this.ctx.putImageData(this.image, 0, 0);
     }
     requestAnimationFrame((t) => this.frame(t));
+  }
+
+  /**
+   * The vblanks the original waited in this tick beyond its own: SW_ON counts its VSync waits
+   * and card calls (`vblanks`); the others' card calls add up in the cards' counter.
+   */
+  private waitedVblanks(c: Console, p: Program): number {
+    const cards = c.shared.cards;
+    const own = (p as { vblanks?: number }).vblanks;
+    const n = own ?? cards?.vblanks ?? 0;
+    if (cards) cards.vblanks = 0;
+    return n;
   }
 
   private newRenderer(p: Program): void {

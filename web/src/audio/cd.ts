@@ -45,7 +45,7 @@ export type Report = number[];
 export interface CdEvent {
   cycle: number;
   /** cd: a command (number, then Setloc's or Setmode's bytes); cdr: a report; vol: CD volume. */
-  kind: 'cd' | 'cdr' | 'vol' | 'sector';
+  kind: 'cd' | 'cdr' | 'vol' | 'sector' | 'error';
   data: number[];
 }
 
@@ -150,8 +150,13 @@ export class CdDrive {
   private sector(at: number): void {
     const pos = this.position;
     if (pos >= this.disc.end) {
+      // Playing past the last sector: the drive stops with an error, which the program's
+      // callback turns into its CD error flag (model.ts resets the CD on the next tick). Measured
+      // in sw_on-unformatted: SW_ON's Setloc to 63:46:00 plays the disc's last 53 sectors, and
+      // each reset follows the previous Play by 53.79-54.36 M cycles; the model gives 53.9 M.
       this.state = IDLE;
       this.next = Infinity;
+      this.events.push({ cycle: at + this.callbackDelay, kind: 'error', data: [] });
       return;
     }
     this.events.push({ cycle: at, kind: 'sector', data: [pos] });
@@ -181,6 +186,39 @@ export class CdDrive {
     this.position = position;
     this.track = this.loop = this.startInt = this.endInt = this.posInt = 0;
     this.trackTable = trackTable;
+  }
+
+  /**
+   * CdReset at `cycle` (a program's CD error recovery): the drive stops playing and reporting,
+   * and its Init command leaves the head at the start of the disc (00:02:00; the next Play's
+   * seek, 44,302,037 cycles from Setmode to the first report in select-format, says so).
+   */
+  reset(cycle: number): void {
+    this.run(cycle);
+    this.position = 150;
+    this.events.splice(0, this.events.length, ...this.events.filter((e) => e.cycle < cycle));
+    this.state = IDLE;
+    this.next = Infinity;
+    this.report = false;
+  }
+
+  /**
+   * Setmode, Setloc to a CdlLOC as the program read it (minute, second, sector, in BCD: SW_ON's
+   * is the TOC's entry 0, 63:46:00, the disc's last 53 sectors) and Play, without the program's
+   * track bookkeeping: SW_ON's restart after a format (docs/re/sw_on.md §5).
+   */
+  playLoc(cycle: number, loc: number[]): void {
+    this.run(cycle);
+    this.command(cycle, [0x0e, 5]);
+    this.report = true;
+    const at = cycle + this.commandTime;
+    this.command(at, [2, ...loc]);
+    this.seekTarget = (fromBcd(loc[0]) * 60 + fromBcd(loc[1])) * 75 + fromBcd(loc[2]);
+    const play = at + this.commandTime;
+    this.run(play - 1);
+    this.command(play, [3]);
+    this.state = SEEKING;
+    this.next = play + SEEK_START;
   }
 
   /** The callback (0x80095C5C) for a DataReady report. */

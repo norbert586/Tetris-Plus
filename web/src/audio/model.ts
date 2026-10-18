@@ -8,10 +8,10 @@
 // The clock: tick t ends with its sample, 45,519 cycles into the vblank that closes it; its logic
 // starts right after the previous tick's sample, so the program's CD commands start about 50,000
 // cycles into that tick's first vblank. Key-ons wait for the flush in the next vblank's interrupt.
-import { MUSIC_VOLUME, SETTING_4FC } from '../core/addr';
+import { MUSIC_VOLUME, S, SETTING_4FC } from '../core/addr';
 import type { Mem } from '../core/mem';
 import type { SoundCall } from '../core/sound';
-import { PAZLE_PUZZLE_ROUTE, soundTables, type ProgramAudio } from './programs';
+import { HEAD_AFTER_LOAD, PAZLE_PUZZLE_ROUTE, PUZZLE_ROUTE_HEAD, soundTables, type ProgramAudio } from './programs';
 import { CdDrive, type CdEvent, type Disc } from './cd';
 import { CYCLES_PER_VBLANK, SoundDriver, type TickAudio } from './driver';
 import type { Vab } from './vab';
@@ -26,6 +26,9 @@ const LONG_TICK_CD = -36_400;
  * next program's files (FUN_80096604's VSync(60), then the loader's first read; fitted to the
  * reports the trace's loading ticks hold).
  */
+/** The disc's TOC as the boot program keeps it (CdlLOC per track) in the shared state block. */
+const TOC = S + 0x20550;
+
 export const EXIT_CD_STOP = 64 * CYCLES_PER_VBLANK;
 
 export interface TickSound extends TickAudio {
@@ -36,6 +39,25 @@ export interface TickSound extends TickAudio {
   cdEvents: CdEvent[];
   /** The cycle of this tick's sample. */
   cycle: number;
+  /** SsSetMono / SsSetStereo with the CdMix that goes with them, for the player's CD path. */
+  mix: { cycle: number; mono: boolean }[];
+}
+
+/**
+ * What a program does to the sound outside its SoundCalls (src/flow/program.ts ports that have
+ * them): Option mode's stereo/mono switch (SsSetMono or SsSetStereo, and CdMix), and the main
+ * loop's CD reset after a format (CdReset, then the track again from the TOC entry the program
+ * names; SW_ON's `cdReset`; SELECT records its replay as a `play` call after `cdReset`).
+ */
+export interface TickExtras {
+  mix?: { kind: 'stereo' | 'mono' }[];
+  cdReset?: boolean;
+}
+
+/** A port's extras, from the fields it has (Select.mix, SwOn.cdReset, Select.cdReset). */
+export function tickExtras(p: object): TickExtras {
+  const q = p as { mix?: { kind: 'stereo' | 'mono' }[]; cdReset?: boolean };
+  return { mix: q.mix, cdReset: q.cdReset };
 }
 
 export class AudioModel {
@@ -44,6 +66,8 @@ export class AudioModel {
   /** Vblanks since the start (the trace's `vs` added up). */
   private vblanks = 0;
   private booted = false;
+  /** The drive reported an error: the program's next main-loop tail resets the CD (`cdTrack`). */
+  private cdError = false;
 
   /** The running program's addresses. */
   program: ProgramAudio;
@@ -65,7 +89,7 @@ export class AudioModel {
     this.program = opts.program ?? PAZLE_PUZZLE_ROUTE;
     const mono = opts.mono ?? (m.u8(SETTING_4FC) & 1) !== 0;
     this.driver = new SoundDriver(vab, this.tables, mono, this.program.pitchTable);
-    this.cd = new CdDrive(disc, this.tables, this.program.loadEnd);
+    this.cd = new CdDrive(disc, this.tables, opts.program ? HEAD_AFTER_LOAD : PUZZLE_ROUTE_HEAD);
     this.cd.trackTable = this.program.trackTable;
   }
 
@@ -79,11 +103,11 @@ export class AudioModel {
    * `start`: this is the first tick of another program, loaded since the last tick: the drive
    * plays on until the loader stops it, then the new program's sound set-up runs.
    */
-  step(calls: SoundCall[], vblanks = 1, start?: ProgramAudio): TickSound {
+  step(calls: SoundCall[], vblanks = 1, start?: ProgramAudio, extras: TickExtras = {}): TickSound {
     const begin = this.vblanks * CYCLES_PER_VBLANK;
     this.vblanks += vblanks;
     const sample = this.vblanks * CYCLES_PER_VBLANK + SAMPLE;
-    const out: TickSound = { kon: [], koff: [], writes: [], cd: [], cdr: [], cdEvents: [], cycle: sample };
+    const out: TickSound = { kon: [], koff: [], writes: [], cd: [], cdr: [], cdEvents: [], cycle: sample, mix: [] };
     const first = start ?? (this.booted ? undefined : this.program);
     let at = vblanks <= 1 ? begin + LOGIC_CD
       : first?.firstCd !== undefined ? sample - first.firstCd
@@ -93,7 +117,7 @@ export class AudioModel {
       // happens before this tick's logic.
       const stop = Math.min(begin + SAMPLE + (this.program.exitCdStop ?? EXIT_CD_STOP), at - 2);
       this.drain(out, stop);
-      this.cd.load(stop, start.loadEnd, start.trackTable);
+      this.cd.load(stop, HEAD_AFTER_LOAD, start.trackTable);
       this.program = start;
       const boot = this.driver.boot(this.musicVolume(), {
         cycle: at - 1,
@@ -105,7 +129,7 @@ export class AudioModel {
     } else if (!this.booted) {
       if (start && start !== this.program) {
         this.program = start;
-        this.cd.load(begin, start.loadEnd, start.trackTable);
+        this.cd.load(begin, HEAD_AFTER_LOAD, start.trackTable);
       }
       const h = this.program.historyAtSample;
       const boot = this.driver.boot(this.musicVolume(), {
@@ -116,6 +140,25 @@ export class AudioModel {
       out.writes.push(...boot.writes);
     }
     this.booted = true;
+    for (const x of extras.mix ?? []) {
+      this.driver.libsnd.mono = x.kind === 'mono';
+      out.mix.push({ cycle: at, mono: x.kind === 'mono' });
+    }
+    const errorReset = this.cdError && this.program.cdTrack !== undefined;
+    this.cdError = false;
+    if (extras.cdReset || errorReset) {
+      // The CD error recovery in the main loop's tail, right after the previous sample: CdReset
+      // (which waits for the drive: the tick's extra vblanks), then Setmode, Setloc and Play.
+      const reset = Math.min(begin + SAMPLE + 10_000, at - 1);
+      this.drain(out, reset);
+      this.cd.reset(reset);
+      const cdTrack = this.program.cdTrack;
+      if (cdTrack !== undefined) {
+        const loc = TOC + 4 * this.m.s32(cdTrack);
+        this.cd.playLoc(at, [this.m.u8(loc), this.m.u8(loc + 1), this.m.u8(loc + 2)]);
+        at = this.lastCommand() + 1;
+      }
+    }
     for (const c of calls) {
       if (c.kind === 'key') this.driver.keyOn(c.prog, c.note, c.vol);
       else if (c.kind === 'play') {
@@ -143,6 +186,7 @@ export class AudioModel {
       if (e.kind === 'cd') out.cd.push(e.data);
       else if (e.kind === 'cdr') out.cdr.push(e.data);
       else if (e.kind === 'vol') this.driver.setCdVolume(out, 0, e.cycle);
+      else if (e.kind === 'error') this.cdError = true;
     }
   }
 

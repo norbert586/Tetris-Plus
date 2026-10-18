@@ -51,8 +51,11 @@ export class Libsnd {
   constructor(
     private readonly vab: Vab,
     private readonly rom: Mem,
-    /** SsSetMono (0x800EE714): set at start-up from the sound setting; both sides get the louder. */
-    private readonly mono = false,
+    /**
+     * SsSetMono (0x800EE714): set at start-up from the sound setting, and by Option mode's
+     * stereo/mono row (SsSetMono / SsSetStereo); both sides get the louder.
+     */
+    public mono = false,
     /** Where the running program keeps the note-to-pitch table. */
     private readonly pitchTable = PITCH_TABLE,
   ) {

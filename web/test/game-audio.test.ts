@@ -16,7 +16,10 @@ import { FACTORIES, PROGRAMS } from '../src/flow/registry';
 import { loadMovie } from '../tools/movie';
 import { loadTrace, type Trace } from '../tools/trace';
 import { compareFlow } from './flow';
+import { CARD_SIZE, formattedCard, MemoryBackend, MemoryCards } from '../src/flow/memcard';
 import { RANKING_STARTS } from './fixtures/ranking-starts';
+import { SELECT_STARTS } from './fixtures/select-starts';
+import { SWON_CARDS } from './sw_on-cards';
 import { TITLE_STARTS } from './fixtures/title-starts';
 
 const ROOT = join(import.meta.dirname, '..', '..');
@@ -27,6 +30,10 @@ const disc = JSON.parse(readFileSync(join(ASSETS, 'disc.json'), 'utf8'));
 const audio = (m: Mem, first: ProgramAudio | undefined) => new AudioModel(vab, m, disc, { program: first });
 
 const has = (name: string) => existsSync(join(ROOT, 're/traces', `${name}.jsonl.gz`));
+const movieOf = (name: string) => {
+  const path = join(ROOT, 're/movies', `${name}.tpm`);
+  return loadMovie(existsSync(path) ? path : join(ROOT, 're/movies/power', `${name}.tpm`));
+};
 const traces = new Map<string, Trace>();
 const trace = (name: string) => {
   if (!traces.has(name)) traces.set(name, loadTrace(join(ROOT, 're/traces', `${name}.jsonl.gz`)));
@@ -61,7 +68,7 @@ describe('the sound of the whole game', () => {
       const first = t.rows[s].t as number;
       const last = t.rows[e].t as number;
       it(`${name}, TIT_DEMO and TITLE, ticks ${first}-${last}`, () => {
-        const r = compareFlow(loadMovie(join(ROOT, 're/movies', `${name}.tpm`)), { ...t, rows: t.rows.slice(s, e + 1) }, {
+        const r = compareFlow(movieOf(name), { ...t, rows: t.rows.slice(s, e + 1) }, {
           factories: FACTORIES,
           start: { prog: 'TIT_DEMO', ram: ram(TITLE_STARTS[`${name}:${first - 1}`]) },
           audio,
@@ -78,7 +85,7 @@ describe('the sound of the whole game', () => {
     const t = trace(name);
     runs(t, 'RANKING', ['RANKING']).forEach(([s, e], k) => {
       it(`${name}, RANKING run ${k + 1}, ticks ${t.rows[s].t}-${t.rows[e].t}`, () => {
-        const r = compareFlow(loadMovie(join(ROOT, 're/movies', `${name}.tpm`)), { ...t, rows: t.rows.slice(s, e + 1) }, {
+        const r = compareFlow(movieOf(name), { ...t, rows: t.rows.slice(s, e + 1) }, {
           factories: FACTORIES,
           start: { prog: 'RANKING', ram: ram(RANKING_STARTS[`${name}#${k + 1}`]) },
           onlyFirst: true,
@@ -92,6 +99,72 @@ describe('the sound of the whole game', () => {
     });
   }
 
+  // SELECT from its first tick (the cards as SW_ON left them, test/select.test.ts): the mode
+  // select's music (track 27), effects, Option mode's sound test, stereo/mono and volumes, the
+  // format's CD reset; then from power-on through it.
+  const SELECT_CARDS: Record<string, () => Uint8Array> = {
+    'select-tour': formattedCard,
+    'select-card': formattedCard,
+    'select-format': () => new Uint8Array(CARD_SIZE),
+  };
+  for (const [name, card] of Object.entries(SELECT_CARDS).filter(([n]) => has(n))) {
+    const t = trace(name);
+    const s = t.rows.findIndex((r) => r.prog === 'SELECT');
+    let e = s;
+    while (e + 1 < t.rows.length && t.rows[e + 1].prog === 'SELECT') e++;
+    it(`${name}, SELECT, ticks ${t.rows[s].t}-${t.rows[e].t}`, () => {
+      const cards = new MemoryCards(new MemoryBackend([card(), null]));
+      cards.clear(0);
+      const ranges = SELECT_STARTS[name];
+      const r = compareFlow(movieOf(name), { ...t, rows: t.rows.slice(s, e + 1) }, {
+        factories: FACTORIES,
+        start: { prog: 'SELECT', ram: ram(ranges) },
+        onlyFirst: true,
+        cards,
+        audio,
+      });
+      expect(r.report).toMatch(/^identical/);
+      expect(r.ticks).toBe(e - s + 1);
+    }, 60_000);
+    it(`${name}, from power-on to SELECT's end (ticks 1-${t.rows[e].t})`, () => {
+      const r = compareFlow(movieOf(name), { ...t, rows: t.rows.slice(0, e + 1) }, {
+        factories: FACTORIES,
+        cards: new MemoryCards(new MemoryBackend([card(), null])),
+        audio,
+      });
+      expect(r.report).toMatch(/^identical/);
+      expect(r.ticks).toBe(e + 1);
+    }, 60_000);
+  }
+
+  // SW_ON with each card it can find, from power-on into TIT_DEMO's first ticks (a format's CD
+  // reset in sw_on-unformatted).
+  for (const [name, cards] of Object.entries(SWON_CARDS).filter(([n]) => has(n))) {
+    it(`${name}, from power-on`, () => {
+      const t = trace(name);
+      const r = compareFlow(movieOf(name), t, {
+        factories: FACTORIES,
+        cards: new MemoryCards(new MemoryBackend(cards())),
+        audio,
+      });
+      expect(r.report).toMatch(/^identical/);
+      expect(r.ticks).toBe(t.rows.length);
+    }, 60_000);
+  }
+
+  // The whole game from power-on (re/movies/power/full-run.tpm): every program change of a
+  // complete run, Puzzle Mode's music and effects, its exit into RANKING and back to TIT_DEMO.
+  it.skipIf(!has('full-run'))('full-run, from power-on, every tick', () => {
+    const t = trace('full-run');
+    const r = compareFlow(movieOf('full-run'), t, {
+      factories: FACTORIES,
+      cards: new MemoryCards(new MemoryBackend([formattedCard(), null])),
+      audio,
+    });
+    expect(r.report).toMatch(/^identical/);
+    expect(r.ticks).toBe(t.rows.length);
+  }, 120_000);
+
   // From power-on through every ported program, as far as the trace runs ported programs.
   const swOn = PROGRAMS.SW_ON;
   for (const name of ['title-skip', 'title-carry'].filter(has)) {
@@ -99,7 +172,7 @@ describe('the sound of the whole game', () => {
       const t = trace(name);
       let end = 0;
       while (end + 1 < t.rows.length && FACTORIES[t.rows[end + 1].prog as ProgramName]) end++;
-      const r = compareFlow(loadMovie(join(ROOT, 're/movies', `${name}.tpm`)), { ...t, rows: t.rows.slice(0, end + 1) }, {
+      const r = compareFlow(movieOf(name), { ...t, rows: t.rows.slice(0, end + 1) }, {
         factories: FACTORIES,
         audio,
         to: t.rows[end].t as number,

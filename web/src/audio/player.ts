@@ -8,7 +8,7 @@ import type { SoundCall } from '../core/sound';
 import { SETTING_4FC } from '../core/addr';
 import type { Disc } from './cd';
 import { CYCLES_PER_VBLANK } from './driver';
-import { AudioModel } from './model';
+import { AudioModel, tickExtras } from './model';
 import { PROGRAM_AUDIO, type ProgramAudio } from './programs';
 import { VAB_SPU_BASE, Vab } from './vab';
 import type { TimedWrite, WorkletMessage } from './worklet';
@@ -127,8 +127,12 @@ export class AudioPlayer {
     if (this.master) this.master.gain.value = v;
   }
 
-  /** After each game tick. */
-  tick(game: SoundSource): void {
+  /**
+   * After each game tick. `extraVblanks`: vblanks the tick waited on the original beyond its
+   * own (memory card calls, VSync(n)): the sound runs on through them (libsnd's flushes, the
+   * CD's sectors), so the shell holds the next tick back by as long.
+   */
+  tick(game: SoundSource, extraVblanks = 0): void {
     if (!this.vab || !this.node) return;
     const changed = this.running !== undefined && game !== this.running;
     const program: ProgramAudio | undefined = game.name ? PROGRAM_AUDIO[game.name as keyof typeof PROGRAM_AUDIO] : undefined;
@@ -137,9 +141,10 @@ export class AudioPlayer {
     const first = this.running === undefined;
     this.running = game;
     // A program without an entry in PROGRAM_AUDIO keeps the last one's addresses.
-    const s = model.step(game.sound, 1, changed ? program : undefined);
+    const s = model.step(game.sound, 1 + extraVblanks, changed ? program : undefined, tickExtras(game));
     const now = this.ctx.currentTime;
     if (first || (changed && program)) this.setMono((game.m.u8(SETTING_4FC) & 1) !== 0, now);
+    for (const x of s.mix) this.setMono(x.mono, Math.max(now, this.time(x.cycle)));
     if (this.anchorTime < 0 || this.time(s.cycle) < now + MIN_LEAD) {
       this.anchorCycle = s.cycle;
       this.anchorTime = now + LEAD;

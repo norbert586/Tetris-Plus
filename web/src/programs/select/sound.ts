@@ -107,6 +107,7 @@ export function cdRecover(s: Select): void {
   const m = s.m;
   m.w32(CD_ERROR, 0);
   m.w32(CD_RESET_RESULT, 0);
+  s.cdReset = true;
   const track = m.s32(CD_TRACK);
   trackPlay(s, track);
   s.sound.push({ kind: 'play', track, mode: m.s32(CD_LOOP) });
