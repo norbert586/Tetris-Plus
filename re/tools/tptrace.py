@@ -2,7 +2,7 @@
 """Reads, compares and summarises traces written by re/lua/movie.lua (docs/re/oracle-harness.md).
 
 A trace is JSON lines: a header, then one line per logic tick holding the tick ("t") and only
-the fields that changed since the previous line. Event lists ("se", "bgm") are written only on
+the fields that changed since the previous line. Event lists ("se", "bgm", "up", "kon", "koff", "cd", "cdr") are written only on
 ticks that have events. Traces may be gzip-compressed (.gz).
 
   tptrace.py rows TRACE [--fields a,b] [--from T] [--to T] [--changes]
@@ -15,7 +15,7 @@ import gzip
 import json
 import sys
 
-EVENT_FIELDS = ('se', 'bgm', 'up')
+EVENT_FIELDS = ('se', 'bgm', 'up', 'kon', 'koff', 'cd', 'cdr')
 PIECES = '.IOTJLZS'
 
 
@@ -27,8 +27,8 @@ def read(path):
     """Returns (header, rows): every row holds every field's value at its tick."""
     with open_text(path) as f:
         header = json.loads(f.readline())
-        if header.get('tptrace') not in (1, 2):
-            raise SystemExit(f'{path}: not a version 1 or 2 trace')
+        if header.get('tptrace') not in (1, 2, 3):
+            raise SystemExit(f'{path}: not a version 1, 2 or 3 trace')
         rows, current = [], {}
         for line in f:
             delta = json.loads(line)

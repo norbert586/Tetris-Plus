@@ -15,10 +15,35 @@ export const BGM_JOIN_P2 = 0x800ed34c;
 const MUSIC_VOL_TABLE = 0x800dc45c; // s16[8] by the music volume setting
 const BGM_PRIORITY = 0x800dc618; // per track, stride 12, from track 2
 const ZONE = 0x800eebb0;
+const SE_VOL_TABLE = 0x800dc46c; // s16[8] by the sound effect volume setting
+const SE_TABLE = 0x800dc47c; // per effect: program, pitch (note << 8)
+const TRACK_MODE = 0x800dc614; // per track from track 2, stride 12: 1 loops, 0 plays once
+
+/**
+ * What the program asks of the sound library and the CD (docs/re/audio.md §1): the audio
+ * layer (web/src/audio) plays these. `key` is SsVoKeyOn (program, note, volume), `play` is
+ * bgm_play_track (CD track, loop mode), `cdvol` is SsSetSerialVol's CD volume (0-127).
+ */
+export type SoundCall =
+  | { kind: 'key'; prog: number; note: number; vol: number }
+  | { kind: 'play'; track: number; mode: number }
+  | { kind: 'cdvol'; vol: number };
 
 /** se_play(id) */
 export function sePlay(g: Game, id: number): void {
+  const m = g.m;
   g.se.push(id);
+  const vol = m.s16(SE_VOL_TABLE + 2 * m.u8(A.SE_VOLUME));
+  if (vol === 0) return;
+  let prog = m.s32(SE_TABLE + 8 * id);
+  if (m.s32(A.TWO_PLAYER) >= 1 && (m.u8(A.SETTING_4FC) & 1) === 0) {
+    // Two players in stereo: each player's effects from their side (programs +5 left, +10 right).
+    if (g.p === 0) prog += 5;
+    else if (g.p === 1) prog += 10;
+    else return;
+  }
+  const pitch = m.s32(SE_TABLE + 8 * id + 4);
+  g.sound.push({ kind: 'key', prog: prog & 0xff, note: (pitch >> 8) & 0xff, vol: vol & 0xffff });
 }
 
 /** The CD track bgm_request picks for a request (CD audio track numbers 2-33). */
@@ -73,5 +98,10 @@ export function bgmRequest(g: Game, id: number): void {
   const track = trackFor(g, id, player);
   m.w32(BGM_CUR_PLAYER, player);
   m.w32(BGM_CUR_ID, id);
-  g.music = track === BGM_STOP ? 0 : track;
+  let vol = 0;
+  if (track !== BGM_STOP) {
+    g.sound.push({ kind: 'play', track, mode: m.s32(TRACK_MODE + (track - 2) * 12) });
+    vol = m.s16(MUSIC_VOL_TABLE + 2 * m.u8(A.MUSIC_VOLUME));
+  }
+  g.sound.push({ kind: 'cdvol', vol });
 }

@@ -58,7 +58,7 @@ item bytes; identical items are stored once (the 303 blank glyphs and other fill
 stay TIMs: the renderer needs their VRAM positions, CLUTs and pixel words exactly as the game
 uploads them.
 
-**Not extracted yet:** `EF.VB`/`EF.VH` and the CD audio (Phase 8); the other programs' screens
+**Not extracted yet:** ~~`EF.VB`/`EF.VH` and the CD audio~~ (done in Phase 8, `docs/re/audio.md` §7); the other programs' screens
 (title, mode select, options), which belong to the shell (Phase 9).
 
 ## 3. How PAZLE.EXE draws a frame

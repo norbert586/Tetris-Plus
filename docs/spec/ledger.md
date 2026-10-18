@@ -15,11 +15,15 @@ verifiers close against it in Phase 6.
 - **Closed by (Phase 6):** the check that passed (`docs/re/core-port.md`): U = the named
   routine's Unicorn fixtures (`web/test/unicorn.test.ts`), T = golden-trace equality
   (`web/test/traces.test.ts`; "all" = every movie of the corpus). Every T and U verifier is
-  closed. A waits for Phase 8.
+  closed. A closed in Phase 8 (below).
 - **P (Phase 7):** closed for every row at once: every frame of the corpus, drawn by the port,
   equals the original's, GPU packets and pixels (`web/test/render.test.ts`,
   `docs/re/renderer.md` §5). Each mechanic that shows on screen is drawn the original's way
   wherever the corpus reaches it.
+- **A (Phase 8):** closed for every row at once: every key-on (voice, volume, pitch, sample,
+  envelope), key-off, mix and reverb register write, CD command and CD report of the corpus,
+  made by the port, equals the original's (`web/test/traces.test.ts`, `docs/re/audio.md` §9;
+  CD events within one tick, §6). Rows 20 and 29's sounds are among them (`egypt1-idle`).
 - **Owner modules as built:** `core/frame` is `web/src/core/game.ts`; `core/input`, `core/piece`
   and `core/queue` are `play/piece.ts`; `core/lines` is `play/lines.ts`; `core/ceiling` is
   `play/ceiling.ts`; `core/professor` is `professor.ts`; `core/stages` is `play/stage.ts`;
@@ -48,8 +52,8 @@ verifiers close against it in Phase 6.
 | 16 | Clear animation length tied to frame-counter parity | lines §2 | S `clear_anim_tick` | `core/lines` | T | ✓ T `knossos2-lines` |
 | 17 | Row removal: grid compaction plus shift above | lines §4 | S `lines_collapse`, `lines_remove`; E p3-lines2 | `core/lines` | U, T | ✓ U `lines_remove`, T `knossos2-lines` |
 | 18 | Score 100/400/800/1600, cap 9,999,999 | lines §5 | S `score_add_lines`; D `LEVELS`; E p3-lines2 | `core/lines` | T | ✓ U `score_add_lines`, T |
-| 19 | Ceiling interval table × difficulty, timer +1/frame +60/piece | ceiling §2 | S `ceiling_tick`; D `rules.json`; E p3-verify (drops at 8882, 10182, 11371) | `core/ceiling` | T | ✓ U `ceiling_tick`, T `egypt1-idle` |
-| 20 | Ceiling shake window and warning sound | ceiling §2 | S `ceiling_tick` | `core/ceiling` | T, A | ✓ U `ceiling_tick`, T `egypt1-idle` |
+| 19 | Ceiling interval table × difficulty, timer +1/frame +60/piece | ceiling §2 | S `ceiling_tick`; D `rules.json`; E p3-verify (drops at 8882, 10182, 11371) | `core/ceiling` | T | ✓ U `ceiling_tick`, T `egypt1-idle`, A `egypt1-idle` |
+| 20 | Ceiling shake window and warning sound | ceiling §2 | S `ceiling_tick` | `core/ceiling` | T, A | ✓ U `ceiling_tick`, T `egypt1-idle`, A `egypt1-idle` |
 | 21 | Pushback 0/0/−10/−20 px, top limit 10 px | ceiling §3 | S `play_collapse`, `ceiling_tick`; D; E p3-lines2 | `core/ceiling` | T | ✓ U `ceiling_tick`, T `knossos2-lines` |
 | 22 | Crushing rows 1 to ceiling row + 1, and row 0's opening | ceiling §4 | S `ceiling_crush` | `core/ceiling` | U, T | ✓ U `ceiling_crush`, T `egypt1-idle` |
 | 23 | Debris slots gate `rand()`; 65-frame lifetime | ceiling §4.1 | S `ceiling_crush`, `0x800AF07C`, debris states | `core/ceiling` | T | ✓ U `ceiling_crush`, `debris_update`, T `egypt1-idle` |
@@ -58,7 +62,7 @@ verifiers close against it in Phase 6.
 | 26 | Button speeds up goal/lost sequences | professor §2.3 | S `0x800A164C`, opcode 2 | `core/professor` | T | ✓ T (the goal sequences) |
 | 27 | Sensors and off-board = −1 | professor §3 | S `prof_sense`; D sensors | `core/professor` | U | ✓ U `prof_sense` |
 | 28 | Fall distance | professor §3 | S `prof_fall_distance`; E p4-stage87 (6-row drop) | `core/professor` | U | ✓ U `prof_fall_distance` |
-| 29 | Danger (headroom < 5) and its music | professor §4 | S `prof_think` | `core/professor` | T, A | ✓ U `prof_think`, T `egypt1-idle` |
+| 29 | Danger (headroom < 5) and its music | professor §4 | S `prof_think` | `core/professor` | T, A | ✓ U `prof_think`, T `egypt1-idle`, A `egypt1-idle` |
 | 30 | Shift with line clears while climbing | professor §5.1 | S `prof_think` | `core/professor` | T | ✓ U `prof_think` |
 | 31 | Decision chain (25 rows) | professor §5.2 | S `prof_think`; E p3-verify (turns, sleep, wake), p4-stage87 (climb, walk, startle, long fall, land, turn) | `core/professor` | U, T | ✓ U `prof_think`, T |
 | 32 | Crushed (headroom < 3) before goal | professor §6 | S `prof_check_crushed`, `prof_walk` | `core/professor` | T | ✓ T `egypt1-idle` |

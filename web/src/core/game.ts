@@ -9,6 +9,7 @@ import { SCREENS } from './screens';
 import { pauseCheck } from './pause';
 import { objectsClearAll, objectsDraw, uploadQueueFlush, type Box } from './objects';
 import { traceRow } from './trace';
+import type { SoundCall } from './sound';
 
 export interface GameOptions {
   /** Global frame counter when pazle_main starts (it carries over from earlier programs). */
@@ -31,8 +32,8 @@ export class Game {
   se: number[] = [];
   /** Music requested this tick (bgm_request arguments). */
   bgm: number[] = [];
-  /** The CD track the music request chose (0 = stopped), for the audio layer. */
-  music = 0;
+  /** Sound library and CD calls this tick, for the audio layer (sound.ts SoundCall). */
+  sound: SoundCall[] = [];
   /**
    * Image uploads this tick, for the renderer and the trace (`up`): item + 0x10000 * player,
    * plus 0x100000 for the ones queued for the end of the frame (objects.ts itemLoad, itemQueue).
@@ -112,6 +113,7 @@ export class Game {
     const m = this.m;
     this.se = [];
     this.bgm = [];
+    this.sound = [];
     this.uploads = [];
     this.boxes = [];
     this.boxColors = [];

@@ -99,6 +99,7 @@ hasn't been stored yet. The harness then:
 | Password | `pw_symbols[6]`, `pw_cursor` |
 | Added by the harness | `board` (player 1, rows 0–15), `rand` (calls), `se` (sound IDs started), `bgm` (music IDs requested) |
 | Added in Phase 7 (trace version 2) | `up` (image uploads), `ot` (hash of the frame's GPU packets), `fb` (hash of the drawn frame); `docs/re/renderer.md` §4 |
+| Added in Phase 8 (trace version 3) | `vs` (vblanks per tick), `kon`, `koff`, `spu`, `rev` (SPU register writes), `cd`, `cdr` (CD commands and the CD callback's reports); `docs/re/audio.md` §2. `TP_AUDIO_LOG=1` writes `audio.log` with CPU cycles |
 
 All values are player 1's and raw: 16.16 positions stay 16.16 (`tptrace.py` shows pixels).
 `prof_ch_script` holds RAM pointers into the script table, which are the same in the port only if

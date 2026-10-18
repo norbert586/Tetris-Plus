@@ -4,13 +4,15 @@
 //   npm run trace -- [--render] [--ignore a,b] [--context N] [--to T] [MOVIE ...]
 //
 // --render also draws every tick and compares the GPU packet and frame hashes (ot, fb); it
-// needs public/assets/pazlee.pack (tools/extract-assets.ts).
+// needs public/assets/pazlee.pack (tools/extract-assets.ts). --audio also runs the sound and
+// compares vs, kon, koff, spu, rev, cd and cdr (version 3 traces).
 //
 // With no movie names, every movie in re/movies/ that has a trace in re/traces/ is checked.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { loadMovie } from './movie';
 import { loadTrace } from './trace';
+import { audioModel } from '../test/audio';
 import { compareMovie } from '../test/replay';
 import { readPack } from '../src/assets/pack';
 import { Renderer } from '../src/render/renderer';
@@ -21,12 +23,14 @@ let ignore: string[] = [];
 let context = 5;
 let to = Infinity;
 let render = false;
+let audio = false;
 const names: string[] = [];
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--ignore') ignore = args[++i].split(',');
   else if (args[i] === '--context') context = Number(args[++i]);
   else if (args[i] === '--to') to = Number(args[++i]);
   else if (args[i] === '--render') render = true;
+  else if (args[i] === '--audio') audio = true;
   else names.push(basename(args[i]).replace(/\.tpm$/, ''));
 }
 const movies = names.length
@@ -43,7 +47,7 @@ for (const name of movies) {
   const renderer = render
     ? new Renderer(readPack(new Uint8Array(readFileSync(join(ROOT, 'web/public/assets/pazlee.pack')))))
     : undefined;
-  const result = compareMovie(movie, trace, { ignore, to, context, renderer });
+  const result = compareMovie(movie, trace, { ignore, to, context, renderer, audio: audio ? audioModel : undefined });
   console.log(`${name}: ${result.report}`);
   if (!result.ok) failed++;
 }

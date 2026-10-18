@@ -4,7 +4,10 @@ A faithful browser version of Tetris Plus's Puzzle Mode (the professor mode), re
 original PS1 game (US, SLUS-00338) and verified against it in an emulator.
 
 - **Plan:** `docs/RESEARCH_AND_PLAN.md` (phases, fidelity rules, verification layers, ground rules).
-- **Latest results:** `docs/re/renderer.md` (Phase 7: the renderer in `web/src/render/` and the
+- **Latest results:** `docs/re/audio.md` (Phase 8: the sound in `web/src/audio/`: libsnd's voice
+  manager, the SPU, the CD drive and the program's CD callback; every key-on, register write, CD
+  command and report of the corpus matches the original's, checked by `npm test` in `web/`).
+  `docs/re/renderer.md` (Phase 7: the renderer in `web/src/render/` and the
   asset pipeline; every frame of the corpus is pixel-identical to the original's, checked by
   `npm test` in `web/`).
   `docs/re/core-port.md` (Phase 6: the TypeScript core in `web/src/core/`,
@@ -35,13 +38,19 @@ original PS1 game (US, SLUS-00338) and verified against it in an emulator.
 ## Common commands
 
 - **The TypeScript core and renderer** (in `web/`; `npm install` first):
-  - `npm test`: golden traces, frames and Unicorn function tests. `npm run trace -- [--render]
-    [MOVIE...]`: replays movies and prints the first difference with the original's trace
-    (`--render` also compares each frame's GPU packets and pixels). `npm run typecheck`.
-  - `npm run dev`: the browser preview (keyboard on pad 1).
+  - `npm test`: golden traces (sound included), frames and Unicorn function tests. `npm run trace -- [--render]
+    [--audio] [MOVIE...]`: replays movies and prints the first difference with the original's trace
+    (`--render` also compares each frame's GPU packets and pixels, `--audio` the sound and CD
+    events). `npm run typecheck`.
+  - `npm run dev`: the browser preview (keyboard on pad 1; sound starts with the first key).
   - Frames as PNG: `npx tsx tools/frames.ts ../re/movies/<name>.tpm <out> <ticks> [--hide-p2] [--scale N]`.
   - Rebuild the web assets after a disc fetch: `npx tsx tools/extract-assets.ts` (writes
-    `public/assets/pazlee.pack`, committed).
+    `public/assets/pazlee.pack`, committed) and `npx tsx tools/extract-audio.ts` (the sound bank,
+    `disc.json` and the music as Opus in `public/assets/music/`, committed; needs FFmpeg).
+  - A movie's sound as WAV: `npx tsx tools/render-audio.ts ../re/movies/<name>.tpm <out.wav> [--from T] [--to T]`.
+    ADPCM decoder vs FFmpeg: `npx tsx tools/check-adpcm.ts`.
+  - The core records the program's sound calls (`Game.sound`: key-ons, CD plays, CD volume);
+    `src/audio/model.ts` turns them into the original's SPU writes and CD events.
   - The core records presentation events the renderer replays: image uploads (`Game.uploads`,
     trace field `up`; add `itemLoad`/`itemQueue` wherever the original calls `item_load` or
     `FUN_8009747C`) and boxes sorted during the logic (`Game.boxes`).
@@ -68,6 +77,8 @@ original PS1 game (US, SLUS-00338) and verified against it in an emulator.
     `python3 re/tools/otdump.py <dir>/ram_<tick>.bin [--raw]`; draw the same frame on the port
     and compare: `npx tsx tools/render-dump.ts <ram> <vram> [out.ppm]` (in `web/`).
     `TP_UPLOAD_LOG=1` logs every image upload with its caller's return address.
+    `TP_AUDIO_LOG=1` writes `audio.log`: the CPU cycle of every vblank, sample, key-on, CD command
+    and CD report (to time sound events within a tick).
   - Determinism check (two runs, traces and RAM compared): `bash scripts/check-determinism.sh <movie> <out>`.
     Re-record every corpus trace: `bash scripts/record-corpus.sh`.
   - Build a movie that places pieces (closed loop with the emulator):
