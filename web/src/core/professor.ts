@@ -3,7 +3,7 @@
 // original keeps them, so script pointers equal the original's.
 import * as A from './addr';
 import type { Game } from './game';
-import { animSet, animTick, objectClear } from './objects';
+import { animSet, animTick, itemQueue, objectClear } from './objects';
 import { bgmRequest, sePlay, BGM_STOP } from './sound';
 import * as V from './vars';
 import { debrisClearAll, objectsClearPieceFlash, objectsClearPopups } from './play/objects';
@@ -198,6 +198,7 @@ function profScriptOp(g: Game): void {
       }
       const o = A.obj(n + g.ob);
       m.w32(o + A.O_IMAGE, arg(1) + 0x10000);
+      itemQueue(g, arg(1) - 1);
       m.w32(o + A.O_18, g.p);
       m.w32(o + A.O_FLIP, arg(4));
       m.w32(sp, s + 0x18);

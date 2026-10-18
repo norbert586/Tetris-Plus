@@ -2,7 +2,7 @@
 import * as A from '../addr';
 import type { Game } from '../game';
 import { DPAD_DX, DPAD_DY, menuDpadRepeat } from '../dpad';
-import { objectClear, objectPut2, objectsClear } from '../objects';
+import { boxFill, itemLoad, objectClear, objectPut2, objectsClear } from '../objects';
 import { sePlay } from '../sound';
 import * as V from '../vars';
 
@@ -10,6 +10,19 @@ export const PW_STEP = 0x800ee4f4; // [2] password_step_dispatch's state
 const PW_ERROR_TIMER = 0x800eeb78; // [2]
 const SYMBOLS = V.PASSWORD_SYMBOLS; // s32[2][6]
 const sym = (g: Game, k: number) => SYMBOLS + g.p * 0x18 + 4 * k;
+
+/** FUN_800B4344: a dark box over symbol slot x (subtractive, 15 x 20). */
+function symbolShade(g: Game, x: number, y: number): void {
+  const c = 0x33;
+  const dx = g.m.s16(0x800d74b6) * g.p;
+  boxFill(g, { attribute: 0x60000000, x: ((x + dx - 0xa0) << 16) >> 16, y: y - 0x78, w: 0xf, h: 0x14, r: c, g: c, b: c }, 0);
+}
+
+/** Every symbol but the one under the cursor is shaded. */
+function symbolsShade(g: Game): void {
+  const cursor = g.m.s32(g.pv(V.PASSWORD_CURSOR));
+  for (let k = 0; k < 6; k++) if (k !== cursor) symbolShade(g, k * 0x13 + 0x12, 0x5c);
+}
 
 export function passwordStep(g: Game): void {
   STEPS[g.m.s32(g.pv(PW_STEP))](g);
@@ -40,12 +53,14 @@ const STEPS: ((g: Game) => void)[] = [
     const m = g.m;
     objectPut2(g, 0x192, 0x407, 0, 8);
     m.w32(A.obj(g.ob + 0x192) + A.O_PALETTE, g.p);
+    itemLoad(g, 0x406);
     objectPut2(g, 0x194, 0x3d5, 0xe, 0x45);
     objectPut2(g, 0x193, 0x3b3, 0x10, 0x7e);
     m.w32(g.pv(V.PASSWORD_CURSOR), 0);
     for (let k = 0; k < 6; k++) {
       m.w32(sym(g, k), 0);
       symbolDraw(g, k, 0);
+      if (k !== 0) symbolShade(g, k * 0x13 + 0x12, 0x5c);
     }
     m.add32(g.pv(PW_STEP), 1);
   },
@@ -71,6 +86,7 @@ const STEPS: ((g: Game) => void)[] = [
       m.w32(g.pv(V.PASSWORD_CURSOR), c);
       sePlay(g, 3);
     }
+    symbolsShade(g);
     if (g.pressed() & 0x40) {
       m.add32(g.pv(PW_STEP), 1);
     } else if (g.pressed() & 0x20) {

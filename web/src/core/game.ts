@@ -7,7 +7,7 @@ import { decodeBase64, Mem } from './mem';
 import { Rng } from './rng';
 import { SCREENS } from './screens';
 import { pauseCheck } from './pause';
-import { objectsClearAll, objectsDraw } from './objects';
+import { objectsClearAll, objectsDraw, uploadQueueFlush, type Box } from './objects';
 import { traceRow } from './trace';
 
 export interface GameOptions {
@@ -33,6 +33,15 @@ export class Game {
   bgm: number[] = [];
   /** The CD track the music request chose (0 = stopped), for the audio layer. */
   music = 0;
+  /**
+   * Image uploads this tick, for the renderer and the trace (`up`): item + 0x10000 * player,
+   * plus 0x100000 for the ones queued for the end of the frame (objects.ts itemLoad, itemQueue).
+   */
+  uploads: number[] = [];
+  /** Box fills drawn this tick outside objects_draw (GsSortBoxFill calls during the logic). */
+  boxes: { box: Box; pri: number }[] = [];
+  /** The rand() colours objects_draw gave this tick's box-fill objects: r, g, b per object. */
+  boxColors: number[] = [];
   /** Ticks run so far; tick 1 is the main loop's first iteration. */
   tick = 0;
   /** Set when the program leaves Puzzle Mode (exit flag). */
@@ -103,6 +112,9 @@ export class Game {
     const m = this.m;
     this.se = [];
     this.bgm = [];
+    this.uploads = [];
+    this.boxes = [];
+    this.boxColors = [];
     this.rng.calls = 0;
     if (this.tick > 0) {
       this.padRead(pad);
@@ -114,6 +126,7 @@ export class Game {
     m.add32(A.COUNTER, 1);
     this.phaseDispatch();
     objectsDraw(this);
+    uploadQueueFlush(this);
   }
 
   private padRead(word: number): void {

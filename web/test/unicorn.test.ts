@@ -24,8 +24,15 @@ const WATCH: [number, number][] = [
   [0x800d4fb0, 0x800f3704],
   [A.S, A.S + 0x4b540],
 ];
-/** bgm_request's bookkeeping: the fixtures replace bgm_request with a recorder. */
-const IGNORED = new Set([0x800ed338, 0x800ed33c, 0x800ed340, 0x800ed344]);
+/**
+ * bgm_request's bookkeeping: the fixtures replace bgm_request with a recorder. And the image
+ * upload queue (count, players): under Unicorn PAZLEE.BIN isn't loaded, so FUN_8009747C's
+ * decode fails and nothing is queued; in the game it always succeeds (the `up` trace field).
+ */
+const IGNORED = new Set([
+  0x800ed338, 0x800ed33c, 0x800ed340, 0x800ed344,
+  0x800d4fb0, 0x800f0bc4, 0x800f0bc8, 0x800f0bcc, 0x800f0bd0,
+]);
 
 type Routine = (g: Game, args: number[], stack: number[]) => number | boolean | void;
 

@@ -2,7 +2,7 @@
 import * as A from '../addr';
 import type { Game } from '../game';
 import { BOX_B, dialogueRun, dialogueStart } from '../dialogue';
-import { objectClear, objectFadeBox, objectFadeDown, objectFadeUp } from '../objects';
+import { itemLoad, objectClear, objectFadeBox, objectFadeDown, objectFadeUp } from '../objects';
 import { bgmRequest, sePlay, BGM_STOP } from '../sound';
 import * as V from '../vars';
 import { CONTINUE } from './after';
@@ -381,6 +381,7 @@ const ENDING: ((g: Game) => void)[] = [
     m.w32(o + A.O_PLAYER, g.p);
     m.w32(o + A.O_20, 2);
     m.w32(o + A.O_PALETTE, g.p);
+    itemLoad(g, 0x407);
     for (const a of [CREDITS_TICK, CREDITS_POS, 0x800ee420, CREDITS_TIMER, 0x800ee720, 0x800ee728, 0x800ee730]) set(g, a, 0);
     creditsClear(g);
     nextStep(g);

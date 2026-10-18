@@ -24,6 +24,9 @@
 --   TP_LOAD     a save state written by TP_SAVE_AT at tick T: start there instead of booting.
 --               Inputs up to T+1 come from the saved run; the trace starts at T+2
 --   TP_RAM_AT   ticks at which to dump main RAM (ram_TICK.bin); the last tick is always dumped
+--   TP_VRAM_AT  ticks at which to dump VRAM (vram_TICK.bin, 1024x512 16-bit) and main RAM
+--               (ram_TICK.bin) at the sample point, when the tick's ordering table is in RAM
+--               and has been drawn
 --   TP_REALTIME 1: keep Redux's real-time pacing (by default the run goes as fast as it can)
 --   TP_SPEED    the SPU speed multiplier used otherwise (default 32)
 --   TP_PADLOG   1: log PadRead's own value whenever it is non-zero (checks the pad format)
@@ -35,7 +38,7 @@
 -- Output: TP_OUT/trace.jsonl (re/tools/tptrace.py reads it), TP_OUT/run.log lines
 -- "tick N: ..." and the files above.
 
-local TRACE_VERSION = 1
+local TRACE_VERSION = 2
 
 local ffi = require('ffi')
 
@@ -52,6 +55,8 @@ local button = PCSX.CONSTS.PAD.BUTTON
 local PAZLE_FINGERPRINT = '30610980306109803061098030610980' -- first 16 bytes of PAZLE.EXE
 local PAZLE_MAIN, AFTER_PADREAD, RAND = 0x800963b0, 0x80095668, 0x800c0c48
 local SE_PLAY, BGM_REQUEST = 0x80095778, 0x80095da8
+local ITEM_LOAD, ITEM_QUEUE = 0x8009740c, 0x8009747c
+local PLAYER = 0x800eead0
 local CTR = 0x3e668 + 0x40
 
 local BITS = {
@@ -161,6 +166,7 @@ end
 local shotTicks = tickSet(os.getenv('TP_SHOTS'))
 local saveTicks = tickSet(os.getenv('TP_SAVE_AT'))
 local ramTicks = tickSet(os.getenv('TP_RAM_AT'))
+local vramTicks = tickSet(os.getenv('TP_VRAM_AT'))
 local padLog = os.getenv('TP_PADLOG') == '1'
 local loadPath = os.getenv('TP_LOAD')
 local saveUntil = os.getenv('TP_SAVE_UNTIL') == '1'
@@ -234,7 +240,7 @@ end
 do
     local names = {}
     for i, f in ipairs(fields) do names[i] = '"' .. f.name .. '"' end
-    trace:write(string.format('{"tptrace":%d,"movie":"%s","boot":"%s","fields":[%s,"board","rand","se","bgm"]}\n',
+    trace:write(string.format('{"tptrace":%d,"movie":"%s","boot":"%s","fields":[%s,"board","rand","se","bgm","up","ot","fb"]}\n',
                               TRACE_VERSION, movie.name, movie.boot, table.concat(names, ',')))
 end
 
@@ -247,7 +253,46 @@ local function sameValue(a, b)
 end
 
 -- Per-tick event lists, filled by the breakpoints below.
-local randCalls, sounds, music = 0, {}, {}
+local randCalls, sounds, music, uploads = 0, {}, {}, {}
+
+-- Frame hashes: FNV-1a over 32-bit (ot) or 16-bit (fb) words, kept as signed 32-bit numbers.
+-- h * 16777619 mod 2^32 is split as (h << 24) + h * 403 so the product stays exact.
+local function fnv(h, w)
+    h = bit.bxor(h, w)
+    return bit.tobit(bit.lshift(h, 24) + h * 403)
+end
+local FNV_BASIS = bit.tobit(0x811c9dc5)
+
+-- ot: the GPU commands of the frame just built, in drawing order: the chain of ordering-table
+-- buffer 0x800EE484 (GsOT headers at 0x800ED2F4, 20 bytes each; the chain starts at ->tag).
+-- Every packet's words after its link word are hashed; link words are RAM addresses.
+local function hashOrderingTable()
+    local buffer = readers.u32(phys(0x800ee484))
+    local tag = readers.u32(phys(0x800ed2f4 + 20 * buffer + 16))
+    local address, h, n = bit.band(tag, 0xffffff), FNV_BASIS, 0
+    while address ~= 0xffffff do
+        local head = readers.u32(phys(address))
+        for k = 1, bit.rshift(head, 24) do h = fnv(h, readers.s32(phys(address + 4 * k))) end
+        address = bit.band(head, 0xffffff)
+        n = n + 1
+        if n > 100000 then fail('ordering table loops') end
+    end
+    return h
+end
+
+-- fb: the 320x240 frame the GPU just drew, mask bit included. The ordering table of buffer b
+-- (0x800EE484) is drawn after GsSwapDispBuff, into the other display buffer: (0, 240 * (1 - b)).
+local function hashFrame()
+    local buffer = 1 - readers.u32(phys(0x800ee484))
+    local vram = PCSX.GPU.getVRAM()
+    local px = ffi.cast('const uint16_t*', vram.data)
+    local h = FNV_BASIS
+    for y = 240 * buffer, 240 * buffer + 239 do
+        local row = px + y * 1024
+        for x = 0, 319 do h = fnv(h, row[x]) end
+    end
+    return h
+end
 
 -- One trace line: the tick and every value that changed since the previous line (all of them
 -- on the first line). Lists of events are written whenever non-empty.
@@ -272,8 +317,11 @@ local function record(t)
     put('rand', randCalls)
     if #sounds > 0 then parts[#parts + 1] = '"se":' .. jsonValue(sounds) end
     if #music > 0 then parts[#parts + 1] = '"bgm":' .. jsonValue(music) end
+    if #uploads > 0 then parts[#parts + 1] = '"up":' .. jsonValue(uploads) end
+    put('ot', hashOrderingTable())
+    put('fb', hashFrame())
     trace:write('{' .. table.concat(parts, ',') .. '}\n')
-    randCalls, sounds, music = 0, {}, {}
+    randCalls, sounds, music, uploads = 0, {}, {}, {}
 end
 
 ------------------------------------------------------------------------------ run state
@@ -291,6 +339,12 @@ local function log(text) print(string.format('tick %d: %s', tick, text)) end
 local function dumpRam(name)
     local file = Support.File.open(outDir .. '/' .. name, 'TRUNCATE')
     file:write(mem, 0x200000)
+    file:close()
+end
+
+local function dumpVram(name)
+    local file = Support.File.open(outDir .. '/' .. name, 'TRUNCATE')
+    file:writeMoveSlice(PCSX.GPU.getVRAM())
     file:close()
 end
 
@@ -341,7 +395,7 @@ addExec(AFTER_PADREAD, 'tp_padread', function(regs)
         tick = t
         -- After a save state the first tick's sounds and rand() calls were partly counted
         -- before the save, so the trace resumes one tick later.
-        if t > resumeAfter then record(t) else randCalls, sounds, music = 0, {}, {} end
+        if t > resumeAfter then record(t) else randCalls, sounds, music, uploads = 0, {}, {}, {} end
         if t > resumeAfter and not quitCode then
             for _, u in ipairs(untils) do
                 local v = previous[u.name]
@@ -358,7 +412,8 @@ addExec(AFTER_PADREAD, 'tp_padread', function(regs)
         end
         if shotTicks[t] then pending.shot = t end
         if saveTicks[t] then pending.save = t end
-        if ramTicks[t] then dumpRam(string.format('ram_%05d.bin', t)) end
+        if ramTicks[t] or vramTicks[t] then dumpRam(string.format('ram_%05d.bin', t)) end
+        if vramTicks[t] then dumpVram(string.format('vram_%05d.bin', t)) end
         for _, p in ipairs(movie.pokes[t] or {}) do
             local a = phys(p.address)
             if p.size == 4 then ffi.cast('uint32_t*', mem + a)[0] = bit.tobit(p.value)
@@ -386,6 +441,20 @@ addExec(SE_PLAY, 'tp_se', function(regs)
 end)
 addExec(BGM_REQUEST, 'tp_bgm', function(regs)
     if active then music[#music + 1] = regs.GPR.n.a0 end
+end)
+-- Image uploads: item_load(n) uploads at once, FUN_8009747C(n) queues an upload for the end of
+-- the frame (up to 4 a frame). Logged as n + 0x10000 * player, plus 0x100000 when queued.
+-- TP_UPLOAD_LOG=1 also logs each call's return address ("tick N: up ITEM from RA").
+local uploadLog = os.getenv('TP_UPLOAD_LOG') == '1'
+addExec(ITEM_LOAD, 'tp_item_load', function(regs)
+    if not active then return end
+    uploads[#uploads + 1] = regs.GPR.n.a0 + 0x10000 * readers.u32(phys(PLAYER))
+    if uploadLog then log(string.format('up %d from 0x%08x', regs.GPR.n.a0, regs.GPR.n.ra)) end
+end)
+addExec(ITEM_QUEUE, 'tp_item_queue', function(regs)
+    if not active then return end
+    uploads[#uploads + 1] = regs.GPR.n.a0 + 0x10000 * readers.u32(phys(PLAYER)) + 0x100000
+    if uploadLog then log(string.format('upq %d from 0x%08x', regs.GPR.n.a0, regs.GPR.n.ra)) end
 end)
 
 ------------------------------------------------------------------------------ per vblank

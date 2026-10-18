@@ -114,5 +114,6 @@ export function traceRow(g: Game): Record<string, number | number[] | string> {
   row.rand = g.rng.calls;
   row.se = g.se.slice();
   row.bgm = g.bgm.slice();
+  row.up = g.uploads.slice();
   return row;
 }

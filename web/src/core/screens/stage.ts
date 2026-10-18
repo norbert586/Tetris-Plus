@@ -1,7 +1,7 @@
 // Screens 3 (stage setup), 4 (stage intro) and 5 (play): docs/spec/stages.md §2, frame.md §2-§3.
 import * as A from '../addr';
 import type { Game } from '../game';
-import { animSet, animTick, objectClear } from '../objects';
+import { animSet, animTick, itemLoad, objectClear } from '../objects';
 import { bgmRequest, sePlay } from '../sound';
 import * as V from '../vars';
 import { profDispatch, objectsClearLineFlash } from '../professor';
@@ -161,7 +161,7 @@ function stageNumberAndHud(g: Game, numberX: number, checkHundred: boolean): voi
 
 const v = (g: Game, a: number) => g.m.s32(g.pv(a));
 
-/** Objects of the stage art: slot 31 (FUN_800B0824) and slot 30 (FUN_800B091C). */
+/** The stage art: slot 31 (FUN_800B0824), record +0x24, a 112 x 56 strip; slot 30 (FUN_800B091C), record +0x20, the 112 x 160 well background. */
 export function stageArt31(g: Game): void {
   const m = g.m;
   const o = A.obj(g.ob + 0x1f);
@@ -171,6 +171,7 @@ export function stageArt31(g: Game): void {
   m.w32(o + A.O_X, -0x40000);
   m.w32(o + A.O_Y, 0x20000);
   m.w32(o + A.O_PALETTE, g.p);
+  itemLoad(g, m.s32(o + A.O_IMAGE) - 0x10001);
 }
 export function stageArt30(g: Game): void {
   const m = g.m;
@@ -181,9 +182,10 @@ export function stageArt30(g: Game): void {
   m.w32(o + A.O_X, 0);
   m.w32(o + A.O_Y, 0x80000);
   m.w32(o + A.O_PALETTE, g.p);
+  itemLoad(g, m.s32(o + A.O_IMAGE) - 0x10001);
 }
 
-/** FUN_800B0FAC: the zone emblem, the "last stage" mark and the bonus-stage marker. */
+/** FUN_800B0FAC: the zone backdrop (160 x 224, a second one for stage 20), the "last stage" mark and the bonus-stage marker. */
 function stageEmblem(g: Game): void {
   const m = g.m;
   const p = g.p;
@@ -196,6 +198,7 @@ function stageEmblem(g: Game): void {
   m.w32(o + A.O_X, m.s32(0x8009486c + last * 8) << 16);
   m.w32(o + A.O_Y, m.s32(0x8009486c + last * 8 + 4) << 16);
   m.w32(o + A.O_PALETTE, p);
+  itemLoad(g, m.s32(o + A.O_IMAGE) - 0x10001);
   if (stage === 0x13) {
     o = A.obj(g.ob + 0x24);
     m.w32(o + A.O_PLAYER, p);
