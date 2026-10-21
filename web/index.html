@@ -10,7 +10,9 @@
       body { display: flex; flex-direction: column; }
       #stage { flex: 1; min-height: 0; display: grid; place-items: center; position: relative; background: #000; }
       #stage > * { grid-area: 1 / 1; }
-      canvas { image-rendering: pixelated; display: block; }
+      canvas, video { image-rendering: pixelated; display: block; }
+      video { object-fit: fill; background: #000; }
+      video[hidden] { display: none; }
       #crt { pointer-events: none; mix-blend-mode: multiply;
         background-image: linear-gradient(to bottom, #fff 0, #fff 50%, #8a8a8a 50%, #8a8a8a 100%); }
       #status { text-align: center; color: var(--dim); padding: 4px 8px 6px; min-height: 1.4em; }
@@ -32,6 +34,10 @@
   <body>
     <div id="stage">
       <canvas id="screen" width="320" height="240"></canvas>
+      <video id="logo" playsinline preload="auto" hidden>
+        <source src="assets/jlogo.webm" type="video/webm" />
+        <source src="assets/jlogo.mp4" type="video/mp4" />
+      </video>
       <div id="crt" hidden></div>
     </div>
     <div id="status">Loading…</div>

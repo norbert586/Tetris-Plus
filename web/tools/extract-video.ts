@@ -1,5 +1,6 @@
-// The Jaleco logo JLOGO.EXE plays at power-on (J_PS.STR: MDEC video and XA audio, 8 s) as an
-// MP4 the browser can play (public/assets/jlogo.mp4; docs/re/shell.md §8). Needs FFmpeg.
+// The Jaleco logo JLOGO.EXE plays at power-on (J_PS.STR: MDEC video and XA audio, 8 s) as video
+// the browser can play: public/assets/jlogo.webm (VP9, Opus) and jlogo.mp4 (H.264, AAC) for
+// browsers without VP9 (docs/re/shell.md §8). Needs FFmpeg.
 //
 //   npx tsx tools/extract-video.ts [FILES_DIR] [OUT_DIR]
 //
@@ -34,11 +35,18 @@ for (let i = 0; i < sectors; i++) {
 const dir = mkdtempSync(join(tmpdir(), 'jlogo-'));
 const input = join(dir, 'J_PS.raw');
 writeFileSync(input, raw);
-const out = join(outDir, 'jlogo.mp4');
-execFileSync('ffmpeg', [
-  '-hide_banner', '-loglevel', 'error', '-f', 'psxstr', '-i', input,
+const encode = (name: string, codecs: string[]) => {
+  const out = join(outDir, name);
+  execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'psxstr', '-i', input, ...codecs, '-y', out],
+    { stdio: 'inherit' });
+  console.log(`${out}: ${readFileSync(out).length} bytes`);
+};
+encode('jlogo.webm', [
+  '-c:v', 'libvpx-vp9', '-crf', '20', '-b:v', '0', '-pix_fmt', 'yuv420p', '-row-mt', '1',
+  '-c:a', 'libopus', '-b:a', '96k',
+]);
+encode('jlogo.mp4', [
   '-c:v', 'libx264', '-preset', 'veryslow', '-crf', '16', '-pix_fmt', 'yuv420p', '-tune', 'animation',
-  '-c:a', 'aac', '-b:a', '96k', '-ar', '44100', '-movflags', '+faststart', '-y', out,
-], { stdio: 'inherit' });
+  '-c:a', 'aac', '-b:a', '96k', '-ar', '44100', '-movflags', '+faststart',
+]);
 rmSync(dir, { recursive: true });
-console.log(`${out}: ${readFileSync(out).length} bytes`);

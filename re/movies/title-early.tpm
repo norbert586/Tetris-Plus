@@ -1,9 +1,9 @@
 tpm 1
 boot power
 # title-early: power-on with blank cards; SW_ON and TIT_DEMO's whole story without input. Start at
-# TITLE's tick 2 (the first tick a movie can press) is seen at tick 3, phase 1's first step, just
-# after phase 0 requested the title music: the skip to "press start". Start at tick 200 exits to
-# SELECT (5 ticks).
+# TITLE's tick 2 (the first tick a movie can press) reaches the run step before phase 0 has
+# requested the title music: the skip to "press start" leaves the music unrequested (no bgm 0x22
+# at all). Start at tick 200 exits to SELECT (5 ticks).
 program SW_ON
 program TIT_DEMO
 program TITLE

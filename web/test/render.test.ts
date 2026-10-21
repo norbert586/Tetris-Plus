@@ -26,7 +26,7 @@ describe('frames', () => {
       expect(trace.fields).toContain('fb');
       const result = await compareMovieAsync(movie, trace, { renderer: new Renderer(items) });
       expect(result.report).toMatch(/^identical/);
-      expect(result.ticks).toBe(trace.rows.length);
+      expect(result.ticks).toBe(trace.segments.reduce((n, s) => n + s.rows.length, 0));
     }, 300_000);
   }
 });

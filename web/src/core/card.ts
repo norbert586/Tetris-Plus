@@ -159,6 +159,11 @@ export class CardSlots {
         const next = i === blocks - 1 ? 0xffff : free[i + 1] - 1;
         writeEntry(d, e, state, i === 0 ? blocks * BLOCK : 0, next, i === 0 ? dev.name : '');
       });
+      // The emulator's BIOS (OpenBIOS) also writes frame 0 over frame 63 when it creates a file:
+      // a formatted card whose frame 63 held the _card_clear dummy write's bytes has frame 0
+      // there after SELECT creates its save file (movie select-card-saved; checked with a card
+      // from sw-on-format, where format() alone leaves frame 63 as it was).
+      d.copyWithin(63 * FRAME, 0, FRAME);
       card.version++;
       first = free[0];
     } else if (first < 0 || !(mode & (FREAD | FWRITE))) {

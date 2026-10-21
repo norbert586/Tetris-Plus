@@ -23,7 +23,7 @@ describe('golden traces', () => {
       const trace = loadTrace(join(ROOT, 're/traces', `${name}.jsonl.gz`));
       const result = compareMovie(movie, trace, { audio: audioModel });
       expect(result.report).toMatch(/^identical/);
-      expect(result.ticks).toBe(trace.rows.length);
+      expect(result.ticks).toBe(trace.segments.reduce((n, s) => n + s.rows.length, 0));
     }, 120_000);
   }
 });

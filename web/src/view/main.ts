@@ -1,13 +1,14 @@
 // The shell around the port (docs/re/shell.md): the core, the renderer and the sound at the
 // original's frame rate; keyboard and gamepads on pad 1; the memory cards and the shell's
 // settings kept in the browser; fullscreen, scaling and an optional CRT look. Esc opens the
-// settings and pauses; leaving the tab pauses too. Sound starts with the first key press
-// (browsers need a gesture).
+// settings and pauses; leaving the tab pauses too. Power comes on with the first key press or
+// click (browsers need a gesture for sound): the Jaleco logo (JLOGO.EXE's video), then the
+// programs from SW_ON.EXE on, as the console runs them.
 import { readPack } from '../assets/pack';
 import { AudioPlayer } from '../audio/player';
 import * as A from '../core/addr';
-import { CardSlots, MemoryCard, powerOnLoad } from '../core/card';
-import { Game, NotPorted } from '../core/game';
+import { CardSlots, MemoryCard } from '../core/card';
+import { NotPorted } from '../core/game';
 import { Machine } from '../core/machine';
 import { PROGRAM_ART } from '../render/programs';
 import { Renderer } from '../render/renderer';
@@ -35,9 +36,9 @@ async function main() {
   }));
   renderers.PAZLE.hidePlayer2 = true;
   const cards = new CardSlots([loadCard(0), settings.card2 ? loadCard(1) : null]);
-  // The frame counter and BIOS seed of a power-on route into Puzzle Mode (docs/re/oracle-harness.md §2).
-  const machine = new Machine({ counter: 1000, seed: 0x4327d505, cards });
-  powerOnLoad(machine.program as Game);
+  // SW_ON.EXE as JLOGO.EXE leaves the machine: frame counter 0 and the BIOS seed measured at
+  // power-on (docs/re/shell.md §6).
+  const machine = new Machine({ counter: 0, seed: 0x57729884, cards, first: 1 });
   const game = machine.program;
   const image = ctx.createImageData(320, 240);
   const audio = await AudioPlayer.create(game, 'assets/', TICK_MS / 1000).catch((e) => {
@@ -65,12 +66,32 @@ async function main() {
     if (paused()) {
       input.clear();
       void audio?.ctx.suspend();
+      if (power === 'logo') logo.pause();
     } else if (started) {
       audio?.resume();
+      powerOn();
+      if (power === 'logo' && logo.paused) void logo.play().catch(() => {});
     }
-    status.textContent = menuOpen ? '' : paused() ? 'Paused (click to resume)' : HELP;
+    status.textContent = menuOpen ? '' : paused() ? 'Paused (click to resume)' : started ? HELP : 'Press a key or click to switch on';
   };
   let started = false;
+  // Off until the first gesture, then the logo video, then the programs.
+  let power: 'off' | 'logo' | 'on' = 'off';
+  const logo = $<HTMLVideoElement>('logo');
+  const powerOn = () => {
+    if (power !== 'off') return;
+    power = 'logo';
+    logo.volume = settings.volume;
+    logo.hidden = false;
+    const done = () => {
+      logo.hidden = true;
+      power = 'on';
+      last = performance.now();
+    };
+    logo.onended = done;
+    logo.onerror = done;
+    logo.play().catch(done);
+  };
   addEventListener('blur', () => {
     focused = false;
     updatePause();
@@ -142,6 +163,8 @@ async function main() {
     canvas.style.width = `${Math.round(320 * k)}px`;
     canvas.style.height = `${Math.round(240 * k)}px`;
     $('crt').hidden = !settings.crt;
+    logo.style.width = canvas.style.width;
+    logo.style.height = canvas.style.height;
     $('crt').style.width = canvas.style.width;
     $('crt').style.height = canvas.style.height;
     $('crt').style.backgroundSize = `100% ${Math.max(2, Math.round(k))}px`;
@@ -231,8 +254,8 @@ async function main() {
   let hold = 0; // ms the picture holds after a VSync(n) wait
   let buffer = -1;
   let renderer = renderers.PAZLE;
-  // The next program, as the boot program would load it; one not ported yet (the title, the
-  // mode select...) gives way to Puzzle Mode for now.
+  // The next program, as the boot program would load it; one not ported (the other modes and
+  // their how-to-play demos) gives way to Puzzle Mode.
   const toPuzzleMode = () => {
     machine.m.w32(A.NEXT_PROGRAM, 10);
     machine.m.w32(A.PHASE, 0);
@@ -249,7 +272,7 @@ async function main() {
   const frame = (now: number) => {
     const dt = now - last;
     last = now;
-    if (!paused()) {
+    if (!paused() && power === 'on') {
       acc = Math.min(acc + dt, 250);
       while (acc >= TICK_MS) {
         acc -= TICK_MS;
