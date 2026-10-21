@@ -40,6 +40,10 @@ Escape pauses and opens the panel: controls (keyboard and gamepad, one binding p
 (whole multiples of 320x240 by default, or fill the window at 4:3), optional scanlines,
 fullscreen (also Alt+Enter or a double click), master volume, pause in the background (on by
 default) and the logo video. They are saved in `localStorage` (`tetris-plus.settings.v1`).
+The panel also exports card 1 as a raw `.mcd` (the same bytes as an emulator's card file),
+imports one (`.mcd`, `.mcr`, or a DexDrive `.gme`) and erases it to a formatted empty card. While
+the game runs, an import or erase is a card swap: the card is inserted with its new-card flag
+raised, so the programs see a new card at their next check, as on the console.
 The game's own settings (turn buttons, stereo/mono, music mode, volumes) stay in its Option mode
 and its memory-card save, as on the console.
 
