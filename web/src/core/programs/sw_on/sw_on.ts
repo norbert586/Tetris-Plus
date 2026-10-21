@@ -40,7 +40,6 @@ const BLOCK_SIZE = 0x780;
 const PERSIST = A.S + 0x4ad84;
 
 // The CD watchdog in the main loop (bgm_poll's clone): format() stores its result in its flag.
-const CD_RESTART = 0x800b5d04;
 const CD_RESET_RESULT = 0x800b5d08;
 const CD_TRACK = 0x800b5cdc;
 const CD_END = 0x800b5d10;
@@ -201,7 +200,7 @@ export class SwOn extends Program {
         // result lands in the CD watchdog's flag, so the main loop resets the CD drive and
         // starts playing it (cdWatchdog).
         const r = this.cards.format(this, FILE_PATTERN + (m.s32(CARD_PORT) << 7));
-        m.w32(CD_RESTART, r);
+        m.w32(this.soundAddresses.cdFlag, r);
         m.w32(CARD_OK, r);
         next(r === 0 ? 0x14 : 4);
         return;
@@ -555,15 +554,14 @@ export class SwOn extends Program {
   }
 
   /**
-   * The main loop's CD watchdog (after PadRead): with its flag set (only format() sets it here),
-   * CdReset(0), then a play from the current track's start (track 0 in SW_ON, so a position
-   * computed from the table entry before the first) to its end: the drive starts playing. Only
-   * the variables are kept; the CD itself isn't modelled for these programs.
+   * The main loop's CD watchdog (after PadRead): with its flag set (by the CD callback, or by
+   * format()), CdReset(0), then a play from the current track's start (track 0 in SW_ON, so the
+   * TOC's entry 0, the lead-out, and an end from the data before the track table) to its end.
+   * The play itself is the audio layer's (sound.ts `restart`); the variables are kept here.
    */
-  private cdWatchdog(): void {
+  protected override cdWatchdog(): boolean {
     const m = this.m;
-    if (m.s32(CD_RESTART) === 0) return;
-    m.w32(CD_RESTART, 0);
+    if (!super.cdWatchdog()) return false;
     m.w32(CD_RESET_RESULT, 0);
     const track = m.s32(CD_TRACK);
     const start = posToInt(m, CD_TOC + 4 * track);
@@ -576,6 +574,7 @@ export class SwOn extends Program {
     m.w32(0x800b5ce4, start);
     m.w32(0x800b5ce8, posToInt(m, CD_END_POS));
     m.w32(0x800b5cec, start);
+    return true;
   }
 }
 

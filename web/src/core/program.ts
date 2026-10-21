@@ -6,7 +6,7 @@ import * as A from './addr';
 import type { CardSlots } from './card';
 import type { Mem, Rom } from './mem';
 import type { Rng } from './rng';
-import type { SoundCall } from './sound';
+import { PROGRAM_SOUND, bgmRequest, cdWatchdog, sePlay, soundInit, type SoundAddresses, type SoundCall } from './sound';
 import type { Box } from './objects';
 
 export interface ProgramContext {
@@ -41,6 +41,40 @@ export abstract class Program {
     this.cards = ctx.cards;
     this.m.fill(0x80094000, bssEnd - 0x80094000);
     this.m.loadRom(rom);
+  }
+
+  /** The program's copy of the sound code's tables and variables (sound.ts). */
+  get soundAddresses(): SoundAddresses {
+    return PROGRAM_SOUND[this.name];
+  }
+
+  /** The side se_play and bgm_request act for (always 0 outside Puzzle Mode). */
+  get p(): number {
+    const a = this.soundAddresses.player;
+    return a ? this.m.s32(a) : 0;
+  }
+
+  /** se_play(id) (the program's copy). */
+  protected sePlay(id: number): void {
+    sePlay(this, id, this.soundAddresses);
+  }
+
+  /** bgm_request(id) (the program's copy). */
+  protected bgmRequest(id: number): void {
+    bgmRequest(this, id, this.soundAddresses);
+  }
+
+  /**
+   * The sound set-up main runs before its loop (CdInit and the program's sound init): the
+   * first step's first calls.
+   */
+  protected soundInit(): void {
+    soundInit(this, this.soundAddresses);
+  }
+
+  /** The main loop tail's CD watchdog (bgm_poll). */
+  protected cdWatchdog(): boolean {
+    return cdWatchdog(this, this.soundAddresses);
   }
 
   get exited(): boolean {
@@ -91,7 +125,7 @@ export abstract class Program {
     m.w32(A.SUBPHASE, 0);
   }
 
-  /** Clears the per-tick events; called at the start of each step. */
+  /** Clears the per-tick events; called at the start of each step (the first also sets up the sound). */
   protected beginTick(): void {
     this.se = [];
     this.bgm = [];
@@ -101,6 +135,7 @@ export abstract class Program {
     this.boxColors = [];
     this.stall = 0;
     this.rng.calls = 0;
+    if (this.tick === 0) this.soundInit();
   }
 
   /** Runs one logic tick with the pad word (pad 1 low, pad 2 high). */

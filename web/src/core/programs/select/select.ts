@@ -15,6 +15,7 @@ import { Program, type ProgramContext } from '../../program';
 import { commonFields, readFields, type Field } from '../../trace';
 import * as Card from './card';
 import { ROM } from './rom';
+import { BGM_STOP, SELECT_SOUND } from '../../sound';
 
 const BSS_END = 0x800be138;
 const PAD = 0x800be126; // P1 held; pressed +2; P2 +6
@@ -44,15 +45,8 @@ const VS = 0x800b9a2c;
 const TOGGLE = 0x800b9a38;
 const VOLUME = 0x800b9bac;
 
-// bgm_request's state (FUN_80095140).
-const BGM_LAST_PLAYER = 0x800b90c0;
-const BGM_LAST = 0x800b90c4;
-const BGM_REQ = 0x800b90c8; // [2] the last request per player
-const BGM_ADJ = 0x800b90d0; // [2]
 
 // Tables in SELECT.EXE's data.
-const VOL_BGM = 0x800b1fb4; // s16[8] by state+0x4B4FF
-const BGM_TRACKS = 0x800b2170; // per request - 2: 12 bytes, word 0 a priority
 const ANIMS = 0x800b2744; // animation records: frame time, images..., 0xFFFE loop / 0xFFFF end
 const NEIGHBOURS = 0x800b2760; // per item: right, left, down, up
 const ZOOM_STEP = 0x800b27b0; // per item: the zoomed icon's dx, dy, the box's dx, dy (x16)
@@ -94,13 +88,8 @@ export class Select extends Program {
 
   constructor(ctx: ProgramContext) {
     super(ctx, ROM, BSS_END);
-    // FUN_800955F0 (sound init): bgm_request's state.
-    const m = this.m;
-    m.w32(BGM_LAST_PLAYER, 0);
-    m.w32(BGM_LAST, 0x34);
-    m.w32(BGM_REQ, 0x34);
-    m.w32(BGM_REQ + 4, 0x34);
-    m.w32(A.EXIT_FLAG, 0);
+    // The sound init (FUN_800955F0) is the first step's soundInit.
+    this.m.w32(A.EXIT_FLAG, 0);
   }
 
   step(pad: number): void {
@@ -108,8 +97,9 @@ export class Select extends Program {
     const m = this.m;
     if (this.tick > 0) {
       this.padRead(PAD, pad);
-      // The CD watchdog: CdReset and the track restarted (only the card format sets the flag).
-      if (m.s32(Card.CD_RESET) !== 0) m.w32(Card.CD_RESET, 0);
+      // The CD watchdog: CdReset and the track restarted (the CD callback sets the flag on a
+      // drive error or the disc's end, and the card format's result lands in it).
+      this.cdWatchdog();
       this.rand();
       this.softResetCheck(PAD, RESET);
       if (this.exited) return;
@@ -125,45 +115,6 @@ export class Select extends Program {
 
   private get pressed(): number {
     return this.m.u16(PRESSED);
-  }
-
-  /** FUN_80094D2C: se_play (the event; the SPU isn't modelled for this program). */
-  private sePlay(id: number): void {
-    this.se.push(id);
-  }
-
-  /** FUN_80095140: bgm_request, for its state (the CD isn't modelled for this program). */
-  private bgmRequest(id: number): void {
-    const m = this.m;
-    this.bgm.push(id);
-    if (m.s16(VOL_BGM + 2 * m.u8(A.S + 0x4b4ff)) === 0) return;
-    let req = id;
-    if (m.s32(BGM_PLAYER) === 0) {
-      m.w32(BGM_REQ, id);
-      req = m.s32(BGM_REQ + 4);
-    }
-    m.w32(BGM_REQ + 4, req);
-    let player = m.s32(BGM_PLAYER);
-    if (m.s32(A.TWO_PLAYER) !== 0) {
-      let a = 0;
-      let b = 0;
-      if ((id - 0x23) >>> 0 < 2) {
-        a = m.s32(BGM_ADJ + 4);
-        b = m.s32(BGM_ADJ);
-      }
-      const pri = (r: number) => m.s32(BGM_TRACKS + (r - 2) * 0xc);
-      if (a + pri(m.s32(BGM_REQ + 4)) < b + pri(m.s32(BGM_REQ))) {
-        player = 0;
-        id = m.s32(BGM_REQ);
-      }
-      if (b + pri(m.s32(BGM_REQ)) < a + pri(m.s32(BGM_REQ + 4))) {
-        player = 1;
-        id = m.s32(BGM_REQ + 4);
-      }
-    }
-    if (player === m.s32(BGM_LAST_PLAYER) && m.s32(BGM_LAST) === id) return;
-    m.w32(BGM_LAST_PLAYER, player);
-    m.w32(BGM_LAST, id);
   }
 
   /** FUN_80097114: the top machine on state+0x4C. */
@@ -658,7 +609,11 @@ export class Select extends Program {
     let v = m.u8(A.SETTING_4FC);
     if (this.highlight(m.s32(ROW) === 4)) {
       m.w32(TOGGLE, v ^ 1);
-      if (this.pressed & 0xa000) v = m.u32(TOGGLE);
+      if (this.pressed & 0xa000) {
+        // SsSetMono / SsSetStereo and the matching CdMix, at once.
+        v = m.u32(TOGGLE);
+        this.sound.push({ kind: 'mono', mono: v !== 0 });
+      }
     }
     m.w32(TOGGLE, v);
     m.w8(A.SETTING_4FC, v & 0xff);
@@ -695,8 +650,11 @@ export class Select extends Program {
     if (this.highlight(m.s32(ROW) === 6)) {
       this.stepNumber(MUSIC_NO);
       if (this.pressed & 0x40) {
-        m.w32(BGM_LAST, m.s32(MUSIC_NO) + 2);
+        // bgm_request's "playing" id becomes the track; the CD volume, then the track, looping.
+        m.w32(SELECT_SOUND.curId, m.s32(MUSIC_NO) + 2);
         m.w32(A.TWO_PLAYER, 0);
+        this.sound.push({ kind: 'cdvol', vol: m.s16(SELECT_SOUND.musicVol + 2 * m.u8(A.MUSIC_VOLUME)) });
+        this.sound.push({ kind: 'play', track: m.s32(MUSIC_NO) + 2, mode: 1 });
       }
     }
     const h = m.s32(HIGHLIGHT);
@@ -735,6 +693,10 @@ export class Select extends Program {
       if (this.pressed & 0x8000 && m.add32(VOLUME, -1) < 0) m.w32(VOLUME, 0);
     }
     m.w8(A.S + setting, m.u32(VOLUME) & 0xff);
+    // The music volume applies at once, every frame, unless bgm_request has stopped the music.
+    if (setting === 0x4b4ff && m.s32(SELECT_SOUND.curId) !== BGM_STOP) {
+      this.sound.push({ kind: 'cdvol', vol: m.s16(SELECT_SOUND.musicVol + 2 * m.u8(A.MUSIC_VOLUME)) });
+    }
     const h = m.s32(HIGHLIGHT);
     this.put(n, h + label, 0x9a, y);
     for (let i = 0; i < 8; i++) this.put(n + 1 + i, h + (i < m.s32(VOLUME) + 1 ? 0x54 : 0x53), 0xb4 + 8 * i, y);

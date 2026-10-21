@@ -1,4 +1,4 @@
-// libsnd's voice manager as PAZLE.EXE links it (docs/re/audio.md §3): SsVoKeyOn, the voice
+// libsnd's voice manager as PAZLE.EXE links it (every program links the same copy) (docs/re/audio.md §3): SsVoKeyOn, the voice
 // allocator and the per-vblank flush that writes the SPU's voice registers. Sound effects are
 // the only libsnd users in Puzzle Mode (no sequences), so only the sound-effect path is ported.
 //
@@ -12,7 +12,7 @@ import type { Vab } from './vab';
 
 /** Voices libsnd manages (SsUtSetVVol's _svm_vcf range; 0x800EEACC). */
 export const VOICES = 24;
-/** libsnd's note-to-pitch table: 12 semitones x 16 fine steps (0x800EC94C). */
+/** libsnd's note-to-pitch table: 12 semitones x 16 fine steps (PAZLE's copy, 0x800EC94C). */
 const PITCH_TABLE = 0x800ec94c;
 
 /** One SPU register write: offset from 0x1F801C00, 16-bit value. */
@@ -51,8 +51,13 @@ export class Libsnd {
   constructor(
     private readonly vab: Vab,
     private readonly rom: Mem,
-    /** SsSetMono (0x800EE714): set at start-up from the sound setting; both sides get the louder. */
-    private readonly mono = false,
+    /**
+     * SsSetMono (PAZLE 0x800EE714): set at start-up from the sound setting, and by Option mode's
+     * stereo row; both sides get the louder.
+     */
+    public mono = false,
+    /** Where the running program keeps its copy of the pitch table (sound.ts SoundAddresses). */
+    private readonly pitchTable = PITCH_TABLE,
   ) {
     for (let v = 0; v < VOICES; v++) this.voices.push({ age: 0, env: 0, prior: 0, status: 0 });
   }
@@ -71,7 +76,7 @@ export class Libsnd {
     const x = (((note + 60 - tone.center + carry) << 16) >> 16);
     const octave = sdiv(x, 12);
     const semitone = ((x - octave * 12) << 16) >> 16;
-    let pitch = this.rom.u16(PITCH_TABLE + 2 * (semitone * 16 + step));
+    let pitch = this.rom.u16(this.pitchTable + 2 * (semitone * 16 + step));
     const shift = octave - 5;
     if (shift > 0) pitch <<= shift;
     else if (shift < 0) pitch = (pitch & 0xffff) >> -shift;

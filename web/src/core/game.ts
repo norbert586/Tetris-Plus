@@ -9,7 +9,7 @@ import { SCREENS } from './screens';
 import { pauseCheck } from './pause';
 import { objectsClearAll, objectsDraw, uploadQueueFlush, type Box } from './objects';
 import { traceRow } from './trace';
-import type { SoundCall } from './sound';
+import { PAZLE_SOUND, cdWatchdog, soundInit, type SoundCall } from './sound';
 import { CardSlots } from './card';
 import type { ProgramContext } from './program';
 
@@ -155,8 +155,10 @@ export class Game {
     this.boxColors = [];
     this.stall = 0;
     this.rng.calls = 0;
+    if (this.tick === 0) soundInit(this, PAZLE_SOUND); // FUN_800961C4, before the main loop
     if (this.tick > 0) {
       this.padRead(pad);
+      cdWatchdog(this, PAZLE_SOUND); // bgm_poll (FUN_80095B08)
       this.rand();
       this.softResetCheck();
       if (this.exited) return;

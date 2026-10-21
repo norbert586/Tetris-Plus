@@ -33,6 +33,15 @@ export interface SoundAddresses {
   zone: number;
   zoneTuneA: number;
   zoneTuneB: number;
+  /** The side se_play and bgm_request act for (PAZLE: the current player). */
+  player: number;
+  /**
+   * The main loop's CD watchdog flag (bgm_poll): the CD callback sets it on any interrupt but
+   * DataReady, and the next main-loop tail resets the drive and restarts the current track.
+   */
+  cdFlag: number;
+  /** libsnd's note-to-pitch table (12 semitones x 16 steps, the same in every program). */
+  pitchTable: number;
 }
 
 /** PAZLE.EXE's (docs/re/audio.md §1). */
@@ -50,6 +59,57 @@ export const PAZLE_SOUND: SoundAddresses = {
   zone: 0x800eebb0,
   zoneTuneA: 0x800dc880,
   zoneTuneB: 0x800dc88a,
+  player: 0x800eead0,
+  cdFlag: 0x800ed394,
+  pitchTable: 0x800ec94c,
+};
+
+/**
+ * The other programs' copies (docs/re/shell.md §9). Their tables hold the same values as
+ * PAZLE's; only the data before the track table (what a "track 0" reads) differs. SW_ON and
+ * RANKING link the code without calling se_play or bgm_request; TIT_DEMO has no se_play, its
+ * table addresses follow the same layout (effect volumes 0x10 and effects 0x20 after the music
+ * volumes).
+ */
+export const SW_ON_SOUND: SoundAddresses = {
+  musicVol: 0x800af0a8, seVol: 0x800af0b8, seTable: 0x800af0c8, tracks: 0x800af25c,
+  curPlayer: 0x800b5ca8, curId: 0x800b5cac, wantP1: 0x800b5cb0, wantP2: 0x800b5cb4,
+  joinP1: 0, joinP2: 0, zone: 0, zoneTuneA: 0, zoneTuneB: 0, // no bgm_request
+  player: 0, cdFlag: 0x800b5d04, pitchTable: 0x800b52bc,
+};
+export const TIT_DEMO_SOUND: SoundAddresses = {
+  musicVol: 0x800aecdc, seVol: 0x800aecec, seTable: 0x800aecfc, tracks: 0x800aee8c,
+  curPlayer: 0x800b5d80, curId: 0x800b5d84, wantP1: 0x800b5d88, wantP2: 0x800b5d8c,
+  joinP1: 0x800b5d90, joinP2: 0x800b5d94, zone: 0x800b5d6c, zoneTuneA: 0x800af0fc, zoneTuneB: 0x800af106,
+  player: 0x800b5d18, cdFlag: 0x800b5ddc, pitchTable: 0x800b5338,
+};
+export const TITLE_SOUND: SoundAddresses = {
+  musicVol: 0x800ad868, seVol: 0x800ad878, seTable: 0x800ad888, tracks: 0x800ada18,
+  curPlayer: 0x800b4294, curId: 0x800b4298, wantP1: 0x800b429c, wantP2: 0x800b42a0,
+  joinP1: 0x800b42a4, joinP2: 0x800b42a8, zone: 0x800b4334, zoneTuneA: 0x800adc88, zoneTuneB: 0x800adc92,
+  player: 0x800b4328, cdFlag: 0x800b42f0, pitchTable: 0x800b38a0,
+};
+export const SELECT_SOUND: SoundAddresses = {
+  musicVol: 0x800b1fb4, seVol: 0x800b1fc4, seTable: 0x800b1fd4, tracks: 0x800b2168,
+  curPlayer: 0x800b90c0, curId: 0x800b90c4, wantP1: 0x800b90c8, wantP2: 0x800b90cc,
+  joinP1: 0x800b90d0, joinP2: 0x800b90d4, zone: 0x800b90ac, zoneTuneA: 0x800b23d8, zoneTuneB: 0x800b23e2,
+  player: 0x800b90a8, cdFlag: 0x800b911c, pitchTable: 0x800b86b4,
+};
+export const RANKING_SOUND: SoundAddresses = {
+  musicVol: 0x800abc90, seVol: 0x800abca0, seTable: 0x800abcb0, tracks: 0x800abe40,
+  curPlayer: 0x800b254c, curId: 0x800b2550, wantP1: 0x800b2554, wantP2: 0x800b2558,
+  joinP1: 0, joinP2: 0, zone: 0, zoneTuneA: 0, zoneTuneB: 0, // bgm_request never called
+  player: 0, cdFlag: 0x800b25a8, pitchTable: 0x800b1b60,
+};
+
+/** Each program's sound addresses, by program name. */
+export const PROGRAM_SOUND: Record<string, SoundAddresses> = {
+  PAZLE: PAZLE_SOUND,
+  SW_ON: SW_ON_SOUND,
+  TIT_DEMO: TIT_DEMO_SOUND,
+  TITLE: TITLE_SOUND,
+  SELECT: SELECT_SOUND,
+  RANKING: RANKING_SOUND,
 };
 
 export const BGM_JOIN_P1 = PAZLE_SOUND.joinP1;
@@ -73,7 +133,39 @@ export interface SoundPlayer {
 export type SoundCall =
   | { kind: 'key'; prog: number; note: number; vol: number }
   | { kind: 'play'; track: number; mode: number }
-  | { kind: 'cdvol'; vol: number };
+  | { kind: 'cdvol'; vol: number }
+  | { kind: 'init'; program: string }
+  | { kind: 'restart' }
+  | { kind: 'mono'; mono: boolean };
+
+/*
+ * The other calls: `init` is a program's start (CdInit, then the sound set-up: SsInit, the
+ * bank, the CD volume from the program's music volume table, reverb, SsStart, mono or stereo and
+ * CdMix), `restart` the main loop's CD watchdog (CdReset(0), then the current track again from
+ * its start), `mono` SsSetMono / SsSetStereo with the matching CdMix (Option mode's stereo row).
+ */
+
+/** The program's sound set-up as its main runs it before the loop (the first tick's calls). */
+export function soundInit(g: SoundPlayer & { name: string }, t: SoundAddresses): void {
+  const m = g.m;
+  g.sound.push({ kind: 'init', program: g.name });
+  m.w32(t.curPlayer, 0);
+  m.w32(t.curId, BGM_STOP);
+  m.w32(t.wantP1, BGM_STOP);
+  m.w32(t.wantP2, BGM_STOP);
+}
+
+/**
+ * The CD watchdog in the main loop's tail (PAZLE's bgm_poll, inlined in SW_ON, TITLE and
+ * SELECT): with the flag set, CdReset(0) and the current track from its start.
+ */
+export function cdWatchdog(g: SoundPlayer, t: SoundAddresses): boolean {
+  const m = g.m;
+  if (m.s32(t.cdFlag) === 0) return false;
+  m.w32(t.cdFlag, 0);
+  g.sound.push({ kind: 'restart' });
+  return true;
+}
 
 /** se_play(id) */
 export function sePlay(g: SoundPlayer, id: number, t: SoundAddresses = PAZLE_SOUND): void {

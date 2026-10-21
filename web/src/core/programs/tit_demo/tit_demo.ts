@@ -37,17 +37,8 @@ const SCROLL_STOP = 0x800b5d50; // gp+0x94: index into the scroll stops
 const PAGE_HOLD = 0x800b5d54; // gp+0x98: frames a finished page stays
 const PAGE = 0x800b5d58; // gp+0x9C: the page (3 pages)
 const BLINK_TIMER = 0x800b5e7c; // gp+0x1C0: frames per blink step
-// bgm_request's request state (set by the sound init FUN_80095544).
-const BGM_PLAYER = 0x800b5d80;
-const BGM_ID = 0x800b5d84;
-const BGM_REQ1 = 0x800b5d88;
-const BGM_REQ2 = 0x800b5d8c;
-const BGM_BONUS1 = 0x800b5d90;
-const BGM_BONUS2 = 0x800b5d94;
 
 // Tables in TIT_DEMO.EXE's data.
-const BGM_VOLUMES = 0x800aecdc; // s16 per music volume setting
-const TRACK_PRIORITY = 0x800aee94; // per track (from 2), 12-byte records
 const SCROLL_STOPS = 0x800af784; // x (16.16) of the scrolling picture where a caption shows; -1 ends
 const CAPTION_IMAGES = 0x800af794;
 const CAPTION_X = 0x800af7a0;
@@ -76,13 +67,9 @@ export class TitDemo extends Program {
   constructor(ctx: ProgramContext) {
     super(ctx, ROM, BSS_END);
     const m = this.m;
-    // main before its loop: FUN_800959A0 (the story variables, already zero), the sound init's
-    // bgm_request state (FUN_80095544), FUN_80094B28 (8 pad records of 6 bytes from 0x800B8BA0,
-    // past the end of the BSS), the exit flag.
-    m.w32(BGM_PLAYER, 0);
-    m.w32(BGM_ID, 0x34);
-    m.w32(BGM_REQ1, 0x34);
-    m.w32(BGM_REQ2, 0x34);
+    // main before its loop: FUN_800959A0 (the story variables, already zero), the sound init
+    // (FUN_80095544: the first step's soundInit), FUN_80094B28 (8 pad records of 6 bytes from
+    // 0x800B8BA0, past the end of the BSS), the exit flag.
     for (let i = 0; i < 8; i++) {
       m.w16(0x800b8ba0 + 6 * i, 0);
       m.w16(0x800b8ba2 + 6 * i, 0);
@@ -96,6 +83,7 @@ export class TitDemo extends Program {
     if (this.tick > 0) {
       // The previous iteration's tail: PadRead, the CD watchdog, rand() (no soft-reset check).
       this.padRead(PAD, pad);
+      this.cdWatchdog(); // FUN_80094FBC
       this.rand();
     }
     this.tick++;
@@ -160,43 +148,6 @@ export class TitDemo extends Program {
         m.add32(A.PHASE, 1);
         return;
     }
-  }
-
-  /** FUN_800951FC: bgm_request, for its request state (the CD play itself is the audio layer's). */
-  private bgmRequest(id: number): void {
-    const m = this.m;
-    this.bgm.push(id);
-    if (m.s16(BGM_VOLUMES + 2 * m.u8(A.MUSIC_VOLUME)) === 0) return;
-    const player0 = m.s32(AMPLITUDE);
-    let other = id;
-    if (player0 === 0) {
-      m.w32(BGM_REQ1, id);
-      other = m.s32(BGM_REQ2);
-    }
-    m.w32(BGM_REQ2, other);
-    let player = player0;
-    if (m.s32(A.TWO_PLAYER) !== 0) {
-      let b2 = 0;
-      let b1 = 0;
-      if ((id - 0x23) >>> 0 < 2) {
-        b2 = m.s32(BGM_BONUS2);
-        b1 = m.s32(BGM_BONUS1);
-      }
-      const pri = (track: number) => m.s32(TRACK_PRIORITY + (track - 2) * 0xc);
-      const req1 = m.s32(BGM_REQ1);
-      const req2 = m.s32(BGM_REQ2);
-      if (b2 + pri(req2) < b1 + pri(req1)) {
-        player = 0;
-        id = req1;
-      }
-      if (b1 + pri(req1) < b2 + pri(req2)) {
-        player = 1;
-        id = req2;
-      }
-    }
-    if (player === m.s32(BGM_PLAYER) && m.s32(BGM_ID) === id) return;
-    m.w32(BGM_PLAYER, player);
-    m.w32(BGM_ID, id);
   }
 
   /** FUN_80097E68: fade box `n` up a step; true (at 64) when done. */

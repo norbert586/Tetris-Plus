@@ -53,6 +53,7 @@ export class Ranking extends Program {
     this.beginTick();
     if (this.tick > 0) {
       this.padRead(PAD, pad);
+      this.cdWatchdog(); // FUN_80094F64 (nothing plays here, so its flag stays clear)
       this.rand();
       this.softResetCheck(PAD, RESET);
       if (this.exited) return;

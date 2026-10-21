@@ -54,6 +54,7 @@ export class Title extends Program {
     this.beginTick();
     if (this.tick > 0) {
       this.padRead(PAD, pad);
+      this.cdWatchdog();
       this.rand();
     }
     this.tick++;
@@ -65,16 +66,6 @@ export class Title extends Program {
     // The tracer has no hook on TITLE's re-uploads (FUN_80095E28 takes a buffer, not an item),
     // so its rows never list them; the renderer still takes them from `uploads`.
     return { ...readFields(this, FIELDS), up: [] };
-  }
-
-  /** FUN_80094D30 (se_play): the call, as the trace records it. */
-  private sePlay(id: number): void {
-    this.se.push(id);
-  }
-
-  /** FUN_800950E8 (bgm_request): the call, as the trace records it. */
-  private bgmRequest(id: number): void {
-    this.bgm.push(id);
   }
 
   /** FUN_8009713C: the top machine on state+0x4C. */
