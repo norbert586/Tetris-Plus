@@ -4,6 +4,7 @@ import * as A from '../src/core/addr';
 import { Machine, PROGRAM_NAMES, type AnyProgram } from '../src/core/machine';
 import { powerOnBlock } from '../src/core/programs/sw_on/power-on-block';
 import type { AudioModel } from '../src/audio/model';
+import type { Mem } from '../src/core/mem';
 import type { Renderer } from '../src/render/renderer';
 import { movieCards, type Movie } from '../tools/movie';
 import { join } from 'node:path';
@@ -17,8 +18,11 @@ export interface CompareOptions {
   renderer?: Renderer;
   /** The renderer for each other program (by name), if frames are compared for it. */
   renderers?: Record<string, Renderer>;
-  /** Also run the sound (the trace's vs, kon, koff, spu, rev, cd, cdr; trace version 3). */
-  audio?: (game: Game) => AudioModel;
+  /**
+   * Also run the sound (the trace's vs, kon, koff, spu, rev, cd, cdr; trace version 3): one model
+   * on the machine's memory for the whole movie, as the SPU and the drive outlast each program.
+   */
+  audio?: (m: Mem) => AudioModel;
   /**
    * Start at this segment (1-based) instead of the first, with the shared state block taken from
    * `ram`, a TP_RAM_START=1 dump of that segment's start (the counter and seed come from the trace).
@@ -140,6 +144,8 @@ export function machineForTrace(trace: Trace, movie: Movie): Machine {
 
 function* compareSteps(movie: Movie, trace: Trace, opts: CompareOptions): Generator<void, CompareResult> {
   const machine = machineForTrace(trace, movie);
+  // Traces before version 3 have no sound fields.
+  const audio = trace.segments[0].fields.includes('kon') ? opts.audio?.(machine.m) : undefined;
   const k0 = (opts.fromSegment ?? 1) - 1;
   if (k0 > 0) {
     // The shared state block as the dump has it (re/tools/extract_state.py's rules: not the GPU
@@ -177,7 +183,7 @@ function* compareSteps(movie: Movie, trace: Trace, opts: CompareOptions): Genera
       machine.ctx.rng.seed = unwindSeed(first.seed as number, first.rand as number);
     }
     const prefix = trace.segments.length > 1 ? `${seg.program}: ` : '';
-    const r = yield* compareSegment(machine.program, seg.fields, seg.rows, mseg, k === 0 ? movie.last : mseg.last, opts, prefix);
+    const r = yield* compareSegment(machine.program, seg.fields, seg.rows, mseg, k === 0 ? movie.last : mseg.last, opts, prefix, audio);
     ticks += r.ticks;
     if (!r.ok) return { ...r, ticks };
   }
@@ -192,19 +198,18 @@ function* compareSegment(
   last: number,
   opts: CompareOptions,
   prefix: string,
+  model: AudioModel | undefined,
 ): Generator<void, CompareResult> {
   const renderer = game.name === 'PAZLE' ? opts.renderer : opts.renderers?.[game.name];
-  const isGame = game instanceof Game;
   const ignore = new Set([...(opts.ignore ?? []), ...(renderer ? [] : RENDER_FIELDS),
-    ...(opts.audio && isGame ? [] : AUDIO_FIELDS)]);
+    ...(model ? [] : AUDIO_FIELDS)]);
   const fields = traceFields.filter((f) => !ignore.has(f) && !TIMED.includes(f));
   const timed = new Map(TIMED.map((f) => [f, f === 'cdvol' ? 'spu' : f])
     .filter(([, field]) => fields.includes(field) || (traceFields.includes(field) && !ignore.has(field)))
     .map(([f]) => [f, new TimedEvents()]));
   const context = opts.context ?? 5;
   const to = Math.min(opts.to ?? Infinity, last < 0 ? Infinity : last);
-  // Traces before version 3 have no sound fields.
-  const audio = isGame && traceFields.includes('kon') ? opts.audio?.(game) : undefined;
+  const audio = traceFields.includes('kon') ? model : undefined;
   const trace = { rows };
   const mine: Row[] = [];
   let ticks = 0;

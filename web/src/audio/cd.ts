@@ -18,8 +18,12 @@ const SETTLE = ms(750);
 const SEEK_START = ms(20);
 const seekTime = (distance: number) => Math.trunc(((distance * 3 + 1000) * CPU_HZ) / 1e6);
 
-/** The program's per-track table (0x800DC610, from track 2, 12 bytes): end offset, loop mode. */
+/** PAZLE's per-track table (0x800DC610, from track 2, 12 bytes): end offset, loop mode. */
 const TRACK_TABLE = 0x800dc610;
+/** Where CdlInit leaves the head: 00:02:00 (Redux's cdlInit). */
+const INIT_POSITION = 150;
+/** The status byte the drive reports with its end of disc (motor on, idle). */
+const STATUS_IDLE = 0x02;
 
 /** The disc as the drive sees it: each track's index 01 and pregap, in sectors from 00:00:00. */
 export interface Disc {
@@ -35,8 +39,14 @@ const fromBcd = (b: number) => (b >> 4) * 10 + (b & 15);
 
 /** CdPosToInt for an MSF sector count: LBA = MSF - 150. */
 const toInt = (msf: number) => msf - 150;
-/** The TOC entry the program reads for a track: index 01's minute and second, sector 0. */
-export const tocSector = (disc: Disc, track: number) => disc.start[track] - (disc.start[track] % 75);
+/**
+ * The TOC entry the program reads for a track (the boot program's copy at state+0x20550): index
+ * 01's minute and second, sector 0. Entry 0 is the lead-out, rounded down the same way.
+ */
+export const tocSector = (disc: Disc, track: number) => {
+  const s = track === 0 ? disc.end : disc.start[track];
+  return s - (s % 75);
+};
 
 /** A position report as the callback receives it: interrupt type, then the result bytes. */
 export type Report = number[];
@@ -44,8 +54,11 @@ export type Report = number[];
 /** What happened during a stretch of time, for the trace and the player. */
 export interface CdEvent {
   cycle: number;
-  /** cd: a command (number, then Setloc's or Setmode's bytes); cdr: a report; vol: CD volume. */
-  kind: 'cd' | 'cdr' | 'vol' | 'sector';
+  /**
+   * cd: a command (number, then Setloc's or Setmode's bytes); cdr: a report; vol: the callback
+   * mutes the CD; flag: the callback sets the main loop's CD watchdog flag.
+   */
+  kind: 'cd' | 'cdr' | 'vol' | 'flag' | 'sector';
   data: number[];
 }
 
@@ -72,12 +85,14 @@ export class CdDrive {
   private posInt = 0;
 
   readonly events: CdEvent[] = [];
+  /** The running program's track table (sound.ts SoundAddresses.tracks). */
+  tracks = TRACK_TABLE;
 
   constructor(
     private readonly disc: Disc,
     private readonly rom: Mem,
-    /** Where the head is when Puzzle Mode starts (after loading the program's files). */
-    bootPosition: number,
+    /** Where the head is when the first program starts. */
+    bootPosition = INIT_POSITION,
     /** CPU cycles from a report's interrupt to the callback, and per blocking CdControlB call. */
     private readonly callbackDelay = 60_500,
     private readonly commandTime = 31_700,
@@ -85,14 +100,57 @@ export class CdDrive {
     this.position = bootPosition;
   }
 
+  /**
+   * A program starts (its main's CdInit): CdlInit stops whatever the drive was doing and puts
+   * the head at 00:02:00; the program's own CD variables start at zero (fresh BSS). Events the
+   * previous program's play had scheduled past `cycle` never happen.
+   */
+  programStart(cycle: number, tracks: number): void {
+    this.run(cycle);
+    this.events.splice(0, this.events.length, ...this.events.filter((e) => e.cycle <= cycle));
+    this.init();
+    this.tracks = tracks;
+    this.track = 0;
+    this.loop = 0;
+    this.startInt = 0;
+    this.endInt = 0;
+    this.posInt = 0;
+  }
+
+  /** CdlInit (Redux's cdlInit): idle, head at 00:02:00, reports off. */
+  private init(): void {
+    this.state = IDLE;
+    this.next = Infinity;
+    this.position = INIT_POSITION;
+    this.report = false;
+  }
+
   /** bgm_play_track(track, mode) at `cycle`: Setmode, Setloc, Play. */
   play(track: number, mode: number, cycle: number): void {
     this.run(cycle);
     this.track = track;
     this.loop = mode;
+    this.start(cycle);
+  }
+
+  /**
+   * The main loop's CD watchdog: CdReset(0) at `reset` (a CdlInit: the drive stops), then, once
+   * it returns, at `cycle`, the current track from its start (its end recomputed, the loop mode
+   * kept): FUN_8009592C and FUN_80095BD0 in PAZLE.
+   */
+  restart(reset: number, cycle: number): void {
+    this.run(reset);
+    this.init();
+    this.run(cycle);
+    this.start(cycle);
+  }
+
+  /** The track's start and end from the TOC and the track table; Setmode, Setloc, Play. */
+  private start(cycle: number): void {
+    const track = this.track;
     const toc = tocSector(this.disc, track);
     this.startInt = toInt(toc);
-    this.endInt = toInt(toc) + this.rom.s32(TRACK_TABLE + (track - 2) * 12);
+    this.endInt = (toInt(toc) + this.rom.s32(this.tracks + (track - 2) * 12)) | 0;
     this.posInt = this.startInt;
     this.command(cycle, [0x0e, 5]);
     this.report = true;
@@ -148,8 +206,10 @@ export class CdDrive {
   private sector(at: number): void {
     const pos = this.position;
     if (pos >= this.disc.end) {
+      // The end of the disc: the drive stops and interrupts with DataEnd (Redux's playSector).
       this.state = IDLE;
       this.next = Infinity;
+      this.callback(at + this.callbackDelay, [4, STATUS_IDLE, 0, 0, 0, 0, 0]);
       return;
     }
     this.events.push({ cycle: at, kind: 'sector', data: [pos] });
@@ -161,13 +221,21 @@ export class CdDrive {
       const absolute = ((frame / 10) & 1) === 0;
       const result = absolute ? [0x82, loc[0], loc[1], loc[5], loc[6], loc[7]]
         : [0x82, loc[0], loc[1], loc[2], loc[3] | 0x80, loc[4]];
-      this.callback(at + this.callbackDelay, result);
+      this.callback(at + this.callbackDelay, [1, ...result]);
     }
   }
 
-  /** The callback (0x80095C5C) for a DataReady report. */
-  private callback(cycle: number, result: number[]): void {
-    this.events.push({ cycle, kind: 'cdr', data: [1, ...result] });
+  /**
+   * The callback (PAZLE 0x80095C5C) for an interrupt: DataReady (1) is a position report; any
+   * other sets the main loop's CD watchdog flag.
+   */
+  private callback(cycle: number, data: number[]): void {
+    this.events.push({ cycle, kind: 'cdr', data });
+    if (data[0] !== 1) {
+      this.events.push({ cycle, kind: 'flag', data: [] });
+      return;
+    }
+    const result = data.slice(1);
     if ((result[4] & 0x80) === 0) {
       this.posInt = (fromBcd(result[3]) * 60 + fromBcd(result[4])) * 75 - 150;
     }

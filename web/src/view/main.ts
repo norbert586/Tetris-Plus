@@ -287,7 +287,7 @@ async function main() {
         if (notice > 0 && (notice -= TICK_MS) <= 0) status.textContent = HELP;
         renderer = renderers[prog.name];
         buffer = renderer.frame(prog).buffer;
-        audio?.tick(prog);
+        audio?.tick(prog, 1 + prog.stall);
         hold = prog.stall * TICK_MS;
         storeCards();
       }

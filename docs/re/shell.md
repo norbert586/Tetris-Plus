@@ -16,7 +16,7 @@ complete run. This page records what is done so far.
 | The attract demos HOW_N, HOW_VS | Not ported (they play the other modes); the `Machine` stands in for them with what they leave (§6), so the attract loop keeps the original's counter and random numbers |
 | The other modes (Classic, VS Puzzle, Edit) | Not ported; choosing one in the shell returns to the mode select |
 | JLOGO.EXE (the Jaleco logo) | Its video as WebM and MP4 (§8); the shell plays it at power-on |
-| Sound of the programs around Puzzle Mode | In progress: they record their sound requests, but the browser plays them only for Puzzle Mode so far |
+| Sound of the programs around Puzzle Mode | Done (§10): every program's effects, music and CD traffic as the original's, `--audio` identical on the whole corpus; the browser plays them |
 | A complete run | The port plays the whole game (§9); the movie is being checked on the original |
 
 ## 2. The memory card
@@ -244,7 +244,7 @@ built at once off-screen: per row a name in three glyphs, a 7-digit score, then 
 lines (3 digits) and level (2), for Puzzle the stage (`stage % 20 + 1`, not shown for zone 5,
 "all cleared") and the zone's picture. Numbers leave their leading zeros' places empty. Both
 tables slide in 5 px a frame until in place, hold 300 frames, and the program starts TIT_DEMO.
-No input but the soft reset, no sound (its sound code is there but nothing calls it).
+No input but the soft reset, no sound (its sound code is there but nothing calls it; the set-up runs, §10).
 
 **`ranking`** (5,501 ticks): `card-save`'s route, then Quit on the save screen: both players on
 screen 8, Puzzle Mode exits to RANKING, which runs 440 ticks. Identical to the original, every
@@ -264,8 +264,7 @@ Found in the original:
   which finds room and moves on: the card stays formatted but empty.
 - **The format result lands in the CD watchdog flag** (`0x800B5D04`), so the next main-loop
   pass resets the CD and plays the lead-out (DataEnd about every 95 ticks until SW_ON exits).
-  SELECT does the same with its own flag. The port keeps the variables; the CD isn't modelled
-  for these programs.
+  SELECT does the same with its own flag. The audio model plays it (§10).
 - **New cards.** An unformatted card reports "new card" to the first `_card_info`; formatted
   ones don't (`MemoryCard.fresh`). `_card_clear`'s dummy write sends 128 bytes from RAM
   address 0 to frame 63 (2 at `0x60`, `0xFF` at `0x68`); the BIOS format leaves frame 63 alone;

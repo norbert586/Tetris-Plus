@@ -1,15 +1,19 @@
 // Renders a movie's sound to a WAV file, as the browser player would play it (docs/re/audio.md
-// §8): the core replays the movie, the audio model times the SPU writes and the CD, the SPU
-// mixes the effects and the CD's audio comes straight from the disc image (no encoding).
+// §8): the core replays the movie through every program it runs (docs/re/shell.md §9), the
+// audio model times the SPU writes and the CD, the SPU mixes the effects and the CD's audio comes
+// straight from the disc image (no encoding), through CdMix and the CD volume.
 //
 //   npx tsx tools/render-audio.ts ../re/movies/<name>.tpm out.wav [--from T] [--to T] [--disc DIR]
+//
+// T counts ticks over the whole movie (the programs' ticks one after another).
 import { openSync, readFileSync, readSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CYCLES_PER_VBLANK } from '../src/audio/driver';
 import { Spu } from '../src/audio/spu';
 import { VAB_SPU_BASE } from '../src/audio/vab';
 import { audioModel } from '../test/audio';
-import { gameForTrace } from '../test/replay';
+import * as A from '../src/core/addr';
+import { machineForTrace, unwindSeed } from '../test/replay';
 import { loadMovie } from './movie';
 import { loadTrace } from './trace';
 
@@ -25,8 +29,8 @@ const [moviePath, out] = args;
 const name = moviePath.replace(/.*\//, '').replace(/\.tpm$/, '');
 const movie = loadMovie(moviePath);
 const trace = loadTrace(join(import.meta.dirname, '../../re/traces', `${name}.jsonl.gz`));
-const game = gameForTrace(trace);
-const model = audioModel(game);
+const machine = machineForTrace(trace, movie);
+const model = audioModel(machine.m);
 const spu = new Spu();
 spu.ram.set(model.driver.ram.subarray(VAB_SPU_BASE, VAB_SPU_BASE + 0x80000 - VAB_SPU_BASE), VAB_SPU_BASE);
 
@@ -48,7 +52,9 @@ function sector(pos: number): Int16Array {
   return new Int16Array(buf.buffer, buf.byteOffset, 1176);
 }
 
-const CD_LEVEL = process.env.TP_NO_CD ? 0 : (0x7f / 0x80) * (31130 / 32768) * (31880 / 32768);
+const CD_LEVEL = process.env.TP_NO_CD ? 0 : (31130 / 32768) * (31880 / 32768);
+/** CdMix: [L to L, R to L, L to R, R to R], of 0x80. */
+let cdMix = [0x7f / 0x80, 0, 0, 0x7f / 0x80];
 const SAMPLES_PER_CYCLE = 1 / 768;
 const chunks: Int16Array[] = [];
 let cdVolL = 0;
@@ -61,12 +67,24 @@ let base = -1;
 const pending: { sample: number; offset: number; value: number }[] = [];
 const cdQueue: { sample: number; pos: number }[] = [];
 
-for (const row of trace.rows) {
-  const t = row.t as number;
+let t = 0;
+const rows = trace.segments.flatMap((seg, k) => seg.rows.map((row) => ({ k, row })));
+for (const { k, row } of rows) {
+  t++;
   if (t > to) break;
-  game.step(movie.inputs.get(t) ?? 0);
+  if (k > 0 && row === trace.segments[k].rows[0]) {
+    // The next program, with the counter and seed the original's loader left.
+    machine.next();
+    machine.m.w32(A.COUNTER, (row.ctr as number) - 1);
+    machine.ctx.rng.seed = unwindSeed(row.seed as number, row.rand as number);
+  }
+  const game = machine.program;
+  const mseg = movie.segments[k] ?? { inputs: new Map(), pokes: new Map() };
+  const tick = row.t as number;
+  game.step(mseg.inputs.get(tick) ?? 0);
   const s = model.step(game.sound, (row.vs as number | undefined) ?? 1);
-  for (const poke of movie.pokes.get(t) ?? []) {
+  if (s.mono) cdMix = s.mono.mono ? [0.5, 0.5, 0.5, 0.5] : [0x7f / 0x80, 0, 0, 0x7f / 0x80];
+  for (const poke of mseg.pokes.get(tick) ?? []) {
     if (poke.size === 4) game.m.w32(poke.address, poke.value);
     else if (poke.size === 2) game.m.w16(poke.address, poke.value);
     else game.m.w8(poke.address, poke.value);
@@ -108,8 +126,10 @@ for (const row of trace.rows) {
     let l = left[k] * 32768;
     let r = right[k] * 32768;
     if (cdSector && cdIndex < 588 && now >= cdStart) {
-      l += cdSector[cdIndex * 2] * CD_LEVEL * cdVolL;
-      r += cdSector[cdIndex * 2 + 1] * CD_LEVEL * cdVolR;
+      const cl = cdSector[cdIndex * 2];
+      const cr = cdSector[cdIndex * 2 + 1];
+      l += (cl * cdMix[0] + cr * cdMix[1]) * CD_LEVEL * cdVolL;
+      r += (cl * cdMix[2] + cr * cdMix[3]) * CD_LEVEL * cdVolR;
       cdIndex++;
     }
     pcm[k * 2] = Math.max(-32768, Math.min(32767, Math.round(l)));

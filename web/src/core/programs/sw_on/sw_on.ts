@@ -3,8 +3,9 @@
 // a second (VSync(60)); step 3 checks the cards in both ports: a valid save file loads silently,
 // a card without the file but with room goes on; otherwise a message screen (no card, card full,
 // unformatted with a format prompt, error) where Cross checks again and Circle goes on without
-// saving. Then the copyright scrolls up, holds and fades out, and TIT_DEMO starts. No sound, no
-// soft reset. Ported from the decompile of SW_ON.EXE (main 0x800957B0, logic 0x800990F8: 36 steps
+// saving. Then the copyright scrolls up, holds and fades out, and TIT_DEMO starts. No sound of
+// its own (the sound set-up runs; a successful format starts the CD through the watchdog, a
+// quirk, docs/re/shell.md §9), no soft reset. Ported from the decompile of SW_ON.EXE (main 0x800957B0, logic 0x800990F8: 36 steps
 // on state+0x4C, table 0x800940F8; draw 0x80096A48).
 import * as A from '../../addr';
 import { objectClear, objectsClearAll } from '../../objects';

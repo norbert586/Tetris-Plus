@@ -1,7 +1,8 @@
 // RANKING.EXE: the rankings Puzzle Mode (and the other modes) exit to (docs/re/shell.md §7).
 // Two panels drop in, the Classic and Puzzle tables are built from the shared state block and
 // slide in from the sides, hold for 300 frames, and the program starts TIT_DEMO. No input but
-// the soft reset, no sound. Ported from the decompile of RANKING.EXE (main 0x800956C0).
+// the soft reset, no sound (its sound set-up runs; the drive stopped at its start, so the
+// music is gone). Ported from the decompile of RANKING.EXE (main 0x800956C0).
 import * as A from '../../addr';
 import { objectClear, objectsClearAll } from '../../objects';
 import { Program, type ProgramContext } from '../../program';

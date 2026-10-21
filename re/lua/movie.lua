@@ -23,7 +23,8 @@
 --               also holds the input of tick TICK+1
 --   TP_LOAD     a save state written by TP_SAVE_AT at tick T: start there instead of booting.
 --               Inputs up to T+1 come from the saved run; the trace starts at T+2
---   TP_RAM_AT   ticks at which to dump main RAM (ram_TICK.bin); the last tick is always dumped
+--   TP_RAM_AT   ticks at which to dump main RAM (ram_TICK.bin; ram_sSEG_TICK.bin in a movie's
+--               later programs, whose ticks count from their start); the last tick is always dumped
 --   TP_VRAM_AT  ticks at which to dump VRAM (vram_TICK.bin, 1024x512 16-bit) and main RAM
 --               (ram_TICK.bin) at the sample point, when the tick's ordering table is in RAM
 --               and has been drawn
@@ -517,8 +518,10 @@ local function afterPadRead(regs)
         end
         if shotTicks[t] then pending.shot = t end
         if saveTicks[t] then pending.save = t end
-        if ramTicks[t] or vramTicks[t] then dumpRam(string.format('ram_%05d.bin', t)) end
-        if vramTicks[t] then dumpVram(string.format('vram_%05d.bin', t)) end
+        -- Ticks count from each program's start: a later program's dumps carry its segment.
+        local dumpName = segIndex > 1 and string.format('%%s_s%d_%05d.bin', segIndex, t) or string.format('%%s_%05d.bin', t)
+        if ramTicks[t] or vramTicks[t] then dumpRam(string.format(dumpName, 'ram')) end
+        if vramTicks[t] then dumpVram(string.format(dumpName, 'vram')) end
         for _, p in ipairs(seg.pokes[t] or {}) do
             local a = phys(p.address)
             if p.size == 4 then ffi.cast('uint32_t*', mem + a)[0] = bit.tobit(p.value)
