@@ -445,7 +445,7 @@ local function saveState(t)
     file:writeMoveSlice(PCSX.createSaveState())
     file:close()
     local side = io.open(name .. '.json', 'w')
-    side:write(string.format('{"tick":%d,"base":%d,"movie":"%s","spu":%s}\n', t, base, movie.name, TpSpuSnapshot()))
+    side:write(string.format('{"tick":%d,"base":%d,"seg":%d,"movie":"%s","spu":%s}\n', t, base, segIndex, movie.name, TpSpuSnapshot()))
     side:close()
     log('save state ' .. name .. '.sstate')
 end
@@ -737,7 +737,12 @@ TpMovieListener = PCSX.Events.createEventListener('GPU::Vsync', function()
         TpSpuRestore(side:match('"spu":%[([%d,]*)%]'))
         PCSX.loadSaveState(Support.File.open(loadPath, 'READ'))
         active = true
-        segIndex = 1
+        -- The segment the state was saved in (older states: the first), so long movies can be
+        -- recorded in parts: Redux's event listener leaks a Lua stack slot a frame, and the
+        -- stack overflows after about 65,000 frames.
+        segIndex = tonumber(side:match('"seg":(%d+)') or '1')
+        seg = movie.segments[segIndex]
+        prog = PROGRAMS[seg.name]
         previous = {}
         print(string.format('frame %d: loaded %s at tick %d', frame, loadPath, tick))
         return
