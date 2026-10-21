@@ -1,0 +1,68 @@
+tpm 1
+boot power
+# select-card: a blank card in port 1, none in port 2. Option mode (as select-option), the card
+# rows. Options, Load: Circle at the port prompt; Load from port 1 ("no data", 120 frames, back
+# to the prompt); port 2 (no card); Circle. Options, Save to port 1: no file, room on the card,
+# the file is created with the whole persistent block. Rankings, Save to port 1: the file is
+# there, overwrite? Cross on No (back to the prompt); port 1 again, Circle at the question;
+# port 1 again, Left to Yes, Cross: the rankings are written into the file. Rankings, Load from
+# port 1; Options, Load from port 1; Options, Save to port 2 (no card). Exit; Down, Cross,
+# Cross: Edit (SELECT exits to EDIT.EXE, not traced).
+card 2 none
+program SW_ON
+program TIT_DEMO
+100 1 START
+program TITLE
+100 1 START
+program SELECT
+70 2 LEFT
+80 2 CROSS
+110 2 CROSS
+220 2 DOWN
++6 2 DOWN
++6 2 DOWN
++6 2 DOWN
++6 2 DOWN
++6 2 DOWN
++6 2 DOWN
++6 2 DOWN
++6 2 DOWN
++6 2 DOWN
++10 2 CROSS
++10 2 CIRCLE
++10 2 CROSS
++10 2 CROSS
++140 2 RIGHT
++10 2 CROSS
++140 2 CIRCLE
++10 2 RIGHT
++10 2 CROSS
++10 2 CROSS
++20 2 DOWN
++10 2 RIGHT
++10 2 CROSS
++10 2 CROSS
++10 2 CROSS
++10 2 CROSS
++10 2 CIRCLE
++10 2 CROSS
++10 2 LEFT
++10 2 CROSS
++30 2 LEFT
++10 2 CROSS
++10 2 CROSS
++20 2 UP
++10 2 LEFT
++10 2 CROSS
++10 2 CROSS
++20 2 RIGHT
++10 2 CROSS
++10 2 RIGHT
++10 2 CROSS
++140 2 CIRCLE
++10 2 DOWN
++6 2 DOWN
++10 2 CROSS
++90 2 DOWN
++10 2 CROSS
++30 2 CROSS

@@ -1,0 +1,57 @@
+tpm 1
+boot power
+# select-card-saved: port 1 holds card-save's card (a save file; SW_ON loads it at power-on),
+# port 2 an unformatted card. Option mode (as select-option), then: Options, Load from port 1;
+# Rankings, Load from port 1; Options, Save to port 1 (overwrite? Left to Yes, Cross);
+# Rankings, Save to port 2: unformatted, format? Cross on No (back to the prompt); port 2 again,
+# Left to Yes, Cross: formatted, then the file is created. Exit; Right, Cross, Cross: Puzzle Mode
+# starts with the loaded options and rankings.
+card 1 re/cards/egypt1-saved.mcd.gz
+card 2 re/cards/unformatted.mcd.gz
+program SW_ON
+program TIT_DEMO
+100 1 START
+program TITLE
+100 1 START
+program SELECT
+70 2 LEFT
+80 2 CROSS
+110 2 CROSS
+220 2 DOWN
++6 2 DOWN
++6 2 DOWN
++6 2 DOWN
++6 2 DOWN
++6 2 DOWN
++6 2 DOWN
++6 2 DOWN
++6 2 DOWN
++6 2 DOWN
++10 2 CROSS
++10 2 CROSS
++20 2 DOWN
++10 2 CROSS
++10 2 CROSS
++20 2 UP
++10 2 RIGHT
++10 2 CROSS
++10 2 CROSS
++10 2 LEFT
++10 2 CROSS
++20 2 DOWN
++10 2 RIGHT
++10 2 CROSS
++10 2 RIGHT
++10 2 CROSS
++10 2 CROSS
++10 2 RIGHT
++10 2 CROSS
++10 2 LEFT
++10 2 CROSS
++30 2 DOWN
++10 2 CROSS
++90 2 RIGHT
++10 2 CROSS
++30 2 CROSS
+program PAZLE
+end 60

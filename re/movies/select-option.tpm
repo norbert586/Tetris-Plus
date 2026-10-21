@@ -1,0 +1,143 @@
+tpm 1
+boot power
+# select-option: power-on (blank card) to the mode select as boot-select; Left, Cross, Cross:
+# Option mode. Up at the top row (no move); every row's keys: the rotation buttons with pad 1
+# and pad 2 (Right through all eight, wrapping and skipping the other row's button; Left),
+# difficulty and VS setting (Right wrapping 3 -> 0, Left wrapping 0 -> 3), stereo (Right, Left),
+# music arrangement (Right, Right+Left: no change, Left), the music test (Left wraps to 49,
+# Right, Cross plays a track), the sound test (Left, Right, Cross plays effects), BGM volume
+# (Right to the top, Left to 0, Right), SE volume, the two card rows (Right, Left), Down at the
+# last row (no move), Cross on Exit: back to the mode select; Up, Cross, Cross: VS Puzzle
+# (SELECT exits to VSPUZ.EXE, not traced).
+program SW_ON
+program TIT_DEMO
+100 1 START
+program TITLE
+100 1 START
+program SELECT
+70 2 LEFT
+80 2 CROSS
+110 2 CROSS
+220 2 UP
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 LEFT
++6 2 LEFT
++6 2 2:RIGHT
++6 2 2:RIGHT
++6 2 2:RIGHT
++6 2 2:RIGHT
++6 2 2:RIGHT
++6 2 2:RIGHT
++6 2 2:RIGHT
++6 2 2:RIGHT
++6 2 2:RIGHT
++6 2 2:LEFT
++6 2 RIGHT
++0 2 2:LEFT
++8 2 DOWN
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 LEFT
++6 2 2:LEFT
++6 2 2:LEFT
++6 2 2:LEFT
++6 2 2:LEFT
++6 2 2:LEFT
++6 2 2:LEFT
++6 2 2:LEFT
++6 2 2:LEFT
++6 2 2:LEFT
++6 2 2:RIGHT
++8 2 DOWN
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 LEFT
++6 2 LEFT
++6 2 RIGHT+LEFT
++8 2 DOWN
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 LEFT
++6 2 LEFT
++8 2 DOWN
++6 2 RIGHT
++6 2 LEFT
++6 2 RIGHT
++8 2 DOWN
++6 2 RIGHT
++6 2 RIGHT+LEFT
++6 2 LEFT
++6 2 LEFT
++8 2 DOWN
++6 2 LEFT
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 CROSS
++8 2 DOWN
++6 2 LEFT
++6 2 RIGHT
++6 2 RIGHT
++6 2 CROSS
++20 2 RIGHT
++6 2 CROSS
++20 2 RIGHT
++6 2 CROSS
++20 2 DOWN
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 LEFT
++6 2 LEFT
++6 2 LEFT
++6 2 LEFT
++6 2 LEFT
++6 2 LEFT
++6 2 LEFT
++6 2 LEFT
++6 2 LEFT
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++6 2 RIGHT
++8 2 DOWN
++6 2 RIGHT
++6 2 LEFT
++6 2 LEFT
++8 2 DOWN
++6 2 RIGHT
++6 2 LEFT
++6 2 RIGHT+LEFT
++8 2 DOWN
++6 2 LEFT
++6 2 RIGHT
++8 2 DOWN
++8 2 DOWN
++8 2 CROSS
++90 2 UP
++10 2 CROSS
++30 2 CROSS

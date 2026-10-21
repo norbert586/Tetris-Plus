@@ -1,0 +1,40 @@
+tpm 1
+boot power
+# select-card-full: a blank card in port 1, a full card (15 blocks of other files) in port 2.
+# Option mode (as select-option), then: Options, Save to port 2: no file and no room ("card
+# full", 120 frames, back to the prompt), Circle; Options, Load from port 2 ("no data"),
+# Circle. Exit; on the mode select, Start+Select held: the soft reset (SELECT exits to TITLE).
+card 2 re/cards/full.mcd.gz
+program SW_ON
+program TIT_DEMO
+100 1 START
+program TITLE
+100 1 START
+program SELECT
+70 2 LEFT
+80 2 CROSS
+110 2 CROSS
+220 2 DOWN
++6 2 DOWN
++6 2 DOWN
++6 2 DOWN
++6 2 DOWN
++6 2 DOWN
++6 2 DOWN
++6 2 DOWN
++6 2 DOWN
++6 2 DOWN
++10 2 RIGHT
++10 2 CROSS
++10 2 RIGHT
++10 2 CROSS
++140 2 CIRCLE
++10 2 LEFT
++10 2 CROSS
++10 2 RIGHT
++10 2 CROSS
++140 2 CIRCLE
++10 2 DOWN
++6 2 DOWN
++10 2 CROSS
++90 125 START+SELECT

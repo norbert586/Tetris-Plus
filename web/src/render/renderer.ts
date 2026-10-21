@@ -21,7 +21,7 @@ export interface Drawable {
  * bucket priority + bucket; docs/re/shell.md §6).
  */
 export interface DrawStyle {
-  kind: 'pazle' | 'shell';
+  kind: 'pazle' | 'shell' | 'titdemo';
   yBias?: number;
   bucket?: number;
   /** Which objects are drawn: image above 0x10000 (RANKING, the default) or any non-zero image (TITLE). */
@@ -145,6 +145,7 @@ export class Renderer {
     const ot = new OrderingTable();
     for (const b of g.boxes) ot.sortBoxFill(b.box, b.pri);
     if (this.style.kind === 'shell') this.shellObjectsDraw(g, ot);
+    else if (this.style.kind === 'titdemo') this.titDemoObjectsDraw(g, ot);
     else this.objectsDraw(g, ot);
     ot.sortClear(0, 0, 0, 0, top, 320, 240);
 
@@ -285,6 +286,70 @@ export class Renderer {
         s.y = s16(s.y + sy + 4 + ((s16(s.h) >> 1) - 0x78));
         ot.sortSprite(s, pri);
       }
+    }
+  }
+
+  /**
+   * TIT_DEMO's objects_draw (0x80096854): objects 1049 down to 0 with a non-zero image, all in
+   * bucket 20 - n/50. Kind -1 is a box in rand() colours (0x80096AD4), -2/-3 fade boxes
+   * (0x80097D08 subtractive, 0x80097DB8 additive); the rest GsSortSprite only (0x80096080), at
+   * the per-image offset (table 0x800ADC68) plus a shake offset (table 0x800AEC68 by +0x20, times
+   * the amplitude in +0x1C).
+   */
+  private titDemoObjectsDraw(g: Drawable, ot: OrderingTable): void {
+    const m = g.m;
+    let randomBox = 0;
+    for (let n = A.OBJ_COUNT - 1; n >= 0; n--) {
+      const o = A.obj(n);
+      const image = m.s32(o + A.O_IMAGE);
+      if (image === 0) continue;
+      const pri = (20 - Math.trunc(n / 50)) & 0xffff;
+      const kind = m.s32(o + A.O_KIND);
+      if (kind === -1) {
+        const [r, gr, b] = g.boxColors.slice(3 * randomBox, 3 * randomBox + 3);
+        randomBox++;
+        ot.sortBoxFill({ attribute: 0, x: m.s16(o + A.O_X), y: s16(m.s32(o + A.O_Y) + 4), w: m.u16(o + A.O_SCALE_X), h: m.u16(o + A.O_SCALE_Y), r, g: gr, b }, pri);
+        continue;
+      }
+      if (kind === -2 || kind === -3) {
+        const c = Math.trunc(((0x40 - m.s32(o + A.O_4C)) * 0xff) / 0x40) & 0xff;
+        ot.sortBoxFill(
+          {
+            attribute: kind === -2 ? 0x60000000 : 0x50000000,
+            x: s16(m.s16(o + A.O_X) - 0xa0),
+            y: s16(m.s16(o + A.O_Y) + 4 - 0x78),
+            w: m.u16(o + A.O_VX),
+            h: m.u16(o + A.O_VY),
+            r: c,
+            g: c,
+            b: c,
+          },
+          pri,
+        );
+        continue;
+      }
+      const item = image - 0x10001;
+      const t = item === -1 ? this.zeroSprite : this.templates[item];
+      if (!t) throw new Error(`object ${n}: image 0x${image.toString(16)} has no template`);
+      const k = (image - 0x10000) * 8;
+      const shake = Math.imul(m.s32(0x800aec68 + 4 * m.s32(o + A.O_20)), m.s32(o + A.O_PLAYER)) >> 16;
+      const sx = s16(((m.s32(o + A.O_X) + m.s32(0x800adc68 + k)) >> 16) + 0x10 + shake - 0xb4);
+      const sy = s16(((m.s32(o + A.O_Y) + m.s32(0x800adc6c + k)) >> 16) - 0x70);
+      const flip = m.u32(o + A.O_FLIP);
+      let attr = (flip & 1) << 23;
+      if (flip & 2) attr |= 0x400000;
+      if (kind !== 0) attr = (attr | 0x40000000 | (((kind - 1) & 3) << 28)) >>> 0;
+      const palette = m.u8(o + A.O_PALETTE);
+      const s: Sprite = { ...t };
+      s.x = s16(sx + t.x + (t.w >> 1));
+      s.y = s16(sy + t.y + (t.h >> 1));
+      s.attribute = (attr | t.attribute) >>> 0;
+      s.tpage = s16(t.tpage + palette * 0x10);
+      s.cy = s16(t.cy + palette);
+      s.scalex = s16(m.s32(o + A.O_SCALE_X) + 0x1000);
+      s.scaley = s16(m.s32(o + A.O_SCALE_Y) + 0x1000);
+      s.rotate = m.s32(o + A.O_ROT);
+      ot.sortSprite(s, pri);
     }
   }
 }

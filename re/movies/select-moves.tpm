@@ -1,0 +1,39 @@
+tpm 1
+boot power
+# select-moves: power-on (blank card) to the mode select as boot-select. Every D-pad move from
+# every item (Right x5, Left x5, Down x5, Up x5 walk all 20 neighbours), Right+Up together (no
+# move), Cross then Circle during the zoom (zoom-out), Cross then Circle on the zoomed item
+# (zoom-out), then Cross, Cross on Classic: SELECT exits to NOMAL.EXE (not traced).
+program SW_ON
+program TIT_DEMO
+100 1 START
+program TITLE
+100 1 START
+program SELECT
+70 2 RIGHT
++8 2 RIGHT
++8 2 RIGHT
++8 2 RIGHT
++8 2 RIGHT
++8 2 LEFT
++8 2 LEFT
++8 2 LEFT
++8 2 LEFT
++8 2 LEFT
++8 2 DOWN
++8 2 DOWN
++8 2 DOWN
++8 2 DOWN
++8 2 DOWN
++8 2 UP
++8 2 UP
++8 2 UP
++8 2 UP
++8 2 UP
++8 2 RIGHT+UP
++10 2 CROSS
++8 2 CIRCLE
++30 2 CROSS
++30 2 CIRCLE
++30 2 CROSS
++30 2 CROSS
