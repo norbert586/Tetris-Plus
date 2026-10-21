@@ -8,6 +8,10 @@
 // Card I/O blocks inside one logic tick in the original (TestEvent loops), so it costs no ticks.
 import * as A from './addr';
 import type { Game } from './game';
+import type { Mem } from './mem';
+
+/** What the BIOS calls need of a program: its memory (any program with card code, not only PAZLE). */
+export type HasMem = { m: Mem };
 
 export const CARD_SIZE = 0x20000;
 const FRAME = 0x80;
@@ -79,7 +83,7 @@ interface Fd {
 }
 
 /** Splits "bu00:NAME" / "bu10:NAME" into the port (0 or 1) and the file name. */
-function device(g: Game, path: number): { port: number; name: string } | null {
+function device(g: HasMem, path: number): { port: number; name: string } | null {
   let s = '';
   for (let a = path; g.m.u8(a) !== 0 && s.length < 64; a++) s += String.fromCharCode(g.m.u8(a));
   const m = /^bu([01])0:(.*)$/.exec(s);
@@ -133,7 +137,7 @@ export class CardSlots {
   }
 
   /** open(path, mode): mode bit 0x200 creates a file of mode >> 16 blocks. Returns fd or -1. */
-  open(g: Game, path: number, mode: number): number {
+  open(g: HasMem, path: number, mode: number): number {
     const dev = device(g, path);
     const card = dev && this.cards[dev.port];
     if (!dev || !card || !card.formatted()) return -1;
@@ -162,7 +166,7 @@ export class CardSlots {
   }
 
   /** read(fd, buffer, length) / write(fd, buffer, length): whole 128-byte sectors, at the position. */
-  transfer(g: Game, fd: number, buf: number, len: number, write: boolean): number {
+  transfer(g: HasMem, fd: number, buf: number, len: number, write: boolean): number {
     const f = this.fds.get(fd);
     if (!f || len % FRAME !== 0) return -1;
     const blocks = fileBlocks(f.card.data, f.first);
@@ -189,7 +193,7 @@ export class CardSlots {
   }
 
   /** delete(path): marks the file's directory entries deleted (0x51-0x53 to 0xA1-0xA3). */
-  remove(g: Game, path: number): number {
+  remove(g: HasMem, path: number): number {
     const dev = device(g, path);
     const card = dev && this.cards[dev.port];
     if (!dev || !card) return 0;
@@ -205,14 +209,14 @@ export class CardSlots {
   }
 
   /** firstfile(pattern, dirent) / nextfile(dirent): the files in use; fills name, attr, size, head. */
-  firstFile(g: Game, path: number, dirent: number): number {
+  firstFile(g: HasMem, path: number, dirent: number): number {
     const dev = device(g, path);
     if (!dev || !this.cards[dev.port]) return 0;
     this.dirent = { port: dev.port, pattern: dev.name, at: 1 };
     return this.nextFile(g, dirent);
   }
 
-  nextFile(g: Game, dirent: number): number {
+  nextFile(g: HasMem, dirent: number): number {
     const it = this.dirent;
     const card = it && this.cards[it.port];
     if (!it || !card) return 0;
@@ -235,7 +239,7 @@ export class CardSlots {
   }
 
   /** format("bu00:"): 1 on success. */
-  format(g: Game, path: number): number {
+  format(g: HasMem, path: number): number {
     const dev = device(g, path);
     const card = dev && this.cards[dev.port];
     if (!card) return 0;
