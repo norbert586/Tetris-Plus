@@ -21,9 +21,11 @@ const LONG_TICK_CD = -36_400;
 
 /**
  * libsnd's flush counter (its history index, mod 16) at each program's first sample, read from
- * RAM dumps of the original (docs/re/shell.md §9): the flushes since the program's SsStart,
- * whatever the load took before it. The first tick spans the load, so the index it starts with
- * is this minus that tick's vblanks. PAZLE's agrees with docs/re/audio.md §3 (14 at tick 2).
+ * RAM dumps of the original (docs/re/shell.md §10): the flushes since the program's SsStart.
+ * What the load takes before SsStart doesn't change it (SW_ON: 12 with first ticks of 27, 99 and
+ * 170 vblanks); what follows can by a vblank (SELECT: 8, or 7 with select-card's cards). The
+ * first tick spans the load, so the index it starts with is this minus that tick's vblanks.
+ * PAZLE's agrees with docs/re/audio.md §3 (14 at tick 2).
  */
 export const FIRST_SAMPLE_FLUSHES: Record<string, number> = {
   PAZLE: 13,

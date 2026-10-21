@@ -345,3 +345,128 @@ On the port: 96,709 ticks (27 minutes): SW_ON 370, TIT_DEMO 101, TITLE 101, SELE
 Mode 94,927 (the 100 stages, five zone clears, the ending and credits, the game over, name
 entry, the save), RANKING 440, TIT_DEMO 101, then TITLE.
 
+
+## 10. Sound of every program
+
+Every program the port runs now makes the original's sound: SW_ON, TIT_DEMO, TITLE, SELECT and
+RANKING produce the same `SoundCall`s Puzzle Mode does, one audio model follows the machine from
+program to program, and `npm run trace -- --render --audio` is identical on the whole corpus.
+
+### 10.1 The sound code in each program
+
+Each program links its own copy of PAZLE's sound code (`se_play`, `bgm_request`,
+`bgm_play_track`, the CD report callback, the main loop's CD watchdog, the set-up) and of
+libsnd, at its own addresses. `web/src/core/sound.ts` keeps one `SoundAddresses` table per
+program (`PROGRAM_SOUND`); `Program` (`program.ts`) calls `sePlay`, `bgmRequest`, the set-up
+and the watchdog through its program's table, so the ports call them where the originals do.
+
+| | PAZLE | SW_ON | TIT_DEMO | TITLE | SELECT | RANKING |
+|---|---|---|---|---|---|---|
+| `se_play` | `0x80095778` | — | — | `0x80094D30` | `0x80094D2C` | — |
+| `bgm_request` | `0x80095DA8` | — (`bgm_play_track`-like `0x800953FC`, uncalled) | `0x800951FC` | `0x800950E8` | `0x80095140` | — (`0x80095460`, uncalled) |
+| Sound set-up | `0x800961C4` | `0x800955A0` | `0x80095544` | `0x80095518` | `0x800955F0` | `0x800954EC` |
+| CD callback | `0x80095C5C` | `0x80094FA4` | `0x800950D4` | `0x80094FC0` | `0x80094FF4` | `0x8009507C` |
+| Watchdog (flag) | `bgm_poll` `0x80095B08` (`0x800ED394`) | in main (`0x800B5D04`) | `0x80094FBC` (`0x800B5DDC`) | in main (`0x800B42F0`) | in main (`0x800B911C`) | `0x80094F64` (`0x800B25A8`) |
+| Music volumes (+0x10 effect volumes, +0x20 effects) | `0x800DC45C` | `0x800AF0A8` | `0x800AECDC` | `0x800AD868` | `0x800B1FB4` | `0x800ABC90` |
+| Track table (end, mode, priority) | `0x800DC610` | `0x800AF25C` | `0x800AEE8C` | `0x800ADA18` | `0x800B2168` | `0x800ABE40` |
+| `bgm_request` state (playing side, id, wanted ×2, join ×2) | `0x800ED338` | `0x800B5CA8` | `0x800B5D80` | `0x800B4294` | `0x800B90C0` | `0x800B254C` |
+| Side (`se_play`'s player), zones, zone tunes | `0x800EEAD0`, `0x800EEBB0`, `0x800DC880` | — | `0x800B5D18`, `0x800B5D6C`, `0x800AF0FC` | `0x800B4328`, `0x800B4334`, `0x800ADC88` | `0x800B90A8`, `0x800B90AC`, `0x800B23D8` | — |
+| libsnd pitch table, flush index | `0x800EC94C`, `0x800EDBA8` | `0x800B52BC`, `0x800B6514` | `0x800B5338`, `0x800B66B4` | `0x800B38A0`, `0x800B4B78` | `0x800B86B4`, `0x800B994C` | `0x800B1B60`, `0x800B2E00` |
+
+The tables hold the same values in every program (volumes, effects, tracks, pitches); only the
+words before the track table differ, which is what a play of "track 0" reads (below).
+
+Who calls what:
+- **SW_ON** plays nothing itself; its set-up runs, and the format quirk (§7.2) starts the CD.
+- **TIT_DEMO** requests the story music (request 2, track 2, plays once) on every frame of its
+  phase 0; the first call plays it, the others find it already playing and return.
+- **TITLE**: request `0x22` (track 3, looping) as the logo starts, effect 0 on Start, effect `0x19`.
+- **SELECT**: request `0x2F` at the mode select, `0x34` (stop) into Option mode and out of it,
+  effects on every move. Option mode adds the only direct calls: the **music test** sets
+  `bgm_request`'s playing id to the track, sets the CD volume and plays the track looping
+  (no request); the **music volume** row calls `SsSetSerialVol` every frame unless the playing
+  id is `0x34`; the **stereo** row calls `SsSetMono`/`SsSetStereo` and `CdMix` at once (the
+  new `mono` call). The effect volume row only changes the setting.
+- **RANKING**: nothing; its set-up runs.
+
+### 10.2 What the model does at a program's start
+
+Each program's first step records `init` (its main's `CdInit`, then its sound set-up). The
+model (`web/src/audio/model.ts`) then, at the start of that tick (the load):
+
+- **The drive.** `CdInit` sends CdlInit, which (Redux's `cdlInit`) stops playing and puts the
+  head at 00:02:00; the program's CD variables are fresh BSS (no track, no loop). Nothing of the
+  previous program's music survives: the loader's reads had stopped it anyway. This is why
+  Puzzle Mode's head position was fitted at 150 in Phase 8.
+- **The SPU.** All voices keyed off, the mix, CD volume (the program's music volume table)
+  and reverb registers as Puzzle Mode's set-up writes them: every program's tick 1 shows the
+  same `koff`, `spu` and `rev`.
+- **libsnd.** A fresh voice manager on the program's own pitch table, mono from the setting.
+  Its flush history index (§3 of audio.md) counts the flushes since the program's `SsStart`;
+  read from RAM dumps at each program's first sample (`TP_RAM_AT=1`; `movie.lua` now names a
+  later program's dumps `ram_sSEG_TICK.bin`): PAZLE 13, SW_ON 12, TIT_DEMO 15, TITLE 15,
+  SELECT 8, RANKING 8. SW_ON's is 12 whether its first tick took 27, 99 or 170 vblanks (the
+  card check before `SsStart`); SELECT's is 7 in `select-card`, one vblank of the image load
+  after `SsStart` that the port can't know. The corpus is identical with either.
+- **CdMix** to stereo or mono, which the player applies to the CD's channels.
+
+`bgm_request`'s state (playing side 0, ids `0x34`) is set by `soundInit`; Puzzle Mode's port
+now does it too (before, its playing id started at 0 instead of `0x34`, which only matters for
+a stop request before any music, which no movie had).
+
+### 10.3 The CD watchdog and the end of the disc
+
+The callback sets the watchdog flag on any interrupt but DataReady; the main loop's tail then
+calls `CdReset(0)` and plays the current track again from its start (`restart`). The drive model
+now does what Redux does at the end of the disc: playing past the lead-out stops the drive with a
+DataEnd interrupt (`[4, 2, 0, …]` in the trace's `cdr`). The CdReset runs right after the
+sample and blocks the tick (8-10 vblanks); the drive stops there (CdlInit), and the commands
+follow when it returns.
+
+**The format quirk** (SW_ON and SELECT store `format()`'s result in the flag): the next tick
+restarts the current track. In SW_ON that is track 0, so the TOC's entry 0, the lead-out
+63:46:00 (the TOC is the boot program's at `state+0x20550`; the model takes it from the disc,
+and entry 0 is the disc's end rounded down to a second, the same 53 entries): the head seeks
+from 00:02:00 across the disc (0.86 s), plays the last 53 sectors (0.71 s, too short for a
+position report) and hits the end; DataEnd sets the flag again, and the cycle repeats every
+94-97 ticks until SW_ON exits (`sw-on-format`: four plays, at ticks 164, 259, 356 and 453, each matching). In SELECT,
+the track bgm_request last played (`select-card-saved`: track 47, stopped by request `0x34`
+but still spinning) starts again from its start, audible only if the volume is up. Puzzle
+Mode's `bgm_poll` is ported too: a non-looping track left to run into the end of the disc would
+restart the same way (no movie gets there).
+
+### 10.4 The player
+
+`AudioPlayer` (`web/src/audio/player.ts`) takes the machine's memory once and follows
+whichever program runs: nothing is read at Puzzle Mode's addresses any more. CdMix is a gain
+matrix that each `init` and the stereo row set (`0x7F` per side, or `0x40` from each side to
+both). The shell ticks the model with `1 + stall` vblanks, so the music runs on through a
+held picture (`VSync(n)`). `tools/render-audio.ts` renders a whole multi-program movie.
+
+### 10.5 Verification
+
+`npm run trace -- --render --audio`: all 30 movies with traces identical (sound per tick; CD
+commands and reports within a tick, as audio.md §6), 106,637 ticks, 35,619 of them outside
+Puzzle Mode: SW_ON 7,311, TIT_DEMO 12,993, TITLE 8,768, SELECT 5,227, RANKING 1,320. Outside
+Puzzle Mode the corpus has 165 key-ons, 113 CD commands and 3,844 reports. By movie:
+
+| Movie | Ticks | | Movie | Ticks |
+|---|---|---|---|---|
+| boot-select | 1,359 | | select-option | 1,775 |
+| boot-story | 4,622 | | sw-on-format | 529 |
+| ranking | 5,501 | | sw-on-full | 517 |
+| attract | 11,544 | | sw-on-nocard | 517 |
+| card-continue | 1,600 | | sw-on-noformat | 567 |
+| card-save | 5,307 | | sw-on-port2 | 371 |
+| select-card | 1,839 | | sw-on-saved | 370 |
+| select-card-full | 1,441 | | tit-demo-skip | 831 |
+| select-card-saved | 1,393 | | tit-demo-start | 1,581 |
+| select-moves | 1,017 | | title-early | 2,365 |
+| title-retire | 5,546 | | title-skip | 2,565 |
+
+and the Puzzle Mode movies as before (atlantis20-ending 8,451, egypt1-climb 5,108, egypt1-idle
+17,600, egypt20-zoneclear 4,000, hundred-select 6,731, input-edges 4,368, knossos2-lines
+1,832, pause-retire 5,390). The traces needed no new hooks: `programs.lua` already hooked each
+program's callback and CD calls, and the SPU's registers are watched whatever runs. Re-running
+`boot-select`, `ranking`, `select-card`, `sw-on-format` and `sw-on-port2` for the RAM dumps gave
+the committed traces' values on every field. `npm test` (87 tests) and `npx tsc --noEmit` pass.
