@@ -72,6 +72,12 @@ local ROUTES = {
         taps = { { 'START', 300, 3000, 90 } },
         presses = { { 'RIGHT', 3400, 4 }, { 'CROSS', 3500, 4 }, { 'CROSS', 3700, 4 } },
     },
+    -- With a Tetris Plus save on the card in port 1, SW_ON loads it and the programs after it
+    -- start about 90-110 frames later, so the mode select's presses come 120 frames later.
+    ['puzzle-saved'] = {
+        taps = { { 'START', 300, 3000, 90 } },
+        presses = { { 'RIGHT', 3520, 4 }, { 'CROSS', 3620, 4 }, { 'CROSS', 3820, 4 } },
+    },
 }
 
 local function fail(text)

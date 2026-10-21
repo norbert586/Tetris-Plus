@@ -1,5 +1,6 @@
 // Plays a movie on the core and compares it with the original's trace, tick by tick.
 import { Game, NotPorted } from '../src/core/game';
+import { powerOnLoad } from '../src/core/card';
 import type { AudioModel } from '../src/audio/model';
 import type { Renderer } from '../src/render/renderer';
 import { movieCards, type Movie } from '../tools/movie';
@@ -67,12 +68,14 @@ export interface CompareResult {
 /** A game set up as the trace's first tick found it (counter and seed from the trace, the movie's cards). */
 export function gameForTrace(trace: Trace, movie?: Movie): Game {
   const first = trace.rows[0];
-  return new Game({
+  const game = new Game({
     counter: (first.ctr as number) - 1,
     seed: first.seed as number,
     difficulty: first.difficulty as number,
     cards: movie ? movieCards(movie, join(import.meta.dirname, '..', '..')) : undefined,
   });
+  if (movie) powerOnLoad(game); // SW_ON's card load at power-on
+  return game;
 }
 
 export function compareMovie(movie: Movie, trace: Trace, opts: CompareOptions = {}): CompareResult {

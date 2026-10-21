@@ -4,6 +4,9 @@ A faithful browser version of Tetris Plus's Puzzle Mode (the professor mode), re
 original PS1 game (US, SLUS-00338) and verified against it in an emulator.
 
 - **Plan:** `docs/RESEARCH_AND_PLAN.md` (phases, fidelity rules, verification layers, ground rules).
+- **In progress:** `docs/re/shell.md` (Phase 9: the memory card in `web/src/core/card.ts` and
+  `screens/cardui.ts`, checked against the original down to the card image; the browser shell in
+  `web/src/shell/` and `web/src/view/main.ts`; the survey of the programs around Puzzle Mode).
 - **Latest results:** `docs/re/audio.md` (Phase 8: the sound in `web/src/audio/`: libsnd's voice
   manager, the SPU, the CD drive and the program's CD callback; every key-on, register write, CD
   command and report of the corpus matches the original's, checked by `npm test` in `web/`).
@@ -58,6 +61,9 @@ original PS1 game (US, SLUS-00338) and verified against it in an emulator.
     `npx tsx tools/simulate.ts ../re/movies/<name>.tpm [--to T] [--fields a,b]`.
   - Movies can poke memory after a tick (`poke TICK ADDRESS VALUE [SIZE]`) to set up a scenario;
     both the emulator and the core apply it.
+  - Movies choose the memory cards: `card PORT blank|none|FILE` (FILE a `.mcd` or `.mcd.gz` under
+    the repo, e.g. `re/cards/egypt1-saved.mcd.gz`); runs copy the cards out as `card1.mcd`,
+    `card2.mcd`. With a save on card 1, use `boot puzzle-saved` (SW_ON's load delays the route).
   - Regenerate the core's data after a disc fetch:
     `python3 re/tools/extract_core_rom.py ../tp-private/files/PAZLE.EXE web/src/core/rom.ts`;
     boot defaults from a tick-1 RAM dump (`TP_RAM_AT=1`):

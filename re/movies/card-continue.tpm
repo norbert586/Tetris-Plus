@@ -1,5 +1,5 @@
 tpm 1
-boot puzzle
+boot puzzle-saved
 card 1 re/cards/egypt1-saved.mcd.gz
 end 1600
 # card-continue: the menu's Continue with the card card-save.tpm wrote in port 1. Port 2 (a blank
