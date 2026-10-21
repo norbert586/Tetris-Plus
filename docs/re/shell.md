@@ -11,7 +11,10 @@ complete run. This page records what is done so far.
 | Memory card: the menu's Continue and the save screen's card steps | Ported. `card-save` and `card-continue` match the original: every traced field, every frame, and the 128 KB card image byte for byte |
 | Browser shell: keyboard and gamepad input, remapping, scaling, scanlines, fullscreen, pausing, master volume | Done (§3) |
 | Persistence: the cards in the browser, import/export as `.mcd` | Done (§4) |
-| The programs around Puzzle Mode: copyright and card check, story intro, title, mode select with Options, rankings | Surveyed (§5); not ported. Until they are, the shell starts Puzzle Mode directly and starts it again when it exits |
+| Several programs in one trace, the port's `Machine` | Done (§6): the tracer follows a movie through every program; the port runs them in turn on shared memory |
+| RANKING.EXE | Ported (§7): identical to the original, frames included |
+| SW_ON, TIT_DEMO, TITLE, SELECT | Being ported (§7); recorded movies `boot-story` and `boot-select`. Until they are, the shell gives way to Puzzle Mode where a program isn't ported |
+| JLOGO.EXE (the Jaleco logo) | Its video as MP4 (§8) |
 | A complete run on the port | Open |
 
 ## 2. The memory card
@@ -152,3 +155,79 @@ A survey of SW_ON, TIT_DEMO, TITLE, SELECT and RANKING (and JLOGO, HOW_P) found:
   stereo, music arrangement, volumes, sound test, card load/save.
 - **Size.** About 530 game functions (SW_ON 128, TIT_DEMO 109, TITLE 94, SELECT 129,
   RANKING 75), roughly 64 KB of new logic beyond what PAZLE shares.
+
+## 6. Several programs: the harness and the `Machine`
+
+Every program loads at `0x80094000` and shares the boot program's state block, so the
+verification follows the original from program to program.
+
+**The tracer** (`re/lua/movie.lua`) knows each program by a profile (`re/lua/programs.lua`):
+the first 16 bytes at `0x80094000` that identify it, its main function, the instruction after
+its main loop's `PadRead` call (the sample point, where the movie's pad word is injected), its
+`rand()` stub, `se_play`/`bgm_request`, image uploads, its CD calls and CD callback, its ordering
+tables, and its traced fields. The programs other than PAZLE trace a common set (frame counter,
+seed, pads, next program and parameters, exit flag, the players' screen words, Puzzle Mode's
+menu rows) plus `obj`, a hash of all 1,050 sprite objects, and `persist`, a hash of the
+persistent block (`state+0x4AD84`, what the memory card keeps), and the frame hashes `ot`/`fb`.
+
+**Movies** (`.tpm`) chain programs with segments: `program NAME` starts the inputs, pokes and
+`end` of the next run of that program; ticks count from that program's start. Lines before the
+first `program` belong to the boot route's program (PAZLE), so the old movies are unchanged.
+`boot power` presses nothing: the movie drives every program from power-on. A program the movie
+doesn't name runs untraced with the pad idle. The trace writes a `{"seg":N,"program":...,
+"fields":[...]}` line where each later segment starts. `TP_RAM_START=1` dumps RAM as each traced
+program starts. The rewritten tracer gives the old movies the same traces as before
+(`knossos2-lines` re-recorded: all 1,833 rows equal).
+
+**The port** runs programs on a `Machine` (`web/src/core/machine.ts`), as the boot program does:
+one program at a time on the shared memory, random numbers and cards; when one exits, the one it
+named in `state+0x48` starts after `boot_settle` clears the players' screen words. Each program
+extends `Program` (`web/src/core/program.ts`: the main loop's pad read, `rand()`, soft reset,
+exit, per-tick events) and loads its own data image (`programs/<name>/rom.ts`, from
+`re/tools/extract_core_rom.py` with the program's ranges) over zeroed program memory. Puzzle
+Mode's `Game` runs on the machine too. A machine started at SW_ON begins from the shared block
+as SW_ON finds it at power-on (`power-on.ts`, from `re/tools/extract_state.py`).
+
+**Between programs** the boot program loads the next one from the CD. The port doesn't show
+that pause (`docs/RESEARCH_AND_PLAN.md` §6), but the loader's main loop calls `rand()` once a
+frame, and the BIOS generator is the one every program uses. The loader leaves the frame counter
+alone. Measured on the original (`LOADER_RAND`), the number of calls is the same every time for
+each transition, whatever the program did before: SW_ON → TIT_DEMO 200, TIT_DEMO → TITLE 260,
+TITLE → SELECT 214, SELECT → PAZLE 414, PAZLE → RANKING 194 (plus the one `rand()` in the
+exiting program's last main-loop iteration). The `Machine` makes the same calls, so a session
+on the port gets the original's random numbers across the whole chain. Replays take the
+counter and seed each program starts with from the trace.
+
+**Rendering.** Each program's images come from its own data file
+(`tools/extract-assets.ts` writes one pack per program: `swone`, `tdemoe`, `titlee`,
+`selecte`, `rankinge`) and its sprite sorter: Puzzle Mode's `objects_draw` or the simpler one
+SW_ON, TITLE, SELECT and RANKING use (`DrawStyle`, `web/src/render/programs.ts`): every live
+object is a `GsSortSprite` of its template, centred on `int(x) − 0xA4`, `int(y) − 0x74` (TITLE,
+RANKING) or `− 0x78`, with the ordering-table priority from the object (+10 in TITLE). RANKING
+draws objects whose image is above `0x10000` and sets only the blend-rate bits; TITLE draws any
+non-zero image and also sets the semi-transparency bit.
+
+## 7. The programs
+
+### 7.1 RANKING.EXE
+
+Ported in full (`programs/ranking/ranking.ts`, main `0x800956C0`). The two header banners, three
+panels (the top one drops 1 px a frame, the other two come from the sides), then both tables
+built at once off-screen: per row a name in three glyphs, a 7-digit score, then for Classic
+lines (3 digits) and level (2), for Puzzle the stage (`stage % 20 + 1`, not shown for zone 5,
+"all cleared") and the zone's picture. Numbers leave their leading zeros' places empty. Both
+tables slide in 5 px a frame until in place, hold 300 frames, and the program starts TIT_DEMO.
+No input but the soft reset, no sound (its sound code is there but nothing calls it).
+
+**`ranking`** (5,501 ticks): `card-save`'s route, then Quit on the save screen: both players on
+screen 8, Puzzle Mode exits to RANKING, which runs 440 ticks. Identical to the original, every
+field and frame of both programs, on the first recording.
+
+## 8. JLOGO.EXE: the Jaleco logo
+
+JLOGO plays `J_PS.STR` with the library's MDEC and XA players: 120 frames at 15 fps (8 s), the
+logo animating, then a fade to black, with sound. The port plays it as a video:
+`tools/extract-video.ts` rebuilds the file's raw sectors (the disc's Form 2 file lacks their sync
+and header) for FFmpeg's `psxstr` demuxer and encodes `public/assets/jlogo.mp4` (H.264 and AAC,
+95 KB). Its picture comes from FFmpeg's MDEC decoder, not the console's, so it isn't checked
+pixel for pixel: an approximation of the original's decoder output.

@@ -29,6 +29,10 @@ export type AnyProgram = Game | Program;
  * shown, but its random numbers are used, so the port's sequence stays the original's.
  */
 export const LOADER_RAND: Record<string, number> = {
+  'SW_ON>TIT_DEMO': 200,
+  'TIT_DEMO>TITLE': 260,
+  'TITLE>SELECT': 214,
+  'SELECT>PAZLE': 414,
   'PAZLE>RANKING': 194,
 };
 
