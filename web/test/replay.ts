@@ -19,6 +19,12 @@ export interface CompareOptions {
   renderers?: Record<string, Renderer>;
   /** Also run the sound (the trace's vs, kon, koff, spu, rev, cd, cdr; trace version 3). */
   audio?: (game: Game) => AudioModel;
+  /**
+   * Start at this segment (1-based) instead of the first, with the shared state block taken from
+   * `ram`, a TP_RAM_START=1 dump of that segment's start (the counter and seed come from the trace).
+   */
+  fromSegment?: number;
+  ram?: Uint8Array;
 }
 
 /** Trace fields only the renderer produces. */
@@ -125,11 +131,24 @@ export function machineForTrace(trace: Trace, movie: Movie): Machine {
 
 function* compareSteps(movie: Movie, trace: Trace, opts: CompareOptions): Generator<void, CompareResult> {
   const machine = machineForTrace(trace, movie);
+  const k0 = (opts.fromSegment ?? 1) - 1;
+  if (k0 > 0) {
+    // The shared state block as the dump has it (re/tools/extract_state.py's rules: not the GPU
+    // and decoder work areas), then the boot program starts the program the block names.
+    if (!opts.ram) throw new Error('fromSegment needs a RAM dump');
+    const base = A.S & 0x1fffff;
+    machine.m.bytes.set(opts.ram.subarray(base, base + 0x206e4), base);
+    machine.m.bytes.set(opts.ram.subarray(base + 0x4ad84, base + 0x4b544), base + 0x4ad84);
+    machine.next();
+    const first = trace.segments[k0].rows[0];
+    machine.m.w32(A.COUNTER, (first.ctr as number) - 1);
+    machine.ctx.rng.seed = unwindSeed(first.seed as number, first.rand as number);
+  }
   let ticks = 0;
-  for (let k = 0; k < trace.segments.length; k++) {
+  for (let k = k0; k < trace.segments.length; k++) {
     const seg = trace.segments[k];
     const mseg = movie.segments[k] ?? { inputs: new Map(), pokes: new Map(), last: -1 };
-    if (k > 0) {
+    if (k > k0) {
       // The program the original started next: the port's must have exited and named it.
       if (!machine.program.exited) {
         return { ok: false, ticks, report: `${seg.program} started in the original; the port's ${machine.program.name} is still running` };

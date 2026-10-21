@@ -1,0 +1,13 @@
+tpm 1
+boot power
+# title-skip: power-on with blank cards. SW_ON's copyright and TIT_DEMO's whole story without
+# input, so TITLE starts its logo animation from phase 0. Start at tick 300 (phase 4, the second
+# build-up) skips to "press start" (phase 9); Start at tick 400 plays se 0 and exits to SELECT,
+# which runs 5 ticks.
+program SW_ON
+program TIT_DEMO
+program TITLE
+300 1 START
+400 1 START
+program SELECT
+end 5

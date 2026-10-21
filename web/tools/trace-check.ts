@@ -2,10 +2,15 @@
 // (docs/re/oracle-harness.md §8). Exit status 1 at the first difference.
 //
 //   npm run trace -- [--render] [--ignore a,b] [--context N] [--to T] [MOVIE ...]
+//                    [--from-segment N [--ram DUMP]]
 //
 // --render also draws every tick and compares the GPU packet and frame hashes (ot, fb); it
 // needs public/assets/pazlee.pack (tools/extract-assets.ts). --audio also runs the sound and
 // compares vs, kon, koff, spu, rev, cd and cdr (version 3 traces).
+//
+// --from-segment N starts at the movie's Nth program run, from a TP_RAM_START=1 dump of its start
+// (default ../tp-private/runs/<movie>/ram_start_N.bin), so a program can be checked before the
+// ones that run before it are ported.
 //
 // With no movie names, every movie in re/movies/ that has a trace in re/traces/ is checked.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -25,6 +30,8 @@ let context = 5;
 let to = Infinity;
 let render = false;
 let audio = false;
+let fromSegment = 1;
+let ramPath: string | undefined;
 const names: string[] = [];
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--ignore') ignore = args[++i].split(',');
@@ -32,6 +39,8 @@ for (let i = 0; i < args.length; i++) {
   else if (args[i] === '--to') to = Number(args[++i]);
   else if (args[i] === '--render') render = true;
   else if (args[i] === '--audio') audio = true;
+  else if (args[i] === '--from-segment') fromSegment = Number(args[++i]);
+  else if (args[i] === '--ram') ramPath = args[++i];
   else names.push(basename(args[i]).replace(/\.tpm$/, ''));
 }
 const movies = names.length
@@ -49,8 +58,11 @@ for (const name of movies) {
   const renderers = render
     ? Object.fromEntries(Object.entries(PROGRAM_ART).map(([n, a]) => [n, new Renderer(pack(a.pack), a.style)]))
     : undefined;
+  const ram = fromSegment > 1
+    ? new Uint8Array(readFileSync(ramPath ?? join(ROOT, '..', 'tp-private', 'runs', name, `ram_start_${fromSegment}.bin`)))
+    : undefined;
   const result = compareMovie(movie, trace, {
-    ignore, to, context, renderer: renderers?.PAZLE, renderers, audio: audio ? audioModel : undefined,
+    fromSegment, ram, ignore, to, context, renderer: renderers?.PAZLE, renderers, audio: audio ? audioModel : undefined,
   });
   console.log(`${name}: ${result.report}`);
   if (!result.ok) failed++;

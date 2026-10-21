@@ -1,0 +1,11 @@
+tpm 1
+boot power
+# tit-demo-start: power-on with blank cards. SW_ON's copyright; in TIT_DEMO, Start at tick 3
+# (still phase 0, the init: ignored) and Start at tick 1200 (during the story's last page: skip
+# to TITLE with +0x50=9). TITLE runs 10 ticks.
+program SW_ON
+program TIT_DEMO
+3 1 START
+1200 1 START
+program TITLE
+end 10
