@@ -138,6 +138,22 @@ export function formattedCard(): Uint8Array {
   return c;
 }
 
+/** The header a DexDrive card file (.gme) puts before the image. */
+const GME_HEADER = 3904;
+
+/**
+ * A card image from a file the shell imports: a raw image (.mcd, .mcr: what PCSX-Redux, DuckStation
+ * and the port export) or a DexDrive .gme (a header, then the image). Throws if it is neither.
+ */
+export function parseCardFile(bytes: Uint8Array): Uint8Array {
+  let image: Uint8Array;
+  if (bytes.length === CARD_SIZE) image = bytes;
+  else if (bytes.length === GME_HEADER + CARD_SIZE) image = bytes.subarray(GME_HEADER);
+  else throw new Error(`not a memory card image (${bytes.length} bytes; a card is ${CARD_SIZE})`);
+  if (!isFormatted(image)) throw new Error('not a formatted memory card (no "MC" header)');
+  return image.slice();
+}
+
 /**
  * Vblanks each call takes on the emulator's card (docs/re/memcard.md §3): the loop the program
  * waits in plus the BIOS's own transfers. Informative only (the port never waits).
