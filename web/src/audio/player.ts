@@ -37,6 +37,7 @@ export class AudioPlayer {
   private cdLeft?: GainNode;
   private cdRight?: GainNode;
   private cdInput?: AudioNode;
+  private out?: GainNode;
   private anchorCycle = 0;
   private anchorTime = -1;
 
@@ -63,8 +64,10 @@ export class AudioPlayer {
     this.model = new AudioModel(vab, game.m, this.disc!,
       () => game.m.s16(MUSIC_VOLUME_TABLE + 2 * game.m.u8(MUSIC_VOLUME)), mono);
     await this.ctx.audioWorklet.addModule(workletUrl);
+    this.out = this.ctx.createGain();
+    this.out.connect(this.ctx.destination);
     this.node = new AudioWorkletNode(this.ctx, 'tp-spu', { numberOfInputs: 0, outputChannelCount: [2] });
-    this.node.connect(this.ctx.destination);
+    this.node.connect(this.out);
     this.node.port.postMessage({ type: 'ram', address: VAB_SPU_BASE, data: vab.body } satisfies WorkletMessage);
     // The CD's path: CdMix (the ATV matrix; mono sends both sides to both), then the SPU's CD volume.
     const split = this.ctx.createChannelSplitter(2);
@@ -79,8 +82,13 @@ export class AudioPlayer {
     }
     this.cdLeft.connect(merge, 0, 0);
     this.cdRight.connect(merge, 0, 1);
-    merge.connect(this.ctx.destination);
+    merge.connect(this.out);
     this.cdInput = split;
+  }
+
+  /** The shell's master volume, 0-1, after the game's own mix. */
+  set volume(v: number) {
+    if (this.out) this.out.gain.value = v;
   }
 
   resume(): void {

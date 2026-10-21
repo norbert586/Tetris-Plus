@@ -2,7 +2,8 @@
 import { Game, NotPorted } from '../src/core/game';
 import type { AudioModel } from '../src/audio/model';
 import type { Renderer } from '../src/render/renderer';
-import type { Movie } from '../tools/movie';
+import { movieCards, type Movie } from '../tools/movie';
+import { join } from 'node:path';
 import { sameValue, type Row, type Trace, type Value } from '../tools/trace';
 
 export interface CompareOptions {
@@ -63,13 +64,14 @@ export interface CompareResult {
   report: string;
 }
 
-/** A game set up as the trace's first tick found it (counter and seed from the trace). */
-export function gameForTrace(trace: Trace): Game {
+/** A game set up as the trace's first tick found it (counter and seed from the trace, the movie's cards). */
+export function gameForTrace(trace: Trace, movie?: Movie): Game {
   const first = trace.rows[0];
   return new Game({
     counter: (first.ctr as number) - 1,
     seed: first.seed as number,
     difficulty: first.difficulty as number,
+    cards: movie ? movieCards(movie, join(import.meta.dirname, '..', '..')) : undefined,
   });
 }
 
@@ -100,7 +102,7 @@ function* compareSteps(movie: Movie, trace: Trace, opts: CompareOptions): Genera
     .map(([f]) => [f, new TimedEvents()]));
   const context = opts.context ?? 5;
   const to = Math.min(opts.to ?? Infinity, movie.last);
-  const game = gameForTrace(trace);
+  const game = gameForTrace(trace, movie);
   // Traces before version 3 have no sound fields.
   const audio = trace.fields.includes('kon') ? opts.audio?.(game) : undefined;
   const mine: Row[] = [];

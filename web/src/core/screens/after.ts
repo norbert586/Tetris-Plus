@@ -1,6 +1,7 @@
 // Screens 6 (continue), 7 (rank check), 9 (stage clear) and 13 (save / password).
 import * as A from '../addr';
-import { NotPorted, type Game } from '../game';
+import type { Game } from '../game';
+import { saveCard } from './cardui';
 import { animSet, animStartLoad, animTick, animTickLoad, objectClear, objectPut2 } from '../objects';
 import { bgmRequest, sePlay } from '../sound';
 import * as V from '../vars';
@@ -16,7 +17,7 @@ const COUNTDOWN_DIGIT = 0x800ee9bc; // [2]
 const ITEMS = 0x800eea4c; // [2][7] bonus items collected this game
 const ITEM_COUNT = 0x800ee738; // [2]
 const RANK_POS = 0x800ee930; // [2]
-const SAVE_CURSOR = 0x800f2d1c; // [2]
+const SAVE_CURSOR = 0x800f2d1c; // [2] 0, 1: save to the card in port 1 or 2; 2: quit
 
 const step = (g: Game) => g.m.s32(g.pv(A.STEP));
 const nextStep = (g: Game, n = 1) => g.m.add32(g.pv(A.STEP), n);
@@ -497,6 +498,6 @@ const SAVE: ((g: Game) => void)[] = [
 
 export function scr13Save(g: Game): void {
   const s = g.m.s32(g.pv(A.SUBSTEP));
-  if (s >= SAVE.length) throw new NotPorted(`save screen substep ${s} (memory card)`);
-  SAVE[s](g);
+  if (s < SAVE.length) SAVE[s](g);
+  else saveCard(g, s);
 }

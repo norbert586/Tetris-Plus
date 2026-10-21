@@ -426,6 +426,24 @@ def gen_number(c):
 
 
 # name -> (entry, generator, cases)
+CARD_BUF = 0x800EEBBC
+
+
+def gen_card(c):
+    # Random file buffer (header, both copies and their XORs) and persistent block (state+0x4AD84).
+    rng = c.rng
+    for a in range(CARD_BUF + 0x1FC, CARD_BUF + 0x1104, 4):
+        c.w(a, rng.randrange(1 << 32))
+    for a in range(S + 0x4AD84, S + 0x4B504, 4):
+        c.w(a, rng.randrange(1 << 32))
+    c.args = [rng.randrange(11)]
+
+
+def gen_card_defaults(c):
+    gen_card(c)
+    c.args = []
+
+
 ROUTINES = {
     'piece_collides': (0x800AE4F0, gen_piece, 1000),
     'play_fall': (0x800A313C, gen_play_fall, 1000),
@@ -446,6 +464,9 @@ ROUTINES = {
     'menu_dpad_repeat': (0x800B552C, gen_dpad, 500),
     'stage_timer_tick': (0x800B0B88, gen_timer, 200),
     'number_draw': (0x800B0424, gen_number, 300),
+    'card_to_state': (0x800B7128, gen_card, 24),
+    'state_to_card': (0x800B7714, gen_card, 24),
+    'card_defaults': (0x800B3184, gen_card_defaults, 5),
 }
 
 

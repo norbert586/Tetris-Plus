@@ -95,4 +95,14 @@ return {
     -- password entry
     { 'pw_symbols', 0x800ee58c, 's32', 6 },
     { 'pw_cursor', 0x800f0bbc, 's32' },
+    -- memory card (trace version 4, docs/re/shell.md)
+    { 'sub', S + 0x4b518, 'u32', 2 },         -- substep within the step per player
+    { 'card_port', 0x800f2d1c, 's32', 2 },    -- port chosen per player (save screen: option)
+    { 'slot_cursor', 0x800ed320, 's32', 2 },
+    { 'card_flags', 0x800f2ac8, 's32' },      -- 1 card in use, 0x10 new file
+    { 'card_result', 0x800eeae0, 's32' },     -- last card check / load / format result
+    { 'card_io', 0x800ee3bc, 's32' },         -- bytes the last read or write moved
+    { 'saved_stage', 0x800f2ad8, 's32' },
+    { 'slots', S + 0x4aed8, 'u8', 6 },        -- the three save slots: stage, zones cleared
+    { 'card_sum', 0x800eedbc, 'u8', 2 },      -- the file buffer's first XOR and first byte of copy 1
 }

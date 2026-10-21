@@ -4,7 +4,8 @@
 //
 //   npx tsx tools/simulate.ts MOVIE.tpm [--to T] [--fields a,b,...]
 import { Game, NotPorted } from '../src/core/game';
-import { loadMovie } from './movie';
+import { join } from 'node:path';
+import { loadMovie, movieCards } from './movie';
 import type { Row } from './trace';
 
 const args = process.argv.slice(2);
@@ -13,7 +14,7 @@ if (!path) throw new Error('usage: simulate.ts MOVIE.tpm [--to T] [--fields a,b]
 const to = args.includes('--to') ? Number(args[args.indexOf('--to') + 1]) : Infinity;
 const fields = args.includes('--fields') ? args[args.indexOf('--fields') + 1].split(',') : [];
 const movie = loadMovie(path);
-const game = new Game({ counter: 1001, seed: 0x4327d505, difficulty: 1 });
+const game = new Game({ counter: 1001, seed: 0x4327d505, difficulty: 1, cards: movieCards(movie, join(import.meta.dirname, '..', '..')) });
 let prev: Row = {};
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 for (let t = 1; t <= Math.min(movie.last, to); t++) {

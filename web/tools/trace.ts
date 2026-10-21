@@ -18,7 +18,7 @@ export const EVENT_FIELDS = ['se', 'bgm', 'up', 'kon', 'koff', 'cd', 'cdr'];
 export function parseTrace(text: string): Trace {
   const lines = text.split('\n').filter((l) => l.length > 0);
   const header = JSON.parse(lines[0]);
-  if (![1, 2, 3].includes(header.tptrace)) throw new Error('not a version 1, 2 or 3 trace');
+  if (![1, 2, 3, 4].includes(header.tptrace)) throw new Error('not a version 1-4 trace');
   const rows: Row[] = [];
   let current: Row = {};
   for (let i = 1; i < lines.length; i++) {

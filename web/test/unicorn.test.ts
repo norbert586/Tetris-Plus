@@ -18,6 +18,7 @@ import { linesFindFull, linesRemove, scoreAddLines } from '../src/core/play/line
 import { pieceCollides, pieceInput, playFall, queueAdvance } from '../src/core/play/piece';
 import { profAnimTick, profFallDistance, profSense, profThink } from '../src/core/professor';
 import { passwordDecode, passwordEncodeValue } from '../src/core/screens/password';
+import { cardDefaults, cardToState, stateToCard } from '../src/core/card';
 
 const DIR = join(import.meta.dirname, 'fixtures', 'unicorn');
 const WATCH: [number, number][] = [
@@ -53,6 +54,9 @@ const ROUTINES: Record<string, Routine> = {
   prof_anim_tick: (g) => profAnimTick(g),
   password_decode: (g) => passwordDecode(g),
   password_encode: (g) => passwordEncodeValue(g),
+  card_to_state: (g, args) => cardToState(g, args[0]),
+  state_to_card: (g, args) => stateToCard(g, args[0]),
+  card_defaults: (g) => cardDefaults(g),
   menu_dpad_repeat: (g) => menuDpadRepeat(g),
   stage_timer_tick: (g) => stageTimerTick(g),
   number_draw: (g, a, s) => numberDraw(g, a[0], a[1], a[2], a[3], s[0], s[1], s[2]),

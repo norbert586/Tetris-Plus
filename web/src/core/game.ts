@@ -10,6 +10,7 @@ import { pauseCheck } from './pause';
 import { objectsClearAll, objectsDraw, uploadQueueFlush, type Box } from './objects';
 import { traceRow } from './trace';
 import type { SoundCall } from './sound';
+import { CardSlots } from './card';
 
 export interface GameOptions {
   /** Global frame counter when pazle_main starts (it carries over from earlier programs). */
@@ -20,6 +21,8 @@ export interface GameOptions {
   difficulty?: number;
   /** Start from this RAM image instead of a fresh program (debugging aid: emulator dumps). */
   ram?: Uint8Array;
+  /** The memory cards in the two ports (default: a formatted card in port 1, port 2 empty). */
+  cards?: CardSlots;
 }
 
 /** Thrown when the original reaches code the port doesn't have. */
@@ -45,6 +48,10 @@ export class Game {
   boxColors: number[] = [];
   /** Ticks run so far; tick 1 is the main loop's first iteration. */
   tick = 0;
+  /** The memory cards (card.ts). */
+  cards: CardSlots;
+  /** Vblanks this tick waited for beyond its own (VSync(n) before card access): the picture holds. */
+  stall = 0;
   /** Set when the program leaves Puzzle Mode (exit flag). */
   get exited(): boolean {
     return this.m.s32(A.EXIT_FLAG) !== 0;
@@ -52,6 +59,7 @@ export class Game {
 
   constructor(opts: GameOptions) {
     this.rng = new Rng(opts.seed);
+    this.cards = opts.cards ?? new CardSlots();
     if (opts.ram) {
       this.m = new Mem(opts.ram);
       return;
@@ -63,6 +71,22 @@ export class Game {
     this.m.w32(A.COUNTER, opts.counter);
     this.m.w32(A.PHASE, 0);
     this.m.w32(A.SUBPHASE, 0);
+    this.startup();
+  }
+
+  /**
+   * Starts Puzzle Mode again on the same memory, as the boot program does when it loads it: the
+   * program's data afresh, zero BSS, boot_settle's cleared screen words, and the shared state
+   * block (counter, settings, best times, rankings) as the last program left it.
+   */
+  relaunch(phase = 0): void {
+    const m = this.m;
+    m.fill(0x80094000, 0x800f3704 - 0x80094000);
+    m.loadRom();
+    m.fill(A.SCREEN, 0x4b538 - 0x4b508);
+    m.w32(A.PHASE, phase);
+    m.w32(A.SUBPHASE, 0);
+    this.tick = 0;
     this.startup();
   }
 
@@ -117,6 +141,7 @@ export class Game {
     this.uploads = [];
     this.boxes = [];
     this.boxColors = [];
+    this.stall = 0;
     this.rng.calls = 0;
     if (this.tick > 0) {
       this.padRead(pad);

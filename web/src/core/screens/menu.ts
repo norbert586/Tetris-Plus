@@ -1,6 +1,7 @@
 // Screen 0: Puzzle Mode's menu, New Game / Continue / Password (menu_step_dispatch).
 import * as A from '../addr';
-import { NotPorted, type Game } from '../game';
+import type { Game } from '../game';
+import { menuContinue } from './cardui';
 import { animSet, animTick, itemLoad, objectClear, objectPut2, objectsClear } from '../objects';
 import { bgmRequest, sePlay } from '../sound';
 import { passwordStep } from './password';
@@ -19,7 +20,8 @@ export function scr00Menu(g: Game): void {
       m.w32(g.pv(A.STEP), 5);
       return;
     case 2:
-      throw new NotPorted('menu: Continue (memory card load)');
+      menuContinue(g);
+      return;
     case 3:
       passwordStep(g);
       return;

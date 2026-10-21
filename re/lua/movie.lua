@@ -38,7 +38,7 @@
 -- Output: TP_OUT/trace.jsonl (re/tools/tptrace.py reads it), TP_OUT/run.log lines
 -- "tick N: ..." and the files above.
 
-local TRACE_VERSION = 3
+local TRACE_VERSION = 4
 
 local ffi = require('ffi')
 
@@ -119,6 +119,9 @@ local function loadMovie(path)
         elseif words[1] == 'end' then
             movie.last = tonumber(words[2])
         elseif words[1] == 'mark' then
+        elseif words[1] == 'card' then
+            -- card PORT blank|none|FILE: run-movie.sh installs FILE; an empty port is set here
+            if words[3] == 'none' then PCSX.settings.emulator['Mcd' .. words[2] .. 'Inserted'] = false end
         elseif words[1] == 'poke' then
             -- poke TICK ADDRESS VALUE [SIZE]: write memory right after tick TICK is recorded
             local t, address, value = tonumber(words[2]), tonumber(words[3]), tonumber(words[4])

@@ -27,7 +27,7 @@ def read(path):
     """Returns (header, rows): every row holds every field's value at its tick."""
     with open_text(path) as f:
         header = json.loads(f.readline())
-        if header.get('tptrace') not in (1, 2, 3):
+        if header.get("tptrace") not in (1, 2, 3, 4):
             raise SystemExit(f'{path}: not a version 1, 2 or 3 trace')
         rows, current = [], {}
         for line in f:

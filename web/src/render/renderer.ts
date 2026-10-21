@@ -68,6 +68,7 @@ export class Renderer {
   readonly gpu = new Gpu();
   readonly tims: Tim[];
   readonly templates: Sprite[];
+  private readonly zeroSprite: Sprite;
   /** Packets of the last frame, in drawing order (for debugging). */
   packets: number[][] = [];
   /**
@@ -81,6 +82,7 @@ export class Renderer {
   constructor(items: Uint8Array[]) {
     this.tims = items.map(parseTim);
     this.templates = this.tims.map(spriteTemplate);
+    this.zeroSprite = Object.fromEntries(Object.keys(this.templates[0]).map((k) => [k, 0])) as unknown as Sprite;
     // sprite_templates_init uploads every image once, at its own VRAM position.
     for (const tim of this.tims) this.upload(tim, 0);
   }
@@ -187,7 +189,9 @@ export class Renderer {
         continue;
       }
       const item = image - 0x10001;
-      const t = this.templates[item];
+      // Image 0x10000 (item -1, the save screen's empty slots) reads the 0x24 zero bytes before
+      // the template array: a zero-size sprite, sorted like any other but drawing nothing.
+      const t = item === -1 ? this.zeroSprite : this.templates[item];
       if (!t) throw new Error(`object ${n}: image 0x${image.toString(16)} has no template`);
       const s: Sprite = { ...t };
       s.scalex = s16(m.s16(o + A.O_SCALE_X) + 0x1000);

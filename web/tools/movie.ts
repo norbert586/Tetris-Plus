@@ -1,7 +1,9 @@
 // Reads input movies (.tpm version 1, docs/re/oracle-harness.md §2): the PadRead word for each
 // logic tick, pad 1 in the low half and pad 2 in the high half.
 import { readFileSync } from 'node:fs';
-import { basename } from 'node:path';
+import { basename, join } from 'node:path';
+import { gunzipSync } from 'node:zlib';
+import { CardSlots, MemoryCard } from '../src/core/card';
 import { BUTTONS } from '../src/core/pad';
 
 export interface Movie {
@@ -12,6 +14,8 @@ export interface Movie {
   inputs: Map<number, number>;
   /** pokes[t] = memory writes made right after tick t is recorded (scenario set-up). */
   pokes: Map<number, Poke[]>;
+  /** The memory card in each port at power-on: 'blank' (the default), 'none' or a .mcd(.gz) path from the repo root. */
+  cards: [string, string];
 }
 
 export interface Poke {
@@ -21,7 +25,7 @@ export interface Poke {
 }
 
 export function parseMovie(text: string, name = 'movie'): Movie {
-  const movie: Movie = { name, boot: 'puzzle', last: -1, inputs: new Map(), pokes: new Map() };
+  const movie: Movie = { name, boot: 'puzzle', last: -1, inputs: new Map(), pokes: new Map(), cards: ['blank', 'blank'] };
   let version = 0;
   let last = 0;
   text.split('\n').forEach((raw, i) => {
@@ -37,6 +41,10 @@ export function parseMovie(text: string, name = 'movie'): Movie {
       movie.last = Number(words[1]);
     } else if (words[0] === 'mark') {
       // annotation only
+    } else if (words[0] === 'card') {
+      const port = Number(words[1]);
+      if ((port !== 1 && port !== 2) || !words[2]) throw new Error(`${where}: expected card 1|2 blank|none|PATH`);
+      movie.cards[port - 1] = words[2];
     } else if (words[0] === 'poke') {
       const [t, address, value] = [Number(words[1]), Number(words[2]), Number(words[3])];
       const size = Number(words[4] ?? '4');
@@ -81,4 +89,16 @@ export function parseMovie(text: string, name = 'movie'): Movie {
 
 export function loadMovie(path: string): Movie {
   return parseMovie(readFileSync(path, 'utf8'), basename(path));
+}
+
+/** The movie's memory cards for the core (paths are relative to the repository root). */
+export function movieCards(movie: Movie, repo: string): CardSlots {
+  return new CardSlots(
+    movie.cards.map((spec) => {
+      if (spec === 'none') return null;
+      if (spec === 'blank') return new MemoryCard();
+      const raw = readFileSync(join(repo, spec));
+      return new MemoryCard(new Uint8Array(spec.endsWith('.gz') ? gunzipSync(raw) : raw));
+    }),
+  );
 }
