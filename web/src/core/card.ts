@@ -25,9 +25,14 @@ export class MemoryCard {
   /** Counts writes, so the shell knows when to store the card. */
   version = 0;
 
-  constructor(data?: Uint8Array, fresh = false) {
+  /**
+   * `fresh` defaults to the flag a card has at power-on in the emulator: set on an unformatted
+   * card, clear on a formatted one (SW_ON's first _card_info reports a new card only for the
+   * unformatted card; movie sw-on-format, docs/re/shell.md §7).
+   */
+  constructor(data?: Uint8Array, fresh?: boolean) {
     this.data = data ? data.slice() : MemoryCard.blank();
-    this.fresh = fresh;
+    this.fresh = fresh ?? !this.formatted();
   }
 
   /** A formatted, empty card, byte for byte as PCSX-Redux creates one. */
@@ -243,7 +248,11 @@ export class CardSlots {
     const dev = device(g, path);
     const card = dev && this.cards[dev.port];
     if (!card) return 0;
+    // The BIOS's format doesn't write frame 63 (the write-test frame; a blank card as
+    // PCSX-Redux creates one has frame 0 there): movie sw-on-format.
+    const test = card.data.slice(63 * FRAME, 64 * FRAME);
     formatImage(card.data);
+    card.data.set(test, 63 * FRAME);
     card.fresh = false;
     card.version++;
     return 1;
@@ -261,6 +270,21 @@ export class CardSlots {
     const card = this.cards[chan >> 4];
     if (!card) return 2;
     return card.formatted() ? 0 : 3;
+  }
+
+  /**
+   * SW_ON's libcard _card_clear(chan): a dummy write of libcard's 128-byte buffer to frame 63
+   * that clears the card's new flag. The frame then holds 2 at 0x60 and 0xFF at 0x68, zeros
+   * elsewhere (the card images after movies sw-on-format and sw-on-noformat).
+   */
+  clear(chan: number): void {
+    const card = this.cards[chan >> 4];
+    if (!card) return;
+    card.data.fill(0, 63 * FRAME, 64 * FRAME);
+    card.data[63 * FRAME + 0x60] = 2;
+    card.data[63 * FRAME + 0x68] = 0xff;
+    card.fresh = false;
+    card.version++;
   }
 
   /** _new_card(); _card_write(chan, 0x3F, 0): a dummy write that clears the card's new flag. */

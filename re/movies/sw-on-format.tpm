@@ -1,0 +1,14 @@
+tpm 1
+boot power
+card 1 re/cards/unformatted.mcd.gz
+card 2 none
+# sw-on-format: an unformatted card (all zero bytes) in port 1, port 2 empty. The format prompt
+# (cursor on No; Right, Right and Left move it, it animates meanwhile); Cross on Yes: the card is
+# checked again, "formatting", format() and straight on to the copyright (SW_ON never reaches
+# its step that would create the save file, so the card stays empty).
+program SW_ON
+40 4 RIGHT
+80 4 RIGHT
+120 4 LEFT
+160 4 CROSS
+end 3000

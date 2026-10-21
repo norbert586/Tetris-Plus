@@ -1,0 +1,12 @@
+tpm 1
+boot power
+card 1 none
+card 2 re/cards/unformatted.mcd.gz
+# sw-on-noformat: port 1 empty, an unformatted card in port 2: the format prompt for port 2.
+# Cross on No: "can't save"; Cross checks again (the prompt again); Circle goes on without
+# saving: the copyright.
+program SW_ON
+60 4 CROSS
+120 4 CROSS
+200 4 CIRCLE
+end 3000

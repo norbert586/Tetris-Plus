@@ -1,0 +1,8 @@
+tpm 1
+boot power
+card 1 re/cards/egypt1-saved.mcd.gz
+# sw-on-saved: power-on with card-save.tpm's card in port 1 (a blank card in port 2). SW_ON's
+# card check finds the save file and loads its persistent block silently (best times, rankings,
+# slots, options), then the copyright; the movie ends when SW_ON exits.
+program SW_ON
+end 3000

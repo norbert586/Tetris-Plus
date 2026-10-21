@@ -1,0 +1,11 @@
+tpm 1
+boot power
+card 1 re/cards/full.mcd.gz
+card 2 none
+# sw-on-full: port 1 holds 15 one-block files of another game, port 2 is empty. No save file and
+# no room: after port 2's check, the "card full" message; Cross checks again, Circle goes on
+# without saving: the copyright.
+program SW_ON
+60 4 CROSS
+150 4 CIRCLE
+end 3000

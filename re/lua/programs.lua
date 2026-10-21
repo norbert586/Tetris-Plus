@@ -57,7 +57,14 @@ return {
         cd = { 0x8009fa14, 0x8009fb4c, 0x8009fc78 },
         otBuffer = 0x800b6624,
         otHeaders = 0x800b5c64,
-        fields = common(0x800bacc2),
+        fields = with(common(0x800bacc2), {
+            { 'card', 0x800b682c, 's32' },         -- the port being checked (0 or 1)
+            { 'cardres', 0x800b8928, 's32', 2 },   -- each port's card check result
+            { 'cardok', 0x800b6894, 's32' },       -- the last load/format/create result
+            { 'blocks', 0x800b6890, 's32' },       -- blocks in use on a card without the file
+            { 'cardev', 0x800b5c58, 's32' },       -- the last libcard event
+            { 'timer', S + 0x1fd0c, 's32' },       -- the copyright's hold and fade timer
+        }),
     },
     TIT_DEMO = {
         fingerprint = 'e46b09800c6c0980546c0980806c0980',
@@ -69,7 +76,10 @@ return {
         cd = { 0x8009d4b4, 0x8009d5ec, 0x8009d718 },
         otBuffer = 0x800b5e78,
         otHeaders = 0x800b5e8c,
-        fields = common(0x800b8ba2),
+        fields = with(common(0x800b8ba2), {
+            { 'vars', 0x800b5cf8, 's32', 31 },     -- gp+0x3C..+0xB4: scene/text machines, typewriter
+            { 'blink', 0x800b5e7c, 's32' },        -- gp+0x1C0: the caption's blink timer
+        }),
     },
     TITLE = {
         fingerprint = 'a871098044720980c072098078730980',
@@ -95,7 +105,17 @@ return {
         cd = { 0x800a2920, 0x800a2a58, 0x800a2b84 },
         otBuffer = 0x800b9a70,
         otHeaders = 0x800b905c,
-        fields = common(0x800be126),
+        fields = with(common(0x800be126), {
+            { 'msel', 0x800b9094, 's32', 5 },      -- mode select: step, ?, ?, cursor, wait
+            { 'row', 0x800b9a4c, 's32' },          -- Option mode's row
+            { 'tests', 0x800b9a34, 's32' },        -- sound test number
+            { 'mtest', 0x800b9adc, 's32' },        -- music test number
+            { 'picks', 0x800b9c48, 's32' },        -- card row picks (options, rankings)
+            { 'pickr', 0x800b9c84, 's32' },
+            { 'cport', 0x800b9c90, 's32' },        -- the card prompt's port
+            { 'cres', 0x800b9cec, 's32' },         -- the last card call's result
+            { 'reset', 0x800b26c0, 's32', 2 },     -- soft reset counters
+        }),
     },
     RANKING = {
         fingerprint = 'a8680980c8680980f4680980fc680980',

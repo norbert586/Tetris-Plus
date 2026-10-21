@@ -1,0 +1,11 @@
+tpm 1
+boot power
+card 1 none
+card 2 none
+# sw-on-nocard: both ports empty. After both checks, the "no memory card" message; Cross checks
+# again from step 0 (defaults, VSync(60), both ports: the same message), Circle goes on without
+# saving: the copyright.
+program SW_ON
+60 4 CROSS
+150 4 CIRCLE
+end 3000

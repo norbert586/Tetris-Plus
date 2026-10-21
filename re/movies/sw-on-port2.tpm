@@ -1,0 +1,7 @@
+tpm 1
+boot power
+card 1 none
+# sw-on-port2: port 1 empty, a blank card in port 2. SW_ON finds no card in port 1, checks port 2
+# the next frame: no save file but room for one, so the copyright follows without a message.
+program SW_ON
+end 3000
