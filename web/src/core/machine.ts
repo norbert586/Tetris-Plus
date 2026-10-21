@@ -34,6 +34,18 @@ export const LOADER_RAND: Record<string, number> = {
   'TITLE>SELECT': 214,
   'SELECT>PAZLE': 414,
   'PAZLE>RANKING': 194,
+  'RANKING>TIT_DEMO': 200,
+};
+
+/**
+ * The attract demos TITLE starts after 1,800 idle frames (HOW_N, then HOW_VS the next time) are
+ * not ported (they play the other modes). What each leaves, measured on the original (movie
+ * attract, docs/re/shell.md §6): the frames it and the loads around it take, its rand() calls
+ * (TITLE's last one included), the shared words it writes, and RANKING as the next program.
+ */
+export const DEMO_STAND_IN: Record<number, { frames: number; rand: number; words: [number, number][] }> = {
+  4: { frames: 6835, rand: 20850, words: [[0x18, 50], [0x20, 19], [0x24, 4], [0x58, 102], [0x4b540, 1]] },
+  6: { frames: 2980, rand: 3433, words: [[0x18, 50], [0x20, -11], [0x24, 5], [0x58, 102], [0x4b540, 0]] },
 };
 
 export interface MachineOptions {
@@ -80,6 +92,20 @@ export class Machine {
    */
   next(): AnyProgram {
     const m = this.m;
+    const demo = DEMO_STAND_IN[m.s32(A.NEXT_PROGRAM)];
+    if (demo) {
+      for (let i = 0; i < demo.rand; i++) this.ctx.rng.next();
+      m.add32(A.COUNTER, demo.frames);
+      for (const [off, v] of demo.words) m.w32(A.S + off, v);
+      m.w32(A.NEXT_PROGRAM, 7);
+      m.w32(A.NEXT_PARAM, 0);
+      m.w32(A.PHASE, 0);
+      m.w32(A.SUBPHASE, 0);
+      m.fill(A.SCREEN, 0x4b538 - 0x4b508);
+      m.w32(A.EXIT_FLAG, 0);
+      this.program = this.load(7);
+      return this.program;
+    }
     const from = this.program.name;
     const to = PROGRAM_NAMES[m.s32(A.NEXT_PROGRAM)];
     this.ctx.rng.next();

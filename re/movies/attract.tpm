@@ -1,0 +1,14 @@
+tpm 1
+boot power
+# attract: power-on with blank cards and no input, through two rounds of the attract loop.
+# TITLE's 1,800 idle frames start a how-to-play demo (HOW_N, then HOW_VS the next time; neither
+# is traced), which goes on to RANKING; RANKING goes to TIT_DEMO and the story to TITLE again.
+# The RANKING segments start with what each demo leaves: next program, phase, counter, seed.
+program SW_ON
+program TIT_DEMO
+program TITLE
+program RANKING
+program TIT_DEMO
+program TITLE
+program RANKING
+program TIT_DEMO

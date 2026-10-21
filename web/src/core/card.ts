@@ -535,18 +535,3 @@ export function cardDefaults(g: Game): void {
   copy(m, 0x800e300c, COPY1 + 0x15a, 0x60e);
   copy(m, 0x800e361c, COPY1 + 0x768, 0x18);
 }
-
-/**
- * What SW_ON.EXE's card check leaves in the state block at power-on, until that program is
- * ported: a valid save file in port 1 loads its whole persistent block; otherwise the boot
- * defaults stay. Run on a fresh Game before its first tick; the file buffer is cleared again
- * so Puzzle Mode starts with the zero BSS it would find.
- */
-export function powerOnLoad(g: Game): boolean {
-  const m = g.m;
-  m.w32(CARD_PORT_CUR, 0);
-  const ok = cardCheck(g) === 1 && cardLoad(g);
-  if (ok) cardToState(g, 0);
-  g.relaunch(); // back to fresh program data and zero BSS: the card code wrote globals and the buffer
-  return ok;
-}

@@ -254,19 +254,20 @@ async function main() {
   let hold = 0; // ms the picture holds after a VSync(n) wait
   let buffer = -1;
   let renderer = renderers.PAZLE;
-  // The next program, as the boot program would load it; one not ported (the other modes and
-  // their how-to-play demos) gives way to Puzzle Mode.
-  const toPuzzleMode = () => {
-    machine.m.w32(A.NEXT_PROGRAM, 10);
-    machine.m.w32(A.PHASE, 0);
-    machine.next();
-  };
+  // The next program, as the boot program would load it. The other modes (Classic, VS Puzzle,
+  // Edit) aren't ported: choosing one returns to the mode select, as TITLE's Start does.
+  let notice = 0;
   const advance = () => {
     try {
       machine.next();
     } catch (e) {
       if (!(e instanceof NotPorted)) throw e;
-      toPuzzleMode();
+      machine.m.w32(A.NEXT_PROGRAM, 8);
+      machine.m.w32(A.NEXT_PARAM, 0);
+      machine.m.w32(A.PHASE, 0);
+      machine.next();
+      status.textContent = 'This port has Puzzle Mode only; the other modes are not playable.';
+      notice = 4000;
     }
   };
   const frame = (now: number) => {
@@ -281,15 +282,9 @@ async function main() {
           continue;
         }
         if (machine.program.exited) advance();
-        let prog = machine.program;
-        try {
-          prog.step(input.word()); // pad 2 stays released until two-player mode exists
-        } catch (e) {
-          if (!(e instanceof NotPorted)) throw e;
-          toPuzzleMode();
-          prog = machine.program;
-          prog.step(input.word());
-        }
+        const prog = machine.program;
+        prog.step(input.word()); // pad 2 stays released until two-player mode exists
+        if (notice > 0 && (notice -= TICK_MS) <= 0) status.textContent = HELP;
         renderer = renderers[prog.name];
         buffer = renderer.frame(prog).buffer;
         audio?.tick(prog);

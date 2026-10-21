@@ -2,7 +2,7 @@
 import { Game, NotPorted } from '../src/core/game';
 import * as A from '../src/core/addr';
 import { Machine, PROGRAM_NAMES, type AnyProgram } from '../src/core/machine';
-import { powerOnLoad } from '../src/core/card';
+import { powerOnBlock } from '../src/core/programs/sw_on/power-on-block';
 import type { AudioModel } from '../src/audio/model';
 import type { Renderer } from '../src/render/renderer';
 import { movieCards, type Movie } from '../tools/movie';
@@ -75,6 +75,15 @@ export interface CompareResult {
   report: string;
 }
 
+/**
+ * For runs that start in Puzzle Mode: the persistent block SW_ON.EXE leaves at power-on for the
+ * movie's cards (power-on-block.ts runs it on copies of them).
+ */
+function powerOnState(game: Game, movie: Movie): void {
+  const block = powerOnBlock(movieCards(movie, join(import.meta.dirname, '..', '..')));
+  game.m.bytes.set(block, (A.S + 0x4ad84) & 0x1fffff);
+}
+
 /** A game set up as the trace's first tick found it (counter and seed from the trace, the movie's cards). */
 export function gameForTrace(trace: Trace, movie?: Movie): Game {
   const first = trace.rows[0];
@@ -84,7 +93,7 @@ export function gameForTrace(trace: Trace, movie?: Movie): Game {
     difficulty: first.difficulty as number,
     cards: movie ? movieCards(movie, join(import.meta.dirname, '..', '..')) : undefined,
   });
-  if (movie) powerOnLoad(game); // SW_ON's card load at power-on
+  if (movie) powerOnState(game, movie);
   return game;
 }
 
@@ -125,7 +134,7 @@ export function machineForTrace(trace: Trace, movie: Movie): Machine {
     cards: movieCards(movie, join(import.meta.dirname, '..', '..')),
     first: names.indexOf(trace.segments[0].program),
   });
-  if (machine.program instanceof Game) powerOnLoad(machine.program); // SW_ON's card load at power-on
+  if (machine.program instanceof Game) powerOnState(machine.program, movie);
   return machine;
 }
 
