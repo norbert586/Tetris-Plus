@@ -34,6 +34,7 @@
 --               NAME=VALUE, NAME!=VALUE or NAME>=VALUE on a trace field, comma separated
 --               (for example pieces>=5,scr!=5). Logged as "tick N: until NAME"
 --   TP_SAVE_UNTIL 1: write a save state at the tick TP_UNTIL stopped on
+--   TP_RAM_START 1: dump main RAM when each traced program's main starts (ram_start_SEG.bin)
 --
 -- Output: TP_OUT/trace.jsonl (re/tools/tptrace.py reads it), TP_OUT/run.log lines
 -- "tick N: ..." and the files above.
@@ -132,8 +133,9 @@ local function loadMovie(path)
         elseif words[1] == 'program' then
             -- program NAME: the next lines drive the next run of that program
             if not PROGRAMS[words[2]] then fail(where .. ': unknown program ' .. tostring(words[2])) end
-            if #movie.segments == 1 and next(seg.inputs) == nil and next(seg.pokes) == nil and not seg.last then
+            if #movie.segments == 1 and not seg.named and next(seg.inputs) == nil and next(seg.pokes) == nil and not seg.last then
                 seg.name = words[2] -- the movie starts with this program
+                seg.named = true
             else
                 seg = { name = words[2], inputs = {}, pokes = {} }
                 movie.segments[#movie.segments + 1] = seg
@@ -278,7 +280,7 @@ end
 local function fieldNames(p)
     local names = {}
     for i, f in ipairs(p.compiled) do names[i] = '"' .. f.name .. '"' end
-    names[#names + 1] = p.board and '"board"' or '"obj"'
+    names[#names + 1] = p.board and '"board"' or '"obj","persist"'
     return table.concat(names, ',') .. ',"rand","se","bgm","up","ot","fb","vs","kon","koff","spu","rev","cd","cdr"'
 end
 trace:write(string.format('{"tptrace":%d,"movie":"%s","boot":"%s","program":"%s","fields":[%s]}\n',
@@ -349,6 +351,15 @@ local function hashObjects()
     return h
 end
 
+-- persist: the persistent block (state+0x4AD84, 0x780 bytes: what the memory card keeps).
+local PERSIST = phys(0x8003e668 + 0x4ad84)
+local function hashPersistent()
+    local words = ffi.cast('const int32_t*', mem + PERSIST)
+    local h = FNV_BASIS
+    for i = 0, 0x780 / 4 - 1 do h = fnv(h, words[i]) end
+    return h
+end
+
 -- One trace line: the tick and every value that changed since the previous line (all of them
 -- on the first line). Lists of events are written whenever non-empty.
 local function record(t)
@@ -368,7 +379,12 @@ local function record(t)
             put(f.name, f.read(f.address))
         end
     end
-    if prog.board then put('board', readBoard()) else put('obj', hashObjects()) end
+    if prog.board then
+        put('board', readBoard())
+    else
+        put('obj', hashObjects())
+        put('persist', hashPersistent())
+    end
     put('rand', randCalls)
     if #sounds > 0 then parts[#parts + 1] = '"se":' .. jsonValue(sounds) end
     if #music > 0 then parts[#parts + 1] = '"bgm":' .. jsonValue(music) end
@@ -467,6 +483,7 @@ local function segmentStart(p)
         trace:write(string.format('{"seg":%d,"program":"%s","fields":[%s]}\n', segIndex, p.name, fieldNames(p)))
     end
     print(string.format('frame %d: %s main, counter %d, seed 0x%08x', frame, p.name, base, readers.u32(phys(0x800083a4))))
+    if os.getenv('TP_RAM_START') == '1' then dumpRam(string.format('ram_start_%d.bin', segIndex)) end
 end
 
 -- The sample point: right after the main loop's PadRead call (v0 holds its word).

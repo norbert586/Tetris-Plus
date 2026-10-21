@@ -9,7 +9,12 @@ import { Game, NotPorted } from './game';
 import { decodeBase64, Mem } from './mem';
 import type { Program, ProgramContext } from './program';
 import { Ranking } from './programs/ranking/ranking';
+import { Select } from './programs/select/select';
+import { SwOn } from './programs/sw_on/sw_on';
+import { TitDemo } from './programs/tit_demo/tit_demo';
+import { Title } from './programs/title/title';
 import { Rng } from './rng';
+import { POWER_ON_STATE } from './power-on';
 
 /** Program numbers (state+0x48) and names (docs/re/static-bootstrap.md §5). */
 export const PROGRAM_NAMES = [
@@ -44,13 +49,20 @@ export class Machine {
 
   constructor(opts: MachineOptions) {
     const m = new Mem();
-    m.bytes.set(decodeBase64(BOOT_STATE_BASE64), (A.S + BOOT_STATE_OFFSET) & 0x1fffff);
+    const first = opts.first ?? 10;
+    if (first === 10) {
+      // Puzzle Mode first: the block as the menus leave it (boot-state.ts).
+      m.bytes.set(decodeBase64(BOOT_STATE_BASE64), (A.S + BOOT_STATE_OFFSET) & 0x1fffff);
+    } else {
+      // From power-on: the block as SW_ON.EXE finds it (power-on.ts).
+      for (const [off, b64] of POWER_ON_STATE) m.bytes.set(decodeBase64(b64), (A.S + off) & 0x1fffff);
+    }
     if (opts.difficulty !== undefined) m.w8(A.DIFFICULTY, opts.difficulty);
     m.w32(A.COUNTER, opts.counter);
     m.w32(A.PHASE, 0);
     m.w32(A.SUBPHASE, 0);
     this.ctx = { m, rng: new Rng(opts.seed), cards: opts.cards ?? new CardSlots() };
-    this.program = this.load(opts.first ?? 10);
+    this.program = this.load(first);
   }
 
   get m(): Mem {
@@ -76,8 +88,16 @@ export class Machine {
 
   private load(n: number): AnyProgram {
     switch (n) {
+      case 1:
+        return new SwOn(this.ctx);
+      case 2:
+        return new TitDemo(this.ctx);
+      case 3:
+        return new Title(this.ctx);
       case 7:
         return new Ranking(this.ctx);
+      case 8:
+        return new Select(this.ctx);
       case 10:
         return new Game({ counter: 0, seed: 0, ctx: this.ctx });
       default:

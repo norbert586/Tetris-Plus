@@ -1,0 +1,8 @@
+tpm 1
+boot power
+# boot-story: power-on with blank cards and no input. SW_ON finds no save but room for one and
+# shows the copyright; TIT_DEMO plays the whole story; TITLE plays its whole logo animation,
+# waits 1,800 frames at "press start" and starts the attract demo (HOW_N, not traced).
+program SW_ON
+program TIT_DEMO
+program TITLE

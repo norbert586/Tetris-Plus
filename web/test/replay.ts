@@ -1,7 +1,7 @@
 // Plays a movie on the core and compares it with the original's trace, tick by tick.
 import { Game, NotPorted } from '../src/core/game';
 import * as A from '../src/core/addr';
-import { Machine, type AnyProgram } from '../src/core/machine';
+import { Machine, PROGRAM_NAMES, type AnyProgram } from '../src/core/machine';
 import { powerOnLoad } from '../src/core/card';
 import type { AudioModel } from '../src/audio/model';
 import type { Renderer } from '../src/render/renderer';
@@ -111,7 +111,7 @@ export function unwindSeed(seed: number, calls: number): number {
 /** A machine set up as the trace's first tick found it, running the trace's first program. */
 export function machineForTrace(trace: Trace, movie: Movie): Machine {
   const first = trace.rows[0];
-  const names = ['JLOGO', 'SW_ON', 'TIT_DEMO', 'TITLE', 'HOW_N', 'HOW_P', 'HOW_VS', 'RANKING', 'SELECT', 'NOMAL', 'PAZLE'];
+  const names = PROGRAM_NAMES;
   const machine = new Machine({
     counter: (first.ctr as number) - 1,
     seed: unwindSeed(first.seed as number, first.rand as number),

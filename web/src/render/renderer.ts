@@ -24,6 +24,10 @@ export interface DrawStyle {
   kind: 'pazle' | 'shell';
   yBias?: number;
   bucket?: number;
+  /** Which objects are drawn: image above 0x10000 (RANKING, the default) or any non-zero image (TITLE). */
+  live?: 'above' | 'nonzero';
+  /** Blend kinds also set the semi-transparency bit (TITLE), or only the rate bits (RANKING). */
+  semi?: boolean;
 }
 import { parseTim, type Tim } from '../assets/tim';
 import { Gpu, VRAM_WIDTH } from './gpu';
@@ -181,14 +185,18 @@ export class Renderer {
     for (let n = A.OBJ_COUNT - 1; n >= 0; n--) {
       const o = A.obj(n);
       const image = m.s32(o + A.O_IMAGE);
-      if (image <= 0x10000) continue;
-      const t = this.templates[image - 0x10001];
+      if (this.style.live === 'nonzero' ? image === 0 : image <= 0x10000) continue;
+      const t = image === 0x10000 ? this.zeroSprite : this.templates[image - 0x10001];
       if (!t) throw new Error(`object ${n}: image 0x${image.toString(16)} has no template`);
       const flip = m.u32(o + A.O_FLIP);
       let attr = (flip & 1) << 23;
       if (flip & 2) attr |= 0x400000;
       const kind = m.u32(o + A.O_KIND);
-      if (kind !== 0) attr = (attr | Math.imul((kind & 7) - 1, 0x10000000)) >>> 0;
+      if (kind !== 0) {
+        attr = this.style.semi
+          ? (attr | 0x40000000 | (((kind - 1) & 3) << 28)) >>> 0
+          : (attr | Math.imul((kind & 7) - 1, 0x10000000)) >>> 0;
+      }
       const s: Sprite = { ...t };
       s.x = s16(m.s16(o + A.O_X + 2) - 0xa4 + t.x + (t.w >> 1));
       s.y = s16(m.s16(o + A.O_Y + 2) - yBias + t.y + (t.h >> 1));

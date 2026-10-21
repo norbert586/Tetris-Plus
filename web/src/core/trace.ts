@@ -158,6 +158,7 @@ export function readFields(g: Traced, fields: Field[]): Record<string, number | 
     }
   }
   row.obj = objectsHash(m);
+  row.persist = persistentHash(m);
   row.rand = g.rng.calls;
   row.se = g.se.slice();
   row.bgm = g.bgm.slice();
@@ -171,4 +172,27 @@ export function objectsHash(m: Mem): number {
   const base = A.OBJECTS;
   for (let i = 0; i < A.OBJ_COUNT * 31; i++) h = Math.imul(h ^ m.s32(base + 4 * i), 16777619);
   return h;
+}
+
+/** FNV-1a over the persistent block (state+0x4AD84, 0x780 bytes), as the tracer's `persist`. */
+export function persistentHash(m: Mem): number {
+  let h = 0x811c9dc5 | 0;
+  for (let i = 0; i < 0x780; i += 4) h = Math.imul(h ^ m.s32(A.BEST_TIMES + i), 16777619);
+  return h;
+}
+
+/** The fields every program other than PAZLE records (re/lua/programs.lua's common()). */
+export function commonFields(pad: number): Field[] {
+  return [
+    ['ctr', A.S + 0x40, 'u32'],
+    ['seed', 0x800083a4, 'u32'],
+    ['pad', pad, 'u16'],
+    ['padp', pad + 2, 'u16'],
+    ['pad2', pad + 6, 'u16'],
+    ['padp2', pad + 8, 'u16'],
+    ['next', A.S + 0x48, 'u32', 4],
+    ['exit', A.EXIT_FLAG, 'u32'],
+    ['screens', A.SCREEN, 'u32', 12],
+    ['rows', A.MENU_ROWS, 'u32'],
+  ];
 }

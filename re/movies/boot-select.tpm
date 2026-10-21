@@ -1,0 +1,16 @@
+tpm 1
+boot power
+# boot-select: power-on with blank cards. SW_ON's copyright; Start skips the story (TIT_DEMO);
+# Start on the title ("press start"); on the mode select Right (Puzzle), Cross (zoom in), Cross
+# (confirm): Puzzle Mode starts.
+program SW_ON
+program TIT_DEMO
+100 1 START
+program TITLE
+100 1 START
+program SELECT
+290 4 RIGHT
+390 4 CROSS
+590 4 CROSS
+program PAZLE
+end 120

@@ -45,6 +45,7 @@ export function parseMovie(text: string, name = 'movie'): Movie {
   };
   let version = 0;
   let last = 0;
+  let named = false;
   text.split('\n').forEach((raw, i) => {
     const where = `${name}:${i + 1}`;
     const words = raw.replace(/#.*$/, '').trim().split(/\s+/).filter(Boolean);
@@ -58,8 +59,9 @@ export function parseMovie(text: string, name = 'movie'): Movie {
       seg.last = Number(words[1]);
     } else if (words[0] === 'program') {
       if (!words[1]) throw new Error(`${where}: expected program NAME`);
-      if (movie.segments.length === 1 && seg.inputs.size === 0 && seg.pokes.size === 0 && seg.last < 0) {
+      if (movie.segments.length === 1 && !named && seg.inputs.size === 0 && seg.pokes.size === 0 && seg.last < 0) {
         seg.program = words[1];
+        named = true;
       } else {
         seg = { program: words[1], last: -1, inputs: new Map(), pokes: new Map() };
         movie.segments.push(seg);

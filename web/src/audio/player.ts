@@ -2,7 +2,14 @@
 // (model.ts) turns the program's sound calls into SPU register writes and CD events on the
 // original's clock; the player maps that clock onto the AudioContext's, sends the writes to the
 // SPU worklet and plays the CD's sectors from the encoded tracks, through the CD volume.
-import type { Game } from '../core/game';
+import type { Mem } from '../core/mem';
+import type { SoundCall } from '../core/sound';
+
+/** What the player takes from a program: its memory (settings) and each tick's sound calls. */
+export interface Sounding {
+  m: Mem;
+  sound: SoundCall[];
+}
 import { MUSIC_VOLUME, SETTING_4FC } from '../core/addr';
 import type { Disc } from './cd';
 import { CYCLES_PER_VBLANK } from './driver';
@@ -48,14 +55,14 @@ export class AudioPlayer {
   ) {}
 
   /** Creates the player; call `resume` from a user gesture for sound to start. */
-  static async create(game: Game, base: string, tickSeconds: number): Promise<AudioPlayer> {
+  static async create(game: Sounding, base: string, tickSeconds: number): Promise<AudioPlayer> {
     const ctx = new AudioContext({ sampleRate: 44100 });
     const p = new AudioPlayer(ctx, base, tickSeconds);
     await p.init(game);
     return p;
   }
 
-  private async init(game: Game): Promise<void> {
+  private async init(game: Sounding): Promise<void> {
     const get = async (name: string) => new Uint8Array(await (await fetch(`${this.base}${name}`)).arrayBuffer());
     const [vh, vb, disc] = await Promise.all([get('EF.VH'), get('EF.VB'), get('disc.json')]);
     this.disc = JSON.parse(new TextDecoder().decode(disc));
@@ -96,7 +103,7 @@ export class AudioPlayer {
   }
 
   /** After each game tick. */
-  tick(game: Game): void {
+  tick(game: Sounding): void {
     const model = this.model;
     if (!model || !this.node) return;
     const s = model.step(game.sound, 1);

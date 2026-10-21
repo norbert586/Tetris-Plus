@@ -5,8 +5,11 @@
 // (browsers need a gesture).
 import { readPack } from '../assets/pack';
 import { AudioPlayer } from '../audio/player';
+import * as A from '../core/addr';
 import { CardSlots, MemoryCard, powerOnLoad } from '../core/card';
-import { Game } from '../core/game';
+import { Game, NotPorted } from '../core/game';
+import { Machine } from '../core/machine';
+import { PROGRAM_ART } from '../render/programs';
 import { Renderer } from '../render/renderer';
 import { toRgba } from '../render/present';
 import { BUTTON_ORDER, DEFAULT_KEYS, Input, type Button } from '../shell/input';
@@ -24,13 +27,18 @@ async function main() {
   const settings = loadSettings();
   const input = new Input(settings.keys);
 
-  const pack = new Uint8Array(await (await fetch('assets/pazlee.pack')).arrayBuffer());
-  const renderer = new Renderer(readPack(pack));
-  renderer.hidePlayer2 = true;
+  // Every program's images and renderer (src/render/programs.ts).
+  const renderers: Record<string, Renderer> = {};
+  await Promise.all(Object.entries(PROGRAM_ART).map(async ([name, art]) => {
+    const pack = new Uint8Array(await (await fetch(`assets/${art.pack}`)).arrayBuffer());
+    renderers[name] = new Renderer(readPack(pack), art.style);
+  }));
+  renderers.PAZLE.hidePlayer2 = true;
   const cards = new CardSlots([loadCard(0), settings.card2 ? loadCard(1) : null]);
   // The frame counter and BIOS seed of a power-on route into Puzzle Mode (docs/re/oracle-harness.md §2).
-  const game = new Game({ counter: 1000, seed: 0x4327d505, cards });
-  powerOnLoad(game);
+  const machine = new Machine({ counter: 1000, seed: 0x4327d505, cards });
+  powerOnLoad(machine.program as Game);
+  const game = machine.program;
   const image = ctx.createImageData(320, 240);
   const audio = await AudioPlayer.create(game, 'assets/', TICK_MS / 1000).catch((e) => {
     console.warn('no sound:', e);
@@ -222,6 +230,22 @@ async function main() {
   let acc = 0;
   let hold = 0; // ms the picture holds after a VSync(n) wait
   let buffer = -1;
+  let renderer = renderers.PAZLE;
+  // The next program, as the boot program would load it; one not ported yet (the title, the
+  // mode select...) gives way to Puzzle Mode for now.
+  const toPuzzleMode = () => {
+    machine.m.w32(A.NEXT_PROGRAM, 10);
+    machine.m.w32(A.PHASE, 0);
+    machine.next();
+  };
+  const advance = () => {
+    try {
+      machine.next();
+    } catch (e) {
+      if (!(e instanceof NotPorted)) throw e;
+      toPuzzleMode();
+    }
+  };
   const frame = (now: number) => {
     const dt = now - last;
     last = now;
@@ -233,14 +257,20 @@ async function main() {
           hold -= TICK_MS;
           continue;
         }
-        if (game.exited) {
-          // Until the title, mode select and rankings are ported, Puzzle Mode starts again.
-          game.relaunch();
+        if (machine.program.exited) advance();
+        let prog = machine.program;
+        try {
+          prog.step(input.word()); // pad 2 stays released until two-player mode exists
+        } catch (e) {
+          if (!(e instanceof NotPorted)) throw e;
+          toPuzzleMode();
+          prog = machine.program;
+          prog.step(input.word());
         }
-        game.step(input.word()); // pad 2 stays released until two-player mode exists
-        buffer = renderer.frame(game).buffer;
-        audio?.tick(game);
-        hold = game.stall * TICK_MS;
+        renderer = renderers[prog.name];
+        buffer = renderer.frame(prog).buffer;
+        audio?.tick(prog);
+        hold = prog.stall * TICK_MS;
         storeCards();
       }
     }

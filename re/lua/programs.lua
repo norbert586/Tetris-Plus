@@ -20,6 +20,7 @@ local function common(pad)
         { 'next', S + 0x48, 'u32', 4 },     -- next program and its parameters (+0x48 to +0x54)
         { 'exit', S + 0x1fcf4, 'u32' },
         { 'screens', S + 0x4b508, 'u32', 12 }, -- both players' screen and step words
+        { 'rows', S + 0x4b538, 'u32' },     -- Puzzle Mode's menu rows (2 or 3)
     }
 end
 
@@ -45,6 +46,56 @@ return {
         otHeaders = 0x800ed2f4,
         board = true,
         -- fields: trace_fields.lua
+    },
+    SW_ON = {
+        fingerprint = 'fc530980fc530980fc530980fc530980',
+        main = 0x800957b0,
+        afterPadRead = 0x800959a0,
+        rand = 0x8009a8f0,
+        bgmRequest = 0x800953fc,
+        cdReport = 0x80094fa4,
+        cd = { 0x8009fa14, 0x8009fb4c, 0x8009fc78 },
+        otBuffer = 0x800b6624,
+        otHeaders = 0x800b5c64,
+        fields = common(0x800bacc2),
+    },
+    TIT_DEMO = {
+        fingerprint = 'e46b09800c6c0980546c0980806c0980',
+        main = 0x80095718,
+        afterPadRead = 0x80094bbc,
+        rand = 0x80098370,
+        bgmRequest = 0x800951fc,
+        cdReport = 0x800950d4,
+        cd = { 0x8009d4b4, 0x8009d5ec, 0x8009d718 },
+        otBuffer = 0x800b5e78,
+        otHeaders = 0x800b5e8c,
+        fields = common(0x800b8ba2),
+    },
+    TITLE = {
+        fingerprint = 'a871098044720980c072098078730980',
+        main = 0x80095704,
+        afterPadRead = 0x800958d0,
+        rand = 0x80099668,
+        sePlay = 0x80094d30,
+        bgmRequest = 0x800950e8,
+        cdReport = 0x80094fc0,
+        cd = { 0x8009e7ac, 0x8009e8e4, 0x8009ea10 },
+        otBuffer = 0x800b4314,
+        otHeaders = 0x800b4350,
+        fields = common(0x800b7066),
+    },
+    SELECT = {
+        fingerprint = '4c5409804c5409804c5409804c540980',
+        main = 0x80095800,
+        afterPadRead = 0x800959f0,
+        rand = 0x8009d7fc,
+        sePlay = 0x80094d2c,
+        bgmRequest = 0x80095140,
+        cdReport = 0x80094ff4,
+        cd = { 0x800a2920, 0x800a2a58, 0x800a2b84 },
+        otBuffer = 0x800b9a70,
+        otHeaders = 0x800b905c,
+        fields = common(0x800be126),
     },
     RANKING = {
         fingerprint = 'a8680980c8680980f4680980fc680980',

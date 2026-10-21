@@ -5,7 +5,7 @@
 import * as A from '../../addr';
 import { objectClear, objectsClearAll } from '../../objects';
 import { Program, type ProgramContext } from '../../program';
-import { readFields, type Field } from '../../trace';
+import { commonFields, readFields, type Field } from '../../trace';
 import { ROM } from './rom';
 
 const BSS_END = 0x800b5300;
@@ -30,15 +30,7 @@ const POWERS = 0x80094010; // 1, 10, ... 10^7
 const ZONE_IMAGE = 0x80094050; // [6] image offset by zone
 
 const FIELDS: Field[] = [
-  ['ctr', A.S + 0x40, 'u32'],
-  ['seed', 0x800083a4, 'u32'],
-  ['pad', PAD, 'u16'],
-  ['padp', PAD + 2, 'u16'],
-  ['pad2', PAD + 6, 'u16'],
-  ['padp2', PAD + 8, 'u16'],
-  ['next', A.S + 0x48, 'u32', 4],
-  ['exit', A.EXIT_FLAG, 'u32'],
-  ['screens', A.SCREEN, 'u32', 12],
+  ...commonFields(PAD),
   ['vars', STEP_A, 's32', 6],
   ['reset', RESET, 's32', 2],
 ];
