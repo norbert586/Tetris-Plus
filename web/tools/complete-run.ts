@@ -3,13 +3,19 @@
 // to the card, the rankings and back to the story. The port plays it with a simple policy and
 // the inputs and pokes it used are written as a movie the original then plays (scripts/run-movie.sh).
 //
-//   npx tsx tools/complete-run.ts [OUT.tpm] [--log]
+//   npx tsx tools/complete-run.ts [OUT.tpm] [--log] [--shots DIR T,T,...]
+//
+// --shots also draws the run and writes the frames of those ticks (counted from power-on) as PNG.
 //
 // The policy: Start on the story and the title; Right, Cross, Cross on the mode select (Puzzle);
 // in Puzzle Mode Cross every 40 ticks (menus, pages, letters), and once play of each stage has
 // started a poke puts the professor on row 15, the goal (the stage then clears as if he had
 // climbed there). After the ending, the save screen saves to the card in port 1, then quits.
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readPack } from '../src/assets/pack';
+import { PROGRAM_ART } from '../src/render/programs';
+import { Renderer } from '../src/render/renderer';
+import { encodePng, toRgba } from '../src/render/present';
 import { join } from 'node:path';
 import * as A from '../src/core/addr';
 import { CardSlots, MemoryCard } from '../src/core/card';
@@ -20,6 +26,18 @@ import { PROF_ROW } from '../src/core/vars';
 const out = process.argv[2] && !process.argv[2].startsWith('--')
   ? process.argv[2] : join(import.meta.dirname, '..', '..', 're/movies/complete-run.tpm');
 const verbose = process.argv.includes('--log');
+const shotsAt = process.argv.indexOf('--shots');
+const shotDir = shotsAt > 0 ? process.argv[shotsAt + 1] : undefined;
+const shots = new Set(shotsAt > 0 ? process.argv[shotsAt + 2].split(',').map(Number) : []);
+const renderers: Record<string, Renderer> = {};
+if (shotDir) {
+  mkdirSync(shotDir, { recursive: true });
+  for (const [name, art] of Object.entries(PROGRAM_ART)) {
+    const pack = readPack(new Uint8Array(readFileSync(join(import.meta.dirname, '..', 'public/assets', art.pack))));
+    renderers[name] = new Renderer(pack, art.style);
+  }
+  renderers.PAZLE.hidePlayer2 = true;
+}
 
 interface Seg {
   program: string;
@@ -84,6 +102,14 @@ for (;;) {
   if (pad) seg!.inputs.set(t, pad);
   p.step(pad);
   total++;
+  if (shotDir) {
+    const r = renderers[p.name];
+    const frame = r.frame(p);
+    if (shots.has(total)) {
+      const file = join(shotDir, `run_${String(total).padStart(5, '0')}_${p.name}.png`);
+      writeFileSync(file, encodePng(toRgba(r.pixels(frame.buffer)), 320, 240, 2));
+    }
+  }
   if (p.name === 'PAZLE') {
     const screen = m.s32(A.SCREEN);
     const stageId = m.s32(ZONE) * 20 + m.s32(STAGE);

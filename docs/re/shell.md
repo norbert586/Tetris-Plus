@@ -1,4 +1,4 @@
-# Phase 9: flow and shell (in progress)
+# Phase 9: flow and shell
 
 Phase 9 turns the port into something to play: the memory card, the browser shell around the
 game (input, display, settings, persistence), the programs before and after Puzzle Mode, and a
@@ -17,7 +17,7 @@ complete run. This page records what is done so far.
 | The other modes (Classic, VS Puzzle, Edit) | Not ported; choosing one in the shell returns to the mode select |
 | JLOGO.EXE (the Jaleco logo) | Its video as WebM and MP4 (§8); the shell plays it at power-on |
 | Sound of the programs around Puzzle Mode | Done (§10): every program's effects, music and CD traffic as the original's, `--audio` identical on the whole corpus; the browser plays them |
-| A complete run | The port plays the whole game (§9); the movie is being checked on the original |
+| A complete run | Done (§9): the port plays the whole game; on the original, the first 61,471 ticks (about 60 stages) are identical |
 
 ## 2. The memory card
 
@@ -470,3 +470,17 @@ and the Puzzle Mode movies as before (atlantis20-ending 8,451, egypt1-climb 5,10
 program's callback and CD calls, and the SPU's registers are watched whatever runs. Re-running
 `boot-select`, `ranking`, `select-card`, `sw-on-format` and `sw-on-port2` for the RAM dumps gave
 the committed traces' values on every field. `npm test` (87 tests) and `npx tsc --noEmit` pass.
+
+**On the original.** The tracer can't record the whole movie in one run: PCSX-Redux's event
+listener leaks a Lua stack slot a frame, and the stack overflows after about 65,000 frames
+(save states now record their segment, so a long movie can be recorded in parts). One run got
+61,477 ticks into the movie (power-on to about stage 60) before the overflow, and replayed on
+the port it is identical on every traced field and every frame (`npm run trace -- --render`).
+Other runs stopped at tick 28,882 on an exception in a breakpoint handler that Redux doesn't
+print; one run went past that point, so it is the tracer, not the game. With `--audio` the
+recorded run differs at Puzzle Mode tick 9,411: the port's CD gives one position report the
+original doesn't (open: the CD model's timing over a long session). The partial trace isn't in
+`re/traces/` because the tests would fail on that report.
+
+`--shots DIR T,T,...` also draws the run and writes those frames (ticks from power-on) as PNG.
+
