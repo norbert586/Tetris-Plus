@@ -19,7 +19,7 @@ const game = new Game({ counter: 1001, seed: 0x4327d505, difficulty: 1, cards: m
 powerOnLoad(game); // SW_ON's card load at power-on
 let prev: Row = {};
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-for (let t = 1; t <= Math.min(movie.last, to); t++) {
+for (let t = 1; t <= Math.min(movie.last < 0 ? Infinity : movie.last, to); t++) {
   try {
     game.step(movie.inputs.get(t) ?? 0);
   } catch (e) {

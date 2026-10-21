@@ -1,0 +1,87 @@
+// The boot program (SLUS_003.38) as the port runs it (docs/re/static-bootstrap.md §5,
+// docs/re/shell.md §6): one program at a time on the shared memory; when a program exits, the
+// one it named in state+0x48 starts. The loading itself (CD reads, "Now Loading") is not
+// reproduced; boot_settle's clearing of the players' screen words is.
+import * as A from './addr';
+import { BOOT_STATE_BASE64, BOOT_STATE_OFFSET } from './boot-state';
+import { CardSlots } from './card';
+import { Game, NotPorted } from './game';
+import { decodeBase64, Mem } from './mem';
+import type { Program, ProgramContext } from './program';
+import { Ranking } from './programs/ranking/ranking';
+import { Rng } from './rng';
+
+/** Program numbers (state+0x48) and names (docs/re/static-bootstrap.md §5). */
+export const PROGRAM_NAMES = [
+  'JLOGO', 'SW_ON', 'TIT_DEMO', 'TITLE', 'HOW_N', 'HOW_P', 'HOW_VS', 'RANKING', 'SELECT', 'NOMAL', 'PAZLE', 'VSPUZ', 'EDIT',
+];
+
+export type AnyProgram = Game | Program;
+
+/**
+ * rand() calls the boot program makes while it loads a program (its own main loop calls rand()
+ * once a frame), by "FROM>TO", measured on the original (docs/re/shell.md §6). The loading isn't
+ * shown, but its random numbers are used, so the port's sequence stays the original's.
+ */
+export const LOADER_RAND: Record<string, number> = {
+  'PAZLE>RANKING': 194,
+};
+
+export interface MachineOptions {
+  /** Global frame counter when the first program starts. */
+  counter: number;
+  /** BIOS rand() seed when the first program starts. */
+  seed: number;
+  cards?: CardSlots;
+  /** The first program (default PAZLE, 10). */
+  first?: number;
+  difficulty?: number;
+}
+
+export class Machine {
+  readonly ctx: ProgramContext;
+  program: AnyProgram;
+
+  constructor(opts: MachineOptions) {
+    const m = new Mem();
+    m.bytes.set(decodeBase64(BOOT_STATE_BASE64), (A.S + BOOT_STATE_OFFSET) & 0x1fffff);
+    if (opts.difficulty !== undefined) m.w8(A.DIFFICULTY, opts.difficulty);
+    m.w32(A.COUNTER, opts.counter);
+    m.w32(A.PHASE, 0);
+    m.w32(A.SUBPHASE, 0);
+    this.ctx = { m, rng: new Rng(opts.seed), cards: opts.cards ?? new CardSlots() };
+    this.program = this.load(opts.first ?? 10);
+  }
+
+  get m(): Mem {
+    return this.ctx.m;
+  }
+
+  /**
+   * The program that state+0x48 names: the exiting program's main loop finishes its iteration
+   * (one more rand()), the boot program loads the next (its rand() calls) and boot_settle
+   * clears the players' screen words.
+   */
+  next(): AnyProgram {
+    const m = this.m;
+    const from = this.program.name;
+    const to = PROGRAM_NAMES[m.s32(A.NEXT_PROGRAM)];
+    this.ctx.rng.next();
+    for (let i = LOADER_RAND[`${from}>${to}`] ?? 0; i > 0; i--) this.ctx.rng.next();
+    m.fill(A.SCREEN, 0x4b538 - 0x4b508);
+    m.w32(A.EXIT_FLAG, 0);
+    this.program = this.load(m.s32(A.NEXT_PROGRAM));
+    return this.program;
+  }
+
+  private load(n: number): AnyProgram {
+    switch (n) {
+      case 7:
+        return new Ranking(this.ctx);
+      case 10:
+        return new Game({ counter: 0, seed: 0, ctx: this.ctx });
+      default:
+        throw new NotPorted(`program ${n} (${PROGRAM_NAMES[n] ?? '?'})`);
+    }
+  }
+}

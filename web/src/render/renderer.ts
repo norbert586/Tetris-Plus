@@ -3,7 +3,28 @@
 // (0x8009882C), and the packets run on a model of the GPU and its VRAM, into which the images
 // are uploaded at the same points as the original's.
 import * as A from '../core/addr';
-import type { Game } from '../core/game';
+import type { Mem } from '../core/mem';
+import type { Box } from '../core/objects';
+
+/** What the renderer draws from: a program's memory and the tick's presentation events. */
+export interface Drawable {
+  m: Mem;
+  tick: number;
+  uploads: number[];
+  boxes: { box: Box; pri: number }[];
+  boxColors: number[];
+}
+
+/**
+ * How a program sorts its sprite objects: PAZLE's objects_draw, or the simpler loop the other
+ * programs use (always GsSortSprite at int(x) - 0xA4 and int(y) - yBias, the template centred,
+ * bucket priority + bucket; docs/re/shell.md §6).
+ */
+export interface DrawStyle {
+  kind: 'pazle' | 'shell';
+  yBias?: number;
+  bucket?: number;
+}
 import { parseTim, type Tim } from '../assets/tim';
 import { Gpu, VRAM_WIDTH } from './gpu';
 import { OrderingTable, type Sprite } from './libgs';
@@ -79,7 +100,7 @@ export class Renderer {
    */
   hidePlayer2 = false;
 
-  constructor(items: Uint8Array[]) {
+  constructor(items: Uint8Array[], readonly style: DrawStyle = { kind: 'pazle' }) {
     this.tims = items.map(parseTim);
     this.templates = this.tims.map(spriteTemplate);
     this.zeroSprite = Object.fromEntries(Object.keys(this.templates[0]).map((k) => [k, 0])) as unknown as Sprite;
@@ -108,18 +129,19 @@ export class Renderer {
   }
 
   /** Renders the frame of the game's last tick. */
-  frame(g: Game): Frame {
+  frame(g: Drawable): Frame {
     this.applyUploads(g.uploads);
     // GsGetActiveBuff alternates from 0 at tick 1; the table is drawn into the other buffer.
     return this.draw(g, g.tick & 1);
   }
 
   /** Sorts and draws the game's objects and boxes into display buffer `buffer`. */
-  draw(g: Game, buffer: number): Frame {
+  draw(g: Drawable, buffer: number): Frame {
     const top = 240 * buffer;
     const ot = new OrderingTable();
     for (const b of g.boxes) ot.sortBoxFill(b.box, b.pri);
-    this.objectsDraw(g, ot);
+    if (this.style.kind === 'shell') this.shellObjectsDraw(g, ot);
+    else this.objectsDraw(g, ot);
     ot.sortClear(0, 0, 0, 0, top, 320, 240);
 
     const gpu = this.gpu;
@@ -148,7 +170,37 @@ export class Renderer {
   }
 
   /** objects_draw (0x8009882C), for its drawing: every live object from 1049 down to 0. */
-  private objectsDraw(g: Game, ot: OrderingTable): void {
+  /**
+   * The other programs' objects_draw (RANKING 0x80096564, TITLE, SELECT, SW_ON): objects 1049
+   * down to 0 whose image is above 0x10000, each a GsSortSprite of its template, centred.
+   */
+  private shellObjectsDraw(g: Drawable, ot: OrderingTable): void {
+    const m = g.m;
+    const yBias = this.style.yBias ?? 0x78;
+    const bucket = this.style.bucket ?? 0;
+    for (let n = A.OBJ_COUNT - 1; n >= 0; n--) {
+      const o = A.obj(n);
+      const image = m.s32(o + A.O_IMAGE);
+      if (image <= 0x10000) continue;
+      const t = this.templates[image - 0x10001];
+      if (!t) throw new Error(`object ${n}: image 0x${image.toString(16)} has no template`);
+      const flip = m.u32(o + A.O_FLIP);
+      let attr = (flip & 1) << 23;
+      if (flip & 2) attr |= 0x400000;
+      const kind = m.u32(o + A.O_KIND);
+      if (kind !== 0) attr = (attr | Math.imul((kind & 7) - 1, 0x10000000)) >>> 0;
+      const s: Sprite = { ...t };
+      s.x = s16(m.s16(o + A.O_X + 2) - 0xa4 + t.x + (t.w >> 1));
+      s.y = s16(m.s16(o + A.O_Y + 2) - yBias + t.y + (t.h >> 1));
+      s.scalex = s16(m.s32(o + A.O_SCALE_X) + 0x1000);
+      s.scaley = s16(m.s32(o + A.O_SCALE_Y) + 0x1000);
+      s.rotate = m.s32(o + A.O_ROT);
+      s.attribute = (attr | t.attribute) >>> 0;
+      ot.sortSprite(s, (m.u16(o + A.O_PRIORITY) + bucket) & 0xffff);
+    }
+  }
+
+  private objectsDraw(g: Drawable, ot: OrderingTable): void {
     const m = g.m;
     let randomBox = 0;
     for (let n = A.OBJ_COUNT - 1; n >= 0; n--) {

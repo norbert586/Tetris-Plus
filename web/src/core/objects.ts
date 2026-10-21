@@ -3,14 +3,15 @@
 // object calls rand(), so the core keeps them as the original does.
 import * as A from './addr';
 import type { Game } from './game';
+import type { Mem } from './mem';
 
 /** object_clear: zeroes all 31 words of object n. */
-export function objectClear(g: Game, n: number): void {
+export function objectClear(g: { m: Mem }, n: number): void {
   g.m.fill(A.obj(n), A.OBJ_SIZE);
 }
 
 /** objects_clear_all */
-export function objectsClearAll(g: Game): void {
+export function objectsClearAll(g: { m: Mem }): void {
   for (let n = 0; n < A.OBJ_COUNT; n++) objectClear(g, n);
 }
 

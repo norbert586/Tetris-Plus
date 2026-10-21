@@ -24,14 +24,18 @@ def open_text(path):
 
 
 def read(path):
-    """Returns (header, rows): every row holds every field's value at its tick."""
+    """Returns (header, rows): every row holds every field's value at its tick. Traces of several
+    programs (a "seg" line starts each after the first) give every row a "program" field."""
     with open_text(path) as f:
         header = json.loads(f.readline())
         if header.get("tptrace") not in (1, 2, 3, 4):
-            raise SystemExit(f'{path}: not a version 1, 2 or 3 trace')
-        rows, current = [], {}
+            raise SystemExit(f'{path}: not a version 1-4 trace')
+        rows, current = [], {'program': header.get('program', 'PAZLE')}
         for line in f:
             delta = json.loads(line)
+            if 'seg' in delta:
+                current = {'program': delta['program']}
+                continue
             for name in EVENT_FIELDS:
                 current[name] = []
             current.update(delta)

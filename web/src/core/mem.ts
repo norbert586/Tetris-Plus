@@ -16,10 +16,17 @@ export function decodeBase64(b64: string): Uint8Array {
   return out;
 }
 
-let romImage: { address: number; bytes: Uint8Array }[] | null = null;
-function romRanges() {
-  romImage ??= ROM.map((r) => ({ address: r.address, bytes: decodeBase64(r.base64) }));
-  return romImage;
+/** A program's data ranges, as rom.ts files hold them. */
+export type Rom = { name: string; address: number; base64: string }[];
+
+const romImages = new Map<Rom, { address: number; bytes: Uint8Array }[]>();
+function romRanges(rom: Rom) {
+  let image = romImages.get(rom);
+  if (!image) {
+    image = rom.map((r) => ({ address: r.address, bytes: decodeBase64(r.base64) }));
+    romImages.set(rom, image);
+  }
+  return image;
 }
 
 export class Mem {
@@ -32,9 +39,9 @@ export class Mem {
     if (!bytes) this.loadRom();
   }
 
-  /** Loads the program's data ranges, as the boot program's loader does before `start`. */
-  loadRom(): void {
-    for (const r of romRanges()) this.bytes.set(r.bytes, r.address & (RAM_SIZE - 1));
+  /** Loads a program's data ranges (PAZLE.EXE's by default), as the boot program's loader does before `start`. */
+  loadRom(rom: Rom = ROM): void {
+    for (const r of romRanges(rom)) this.bytes.set(r.bytes, r.address & (RAM_SIZE - 1));
   }
 
   clone(): Mem {

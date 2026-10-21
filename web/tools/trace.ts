@@ -7,10 +7,19 @@ import { gunzipSync } from 'node:zlib';
 export type Value = number | string | Value[];
 export type Row = Record<string, Value>;
 
-export interface Trace {
-  movie: string;
+/** One program's run in a trace (version 5: a "seg" line starts each after the first). */
+export interface TraceSegment {
+  program: string;
   fields: string[];
   rows: Row[];
+}
+
+export interface Trace {
+  movie: string;
+  /** The first segment's fields and rows. */
+  fields: string[];
+  rows: Row[];
+  segments: TraceSegment[];
 }
 
 export const EVENT_FIELDS = ['se', 'bgm', 'up', 'kon', 'koff', 'cd', 'cdr'];
@@ -19,14 +28,21 @@ export function parseTrace(text: string): Trace {
   const lines = text.split('\n').filter((l) => l.length > 0);
   const header = JSON.parse(lines[0]);
   if (![1, 2, 3, 4].includes(header.tptrace)) throw new Error('not a version 1-4 trace');
-  const rows: Row[] = [];
+  let seg: TraceSegment = { program: header.program ?? 'PAZLE', fields: header.fields, rows: [] };
+  const segments = [seg];
   let current: Row = {};
   for (let i = 1; i < lines.length; i++) {
     const delta = JSON.parse(lines[i]) as Row;
+    if ('seg' in delta) {
+      seg = { program: delta.program as string, fields: delta.fields as string[], rows: [] };
+      segments.push(seg);
+      current = {};
+      continue;
+    }
     current = { ...current, ...Object.fromEntries(EVENT_FIELDS.map((f) => [f, []])), ...delta };
-    rows.push(current);
+    seg.rows.push(current);
   }
-  return { movie: header.movie, fields: header.fields, rows };
+  return { movie: header.movie, fields: header.fields, rows: segments[0].rows, segments };
 }
 
 export function loadTrace(path: string): Trace {

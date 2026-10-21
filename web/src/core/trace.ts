@@ -2,8 +2,9 @@
 // addresses, plus the board, rand() calls and sound/music events (docs/re/oracle-harness.md §3).
 import * as A from './addr';
 import type { Game } from './game';
+import type { Mem } from './mem';
 
-type Field = [name: string, address: number, type: 's32' | 'u32' | 's16' | 'u16' | 'u8', count?: number];
+export type Field = [name: string, address: number, type: 's32' | 'u32' | 's16' | 'u16' | 'u8', count?: number];
 
 const FIELDS: Field[] = [
   ['ctr', A.S + 0x40, 'u32'],
@@ -125,4 +126,49 @@ export function traceRow(g: Game): Record<string, number | number[] | string> {
   row.bgm = g.bgm.slice();
   row.up = g.uploads.slice();
   return row;
+}
+
+/** What a trace row reads from any program (game.ts or program.ts). */
+interface Traced {
+  m: Mem;
+  rng: { seed: number; calls: number };
+  se: number[];
+  bgm: number[];
+  uploads: number[];
+}
+
+/**
+ * The trace row of a program other than PAZLE (re/lua/programs.lua): its fields, the sprite
+ * objects' hash (`obj`), rand() calls and the events.
+ */
+export function readFields(g: Traced, fields: Field[]): Record<string, number | number[] | string> {
+  const m = g.m;
+  const row: Record<string, number | number[] | string> = {};
+  for (const [name, address, type, count] of fields) {
+    if (name === 'seed') {
+      row.seed = g.rng.seed;
+      continue;
+    }
+    if (count === undefined) {
+      row[name] = m[type](address);
+    } else {
+      const v: number[] = [];
+      for (let i = 0; i < count; i++) v.push(m[type](address + i * SIZE[type]));
+      row[name] = v;
+    }
+  }
+  row.obj = objectsHash(m);
+  row.rand = g.rng.calls;
+  row.se = g.se.slice();
+  row.bgm = g.bgm.slice();
+  row.up = g.uploads.slice();
+  return row;
+}
+
+/** FNV-1a over the 1,050 sprite objects' words, as the tracer's `obj`. */
+export function objectsHash(m: Mem): number {
+  let h = 0x811c9dc5 | 0;
+  const base = A.OBJECTS;
+  for (let i = 0; i < A.OBJ_COUNT * 31; i++) h = Math.imul(h ^ m.s32(base + 4 * i), 16777619);
+  return h;
 }

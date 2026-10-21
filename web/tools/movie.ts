@@ -6,14 +6,28 @@ import { gunzipSync } from 'node:zlib';
 import { CardSlots, MemoryCard } from '../src/core/card';
 import { BUTTONS } from '../src/core/pad';
 
-export interface Movie {
-  name: string;
-  boot: string;
+/**
+ * One program's run in a movie: `program NAME` starts a segment (the lines before the first one
+ * belong to the boot route's program, PAZLE). Ticks count from that program's start.
+ */
+export interface Segment {
+  program: string;
+  /** The last tick to run, or -1: until the program exits. */
   last: number;
   /** inputs[t] = the pad word the logic sees on tick t (0 when absent). */
   inputs: Map<number, number>;
   /** pokes[t] = memory writes made right after tick t is recorded (scenario set-up). */
   pokes: Map<number, Poke[]>;
+}
+
+export interface Movie {
+  name: string;
+  boot: string;
+  /** The first segment's fields, for movies of one program. */
+  last: number;
+  inputs: Map<number, number>;
+  pokes: Map<number, Poke[]>;
+  segments: Segment[];
   /** The memory card in each port at power-on: 'blank' (the default), 'none' or a .mcd(.gz) path from the repo root. */
   cards: [string, string];
 }
@@ -25,7 +39,10 @@ export interface Poke {
 }
 
 export function parseMovie(text: string, name = 'movie'): Movie {
-  const movie: Movie = { name, boot: 'puzzle', last: -1, inputs: new Map(), pokes: new Map(), cards: ['blank', 'blank'] };
+  let seg: Segment = { program: 'PAZLE', last: -1, inputs: new Map(), pokes: new Map() };
+  const movie: Movie = {
+    name, boot: 'puzzle', last: -1, inputs: seg.inputs, pokes: seg.pokes, segments: [seg], cards: ['blank', 'blank'],
+  };
   let version = 0;
   let last = 0;
   text.split('\n').forEach((raw, i) => {
@@ -38,7 +55,16 @@ export function parseMovie(text: string, name = 'movie'): Movie {
     } else if (words[0] === 'boot') {
       movie.boot = words[1];
     } else if (words[0] === 'end') {
-      movie.last = Number(words[1]);
+      seg.last = Number(words[1]);
+    } else if (words[0] === 'program') {
+      if (!words[1]) throw new Error(`${where}: expected program NAME`);
+      if (movie.segments.length === 1 && seg.inputs.size === 0 && seg.pokes.size === 0 && seg.last < 0) {
+        seg.program = words[1];
+      } else {
+        seg = { program: words[1], last: -1, inputs: new Map(), pokes: new Map() };
+        movie.segments.push(seg);
+      }
+      last = 0;
     } else if (words[0] === 'mark') {
       // annotation only
     } else if (words[0] === 'card') {
@@ -51,9 +77,9 @@ export function parseMovie(text: string, name = 'movie'): Movie {
       if (!Number.isInteger(t) || !Number.isInteger(address) || !Number.isInteger(value) || ![1, 2, 4].includes(size)) {
         throw new Error(`${where}: expected poke TICK ADDRESS VALUE [1|2|4]`);
       }
-      const list = movie.pokes.get(t) ?? [];
+      const list = seg.pokes.get(t) ?? [];
       list.push({ address, value, size: size as 1 | 2 | 4 });
-      movie.pokes.set(t, list);
+      seg.pokes.set(t, list);
     } else {
       const at = words[0];
       const t = at.startsWith('+') ? last + Number(at.slice(1)) : Number(at);
@@ -78,12 +104,13 @@ export function parseMovie(text: string, name = 'movie'): Movie {
         mask |= bit;
       }
       mask = (mask << (16 * player)) >>> 0;
-      for (let k = t; k < t + hold; k++) movie.inputs.set(k, ((movie.inputs.get(k) ?? 0) | mask) >>> 0);
+      for (let k = t; k < t + hold; k++) seg.inputs.set(k, ((seg.inputs.get(k) ?? 0) | mask) >>> 0);
       last = t;
     }
   });
   if (version !== 1) throw new Error(`${name}: missing "tpm 1"`);
-  if (movie.last < 0) throw new Error(`${name}: missing "end TICK"`);
+  movie.last = movie.segments[0].last;
+  if (movie.segments.length === 1 && movie.last < 0) throw new Error(`${name}: missing "end TICK"`);
   return movie;
 }
 

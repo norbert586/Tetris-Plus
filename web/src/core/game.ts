@@ -11,6 +11,7 @@ import { objectsClearAll, objectsDraw, uploadQueueFlush, type Box } from './obje
 import { traceRow } from './trace';
 import type { SoundCall } from './sound';
 import { CardSlots } from './card';
+import type { ProgramContext } from './program';
 
 export interface GameOptions {
   /** Global frame counter when pazle_main starts (it carries over from earlier programs). */
@@ -23,12 +24,15 @@ export interface GameOptions {
   ram?: Uint8Array;
   /** The memory cards in the two ports (default: a formatted card in port 1, port 2 empty). */
   cards?: CardSlots;
+  /** Run on a machine's memory, random numbers and cards (machine.ts); counter and seed are its. */
+  ctx?: ProgramContext;
 }
 
 /** Thrown when the original reaches code the port doesn't have. */
 export class NotPorted extends Error {}
 
 export class Game {
+  readonly name = 'PAZLE';
   m: Mem;
   rng: Rng;
   /** Sound effects started this tick (se_play arguments). */
@@ -58,6 +62,14 @@ export class Game {
   }
 
   constructor(opts: GameOptions) {
+    if (opts.ctx) {
+      // Started by the boot program: its phase word (+0x50) is what the last program left.
+      this.m = opts.ctx.m;
+      this.rng = opts.ctx.rng;
+      this.cards = opts.ctx.cards;
+      this.relaunch(this.m.s32(A.PHASE));
+      return;
+    }
     this.rng = new Rng(opts.seed);
     this.cards = opts.cards ?? new CardSlots();
     if (opts.ram) {

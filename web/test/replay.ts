@@ -1,5 +1,7 @@
 // Plays a movie on the core and compares it with the original's trace, tick by tick.
 import { Game, NotPorted } from '../src/core/game';
+import * as A from '../src/core/addr';
+import { Machine, type AnyProgram } from '../src/core/machine';
 import { powerOnLoad } from '../src/core/card';
 import type { AudioModel } from '../src/audio/model';
 import type { Renderer } from '../src/render/renderer';
@@ -11,8 +13,10 @@ export interface CompareOptions {
   ignore?: string[];
   to?: number;
   context?: number;
-  /** Also render every tick and compare the GPU packet and frame hashes (ot, fb). */
+  /** Also render every tick and compare the GPU packet and frame hashes (ot, fb): PAZLE's renderer. */
   renderer?: Renderer;
+  /** The renderer for each other program (by name), if frames are compared for it. */
+  renderers?: Record<string, Renderer>;
   /** Also run the sound (the trace's vs, kon, koff, spu, rev, cd, cdr; trace version 3). */
   audio?: (game: Game) => AudioModel;
 }
@@ -96,33 +100,99 @@ export async function compareMovieAsync(movie: Movie, trace: Trace, opts: Compar
   }
 }
 
+/** The seed `calls` rand() calls before `seed` (the LCG run backwards). */
+export function unwindSeed(seed: number, calls: number): number {
+  const INVERSE = 0xeeb9eb65; // 1103515245^-1 mod 2^32
+  let s = seed >>> 0;
+  for (let i = 0; i < calls; i++) s = Math.imul((s - 12345) | 0, INVERSE) >>> 0;
+  return s;
+}
+
+/** A machine set up as the trace's first tick found it, running the trace's first program. */
+export function machineForTrace(trace: Trace, movie: Movie): Machine {
+  const first = trace.rows[0];
+  const names = ['JLOGO', 'SW_ON', 'TIT_DEMO', 'TITLE', 'HOW_N', 'HOW_P', 'HOW_VS', 'RANKING', 'SELECT', 'NOMAL', 'PAZLE'];
+  const machine = new Machine({
+    counter: (first.ctr as number) - 1,
+    seed: unwindSeed(first.seed as number, first.rand as number),
+    difficulty: first.difficulty as number | undefined,
+    cards: movieCards(movie, join(import.meta.dirname, '..', '..')),
+    first: names.indexOf(trace.segments[0].program),
+  });
+  if (machine.program instanceof Game) powerOnLoad(machine.program); // SW_ON's card load at power-on
+  return machine;
+}
+
 function* compareSteps(movie: Movie, trace: Trace, opts: CompareOptions): Generator<void, CompareResult> {
-  const ignore = new Set([...(opts.ignore ?? []), ...(opts.renderer ? [] : RENDER_FIELDS),
-    ...(opts.audio ? [] : AUDIO_FIELDS)]);
-  const fields = trace.fields.filter((f) => !ignore.has(f) && !TIMED.includes(f));
+  const machine = machineForTrace(trace, movie);
+  let ticks = 0;
+  for (let k = 0; k < trace.segments.length; k++) {
+    const seg = trace.segments[k];
+    const mseg = movie.segments[k] ?? { inputs: new Map(), pokes: new Map(), last: -1 };
+    if (k > 0) {
+      // The program the original started next: the port's must have exited and named it.
+      if (!machine.program.exited) {
+        return { ok: false, ticks, report: `${seg.program} started in the original; the port's ${machine.program.name} is still running` };
+      }
+      try {
+        machine.next();
+      } catch (e) {
+        if (!(e instanceof NotPorted)) throw e;
+        return { ok: false, ticks, report: `segment ${k + 1}: not ported: ${e.message} (identical before)` };
+      }
+      if (machine.program.name !== seg.program) {
+        return { ok: false, ticks, report: `segment ${k + 1}: the original started ${seg.program}, the port ${machine.program.name}` };
+      }
+      // The boot program's loading frames aren't modelled: take the counter and seed it left.
+      const first = seg.rows[0];
+      machine.m.w32(A.COUNTER, (first.ctr as number) - 1);
+      machine.ctx.rng.seed = unwindSeed(first.seed as number, first.rand as number);
+    }
+    const prefix = trace.segments.length > 1 ? `${seg.program}: ` : '';
+    const r = yield* compareSegment(machine.program, seg.fields, seg.rows, mseg, k === 0 ? movie.last : mseg.last, opts, prefix);
+    ticks += r.ticks;
+    if (!r.ok) return { ...r, ticks };
+  }
+  return { ok: true, ticks, report: `identical over ${ticks} ticks` };
+}
+
+function* compareSegment(
+  game: AnyProgram,
+  traceFields: string[],
+  rows: Row[],
+  movie: { inputs: Map<number, number>; pokes: Map<number, { address: number; value: number; size: number }[]> },
+  last: number,
+  opts: CompareOptions,
+  prefix: string,
+): Generator<void, CompareResult> {
+  const renderer = game.name === 'PAZLE' ? opts.renderer : opts.renderers?.[game.name];
+  const isGame = game instanceof Game;
+  const ignore = new Set([...(opts.ignore ?? []), ...(renderer ? [] : RENDER_FIELDS),
+    ...(opts.audio && isGame ? [] : AUDIO_FIELDS)]);
+  const fields = traceFields.filter((f) => !ignore.has(f) && !TIMED.includes(f));
   const timed = new Map(TIMED.map((f) => [f, f === 'cdvol' ? 'spu' : f])
-    .filter(([, field]) => fields.includes(field) || (trace.fields.includes(field) && !ignore.has(field)))
+    .filter(([, field]) => fields.includes(field) || (traceFields.includes(field) && !ignore.has(field)))
     .map(([f]) => [f, new TimedEvents()]));
   const context = opts.context ?? 5;
-  const to = Math.min(opts.to ?? Infinity, movie.last);
-  const game = gameForTrace(trace, movie);
+  const to = Math.min(opts.to ?? Infinity, last < 0 ? Infinity : last);
   // Traces before version 3 have no sound fields.
-  const audio = trace.fields.includes('kon') ? opts.audio?.(game) : undefined;
+  const audio = isGame && traceFields.includes('kon') ? opts.audio?.(game) : undefined;
+  const trace = { rows };
   const mine: Row[] = [];
   let ticks = 0;
-  for (const want of trace.rows) {
+  for (const want of rows) {
     const t = want.t as number;
     if (t > to) break;
     try {
       game.step(movie.inputs.get(t) ?? 0);
     } catch (e) {
       if (!(e instanceof NotPorted)) throw e;
-      return { ok: false, ticks, report: `tick ${t}: not ported: ${e.message} (identical before)` };
+      return { ok: false, ticks, report: `${prefix}tick ${t}: not ported: ${e.message} (identical before)` };
     }
-    const got = game.traceRow();
+    const got = game.traceRow() as Row;
     got.t = t;
-    if (opts.renderer) {
-      const frame = opts.renderer.frame(game);
+    if (renderer) {
+      const frame = renderer.frame(game);
       got.ot = frame.ot;
       got.fb = frame.fb;
     }
@@ -147,10 +217,10 @@ function* compareSteps(movie: Movie, trace: Trace, opts: CompareOptions): Genera
     const bad = fields.filter((f) => !sameField(f, got[f], want[f]));
     for (const [f, events] of timed) {
       const problem = events.check(f, t);
-      if (problem) return { ok: false, ticks, report: `difference by tick ${t}: ${problem}` };
+      if (problem) return { ok: false, ticks, report: `${prefix}difference by tick ${t}: ${problem}` };
     }
     if (bad.length) {
-      const lines = [`first difference at tick ${t}: ${bad.join(', ')}`];
+      const lines = [`${prefix}first difference at tick ${t}: ${bad.join(', ')}`];
       const start = Math.max(0, mine.length - 1 - context);
       for (let i = start; i < mine.length; i++) {
         const w = trace.rows[i];
@@ -165,7 +235,7 @@ function* compareSteps(movie: Movie, trace: Trace, opts: CompareOptions): Genera
   }
   for (const [f, events] of timed) {
     const problem = events.check(f, Infinity);
-    if (problem) return { ok: false, ticks, report: `difference at the end: ${problem}` };
+    if (problem) return { ok: false, ticks, report: `${prefix}difference at the end: ${problem}` };
   }
   return { ok: true, ticks, report: `identical over ${ticks} ticks` };
 }

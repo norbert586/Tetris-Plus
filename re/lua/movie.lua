@@ -52,11 +52,9 @@ local mem = PCSX.getMemPtr()
 local pad = PCSX.SIO0.slots[1].pads[1]
 local button = PCSX.CONSTS.PAD.BUTTON
 
-local PAZLE_FINGERPRINT = '30610980306109803061098030610980' -- first 16 bytes of PAZLE.EXE
-local PAZLE_MAIN, AFTER_PADREAD, RAND = 0x800963b0, 0x80095668, 0x800c0c48
-local SE_PLAY, BGM_REQUEST = 0x80095778, 0x80095da8
-local ITEM_LOAD, ITEM_QUEUE = 0x8009740c, 0x8009747c
-local PLAYER = 0x800eead0
+-- The programs the tracer knows (re/lua/programs.lua): hooks, ordering tables, fields.
+local PROGRAMS = dofile(os.getenv('TP_REPO') .. '/re/lua/programs.lua')
+for name, p in pairs(PROGRAMS) do p.name = name end
 local CTR = 0x3e668 + 0x40
 
 local BITS = {
@@ -74,6 +72,8 @@ local ROUTES = {
     },
     -- With a Tetris Plus save on the card in port 1, SW_ON loads it and the programs after it
     -- start about 90-110 frames later, so the mode select's presses come 120 frames later.
+    -- No presses: the movie's own segments drive every program from power-on.
+    power = { taps = {}, presses = {} },
     ['puzzle-saved'] = {
         taps = { { 'START', 300, 3000, 90 } },
         presses = { { 'RIGHT', 3520, 4 }, { 'CROSS', 3620, 4 }, { 'CROSS', 3820, 4 } },
@@ -107,7 +107,12 @@ local function parseButtons(text, where)
 end
 
 local function loadMovie(path)
-    local movie = { inputs = {}, pokes = {}, boot = 'puzzle', name = path:match('([^/]+)$') }
+    -- Segments: one per traced program run, in the order the programs start. Lines before the
+    -- first "program NAME" belong to the boot route's program (PAZLE). Ticks count from each
+    -- program's own start.
+    local movie = { boot = 'puzzle', name = path:match('([^/]+)$') }
+    local seg = { name = 'PAZLE', inputs = {}, pokes = {} }
+    movie.segments = { seg }
     local last = 0
     local n = 0
     for line in io.lines(path) do
@@ -123,7 +128,17 @@ local function loadMovie(path)
         elseif words[1] == 'boot' then
             movie.boot = words[2]
         elseif words[1] == 'end' then
-            movie.last = tonumber(words[2])
+            seg.last = tonumber(words[2])
+        elseif words[1] == 'program' then
+            -- program NAME: the next lines drive the next run of that program
+            if not PROGRAMS[words[2]] then fail(where .. ': unknown program ' .. tostring(words[2])) end
+            if #movie.segments == 1 and next(seg.inputs) == nil and next(seg.pokes) == nil and not seg.last then
+                seg.name = words[2] -- the movie starts with this program
+            else
+                seg = { name = words[2], inputs = {}, pokes = {} }
+                movie.segments[#movie.segments + 1] = seg
+            end
+            last = 0
         elseif words[1] == 'mark' then
         elseif words[1] == 'card' then
             -- card PORT blank|none|FILE: run-movie.sh installs FILE; an empty port is set here
@@ -135,8 +150,8 @@ local function loadMovie(path)
             if not t or not address or not value or (size ~= 1 and size ~= 2 and size ~= 4) then
                 fail(where .. ': expected poke TICK ADDRESS VALUE [1|2|4]')
             end
-            movie.pokes[t] = movie.pokes[t] or {}
-            table.insert(movie.pokes[t], { address = address, value = value, size = size })
+            seg.pokes[t] = seg.pokes[t] or {}
+            table.insert(seg.pokes[t], { address = address, value = value, size = size })
         else
             local at = words[1]
             local t = at:sub(1, 1) == '+' and last + tonumber(at:sub(2)) or tonumber(at)
@@ -145,12 +160,14 @@ local function loadMovie(path)
             if t < last then fail(where .. ': events must be in tick order') end
             if t < 2 then fail(where .. ': the first tick with input is 2') end
             local mask = parseButtons(words[3], where)
-            for k = t, t + hold - 1 do movie.inputs[k] = bit.bor(movie.inputs[k] or 0, mask) end
+            for k = t, t + hold - 1 do seg.inputs[k] = bit.bor(seg.inputs[k] or 0, mask) end
             last = t
         end
     end
     if movie.version ~= 1 then fail(path .. ': missing "tpm 1"') end
-    if not movie.last then fail(path .. ': missing "end TICK"') end
+    local ends = false
+    for _, s in ipairs(movie.segments) do ends = ends or s.last ~= nil end
+    if not ends and #movie.segments == 1 then fail(path .. ': missing "end TICK"') end
     if not ROUTES[movie.boot] then fail(path .. ': unknown boot route ' .. movie.boot) end
     return movie
 end
@@ -199,12 +216,22 @@ local readers = {
 }
 local sizes = { s32 = 4, u32 = 4, s16 = 2, u16 = 2, u8 = 1 }
 
-local fields = {}
-for _, f in ipairs(dofile(os.getenv('TP_REPO') .. '/re/lua/trace_fields.lua')) do
-    local name, address, type_, count, stride = f[1], f[2], f[3], f[4], f[5]
-    fields[#fields + 1] = { name = name, address = phys(address), read = readers[type_], count = count,
-                            stride = stride or sizes[type_] }
+local function compileFields(list)
+    local out = {}
+    for _, f in ipairs(list) do
+        local name, address, type_, count, stride = f[1], f[2], f[3], f[4], f[5]
+        out[#out + 1] = { name = name, address = phys(address), read = readers[type_], count = count,
+                          stride = stride or sizes[type_] }
+    end
+    return out
 end
+PROGRAMS.PAZLE.fields = dofile(os.getenv('TP_REPO') .. '/re/lua/trace_fields.lua')
+for _, p in pairs(PROGRAMS) do p.compiled = compileFields(p.fields) end
+
+-- The program being traced, its segment of the movie (set when a traced program starts).
+local prog = PROGRAMS[movie.segments[1].name]
+local seg = movie.segments[1]
+local segIndex = 0
 
 local function slotFingerprint()
     local bytes = {}
@@ -246,12 +273,16 @@ local function jsonValue(v)
     return string.format('%d', v)
 end
 
-do
+-- A program's field names: its own, then the board (PAZLE) or the sprite objects' hash, then
+-- the events and hashes every program records.
+local function fieldNames(p)
     local names = {}
-    for i, f in ipairs(fields) do names[i] = '"' .. f.name .. '"' end
-    trace:write(string.format('{"tptrace":%d,"movie":"%s","boot":"%s","fields":[%s,"board","rand","se","bgm","up","ot","fb","vs","kon","koff","spu","rev","cd","cdr"]}\n',
-                              TRACE_VERSION, movie.name, movie.boot, table.concat(names, ',')))
+    for i, f in ipairs(p.compiled) do names[i] = '"' .. f.name .. '"' end
+    names[#names + 1] = p.board and '"board"' or '"obj"'
+    return table.concat(names, ',') .. ',"rand","se","bgm","up","ot","fb","vs","kon","koff","spu","rev","cd","cdr"'
 end
+trace:write(string.format('{"tptrace":%d,"movie":"%s","boot":"%s","program":"%s","fields":[%s]}\n',
+                          TRACE_VERSION, movie.name, movie.boot, prog.name, fieldNames(prog)))
 
 local previous = {}
 local function sameValue(a, b)
@@ -282,8 +313,8 @@ local FNV_BASIS = bit.tobit(0x811c9dc5)
 -- buffer 0x800EE484 (GsOT headers at 0x800ED2F4, 20 bytes each; the chain starts at ->tag).
 -- Every packet's words after its link word are hashed; link words are RAM addresses.
 local function hashOrderingTable()
-    local buffer = readers.u32(phys(0x800ee484))
-    local tag = readers.u32(phys(0x800ed2f4 + 20 * buffer + 16))
+    local buffer = readers.u32(phys(prog.otBuffer))
+    local tag = readers.u32(phys(prog.otHeaders + 20 * buffer + 16))
     local address, h, n = bit.band(tag, 0xffffff), FNV_BASIS, 0
     while address ~= 0xffffff do
         local head = readers.u32(phys(address))
@@ -298,7 +329,7 @@ end
 -- fb: the 320x240 frame the GPU just drew, mask bit included. The ordering table of buffer b
 -- (0x800EE484) is drawn after GsSwapDispBuff, into the other display buffer: (0, 240 * (1 - b)).
 local function hashFrame()
-    local buffer = 1 - readers.u32(phys(0x800ee484))
+    local buffer = 1 - readers.u32(phys(prog.otBuffer))
     local vram = PCSX.GPU.getVRAM()
     local px = ffi.cast('const uint16_t*', vram.data)
     local h = FNV_BASIS
@@ -306,6 +337,15 @@ local function hashFrame()
         local row = px + y * 1024
         for x = 0, 319 do h = fnv(h, row[x]) end
     end
+    return h
+end
+
+-- obj: the 1,050 sprite objects (state+0x5C, 0x7C bytes each), FNV-1a over their words.
+local OBJECTS = phys(0x8003e668 + 0x5c)
+local function hashObjects()
+    local words = ffi.cast('const int32_t*', mem + OBJECTS)
+    local h = FNV_BASIS
+    for i = 0, 1050 * 31 - 1 do h = fnv(h, words[i]) end
     return h
 end
 
@@ -319,7 +359,7 @@ local function record(t)
             previous[name] = value
         end
     end
-    for _, f in ipairs(fields) do
+    for _, f in ipairs(prog.compiled) do
         if f.count then
             local values = {}
             for i = 0, f.count - 1 do values[i + 1] = f.read(f.address + i * f.stride) end
@@ -328,7 +368,7 @@ local function record(t)
             put(f.name, f.read(f.address))
         end
     end
-    put('board', readBoard())
+    if prog.board then put('board', readBoard()) else put('obj', hashObjects()) end
     put('rand', randCalls)
     if #sounds > 0 then parts[#parts + 1] = '"se":' .. jsonValue(sounds) end
     if #music > 0 then parts[#parts + 1] = '"bgm":' .. jsonValue(music) end
@@ -404,16 +444,33 @@ local function addExec(address, name, fn)
     end))
 end
 
-addExec(PAZLE_MAIN, 'tp_pazle_main', function()
-    if slotFingerprint() ~= PAZLE_FINGERPRINT or active then return end
+-- A traced program starts: its main function runs and the next segment of the movie names it.
+-- Programs the movie doesn't name run untraced, with the pad idle.
+local function segmentStart(p)
+    local nextSeg = movie.segments[segIndex + 1]
+    if active or not nextSeg or nextSeg.name ~= p.name then
+        if not active then print(string.format('frame %d: %s starts (not traced)', frame, p.name)) end
+        return
+    end
+    segIndex = segIndex + 1
+    seg, prog = nextSeg, p
     active = true
     base = readers.u32(CTR)
+    tick = -1
+    previous = {}
+    -- Events after the last program's last sample (its main loop's tail) aren't this one's.
+    randCalls, sounds, music, uploads = 0, {}, {}, {}
+    keyOns, keyOffs, cdCommands, cdReports = {}, {}, {}, {}
+    vblanks = 0
     for _, value in pairs(button) do pad.clearOverride(value) end
-    print(string.format('frame %d: pazle_main, counter %d, seed 0x%08x', frame, base, readers.u32(phys(0x800083a4))))
-end)
+    if segIndex > 1 then
+        trace:write(string.format('{"seg":%d,"program":"%s","fields":[%s]}\n', segIndex, p.name, fieldNames(p)))
+    end
+    print(string.format('frame %d: %s main, counter %d, seed 0x%08x', frame, p.name, base, readers.u32(phys(0x800083a4))))
+end
 
-addExec(AFTER_PADREAD, 'tp_padread', function(regs)
-    if not active then return end
+-- The sample point: right after the main loop's PadRead call (v0 holds its word).
+local function afterPadRead(regs)
     local t = readers.u32(CTR) - base
     if t ~= tick then
         if t ~= tick + 1 and tick >= 0 then log(string.format('warning: tick jumped to %d', t)) end
@@ -445,14 +502,14 @@ addExec(AFTER_PADREAD, 'tp_padread', function(regs)
         if saveTicks[t] then pending.save = t end
         if ramTicks[t] or vramTicks[t] then dumpRam(string.format('ram_%05d.bin', t)) end
         if vramTicks[t] then dumpVram(string.format('vram_%05d.bin', t)) end
-        for _, p in ipairs(movie.pokes[t] or {}) do
+        for _, p in ipairs(seg.pokes[t] or {}) do
             local a = phys(p.address)
             if p.size == 4 then ffi.cast('uint32_t*', mem + a)[0] = bit.tobit(p.value)
             elseif p.size == 2 then ffi.cast('uint16_t*', mem + a)[0] = p.value
             else mem[a] = p.value end
             log(string.format('poke 0x%08x = %d', p.address, p.value))
         end
-        if t >= movie.last then
+        if seg.last and t >= seg.last then
             dumpRam('ram_end.bin')
             log('done')
             quitCode = 0
@@ -461,32 +518,50 @@ addExec(AFTER_PADREAD, 'tp_padread', function(regs)
         log('warning: pad_read called twice in one tick')
     end
     if padLog and regs.GPR.n.v0 ~= 0 then log(string.format('PadRead returned 0x%08x', regs.GPR.n.v0)) end
-    regs.GPR.n.v0 = movie.inputs[t + 1] or 0
-end)
+    regs.GPR.n.v0 = seg.inputs[t + 1] or 0
+end
 
-addExec(RAND, 'tp_rand', function()
-    if active then randCalls = randCalls + 1 end
-end)
-addExec(SE_PLAY, 'tp_se', function(regs)
-    if active then sounds[#sounds + 1] = regs.GPR.n.a0 end
-end)
-addExec(BGM_REQUEST, 'tp_bgm', function(regs)
-    if active then music[#music + 1] = regs.GPR.n.a0 end
-end)
 -- Image uploads: item_load(n) uploads at once, FUN_8009747C(n) queues an upload for the end of
 -- the frame (up to 4 a frame). Logged as n + 0x10000 * player, plus 0x100000 when queued.
 -- TP_UPLOAD_LOG=1 also logs each call's return address ("tick N: up ITEM from RA").
 local uploadLog = os.getenv('TP_UPLOAD_LOG') == '1'
-addExec(ITEM_LOAD, 'tp_item_load', function(regs)
-    if not active then return end
-    uploads[#uploads + 1] = regs.GPR.n.a0 + 0x10000 * readers.u32(phys(PLAYER))
-    if uploadLog then log(string.format('up %d from 0x%08x', regs.GPR.n.a0, regs.GPR.n.ra)) end
-end)
-addExec(ITEM_QUEUE, 'tp_item_queue', function(regs)
-    if not active then return end
-    uploads[#uploads + 1] = regs.GPR.n.a0 + 0x10000 * readers.u32(phys(PLAYER)) + 0x100000
-    if uploadLog then log(string.format('upq %d from 0x%08x', regs.GPR.n.a0, regs.GPR.n.ra)) end
-end)
+for name, p in pairs(PROGRAMS) do
+    local function mine() return active and prog == p end
+    addExec(p.main, 'tp_main_' .. name, function()
+        if slotFingerprint() == p.fingerprint then segmentStart(p) end
+    end)
+    addExec(p.afterPadRead, 'tp_padread_' .. name, function(regs)
+        if mine() then afterPadRead(regs) end
+    end)
+    addExec(p.rand, 'tp_rand_' .. name, function()
+        if mine() then randCalls = randCalls + 1 end
+    end)
+    if p.sePlay then
+        addExec(p.sePlay, 'tp_se_' .. name, function(regs)
+            if mine() then sounds[#sounds + 1] = regs.GPR.n.a0 end
+        end)
+    end
+    if p.bgmRequest then
+        addExec(p.bgmRequest, 'tp_bgm_' .. name, function(regs)
+            if mine() then music[#music + 1] = regs.GPR.n.a0 end
+        end)
+    end
+    local function player() return p.player and readers.u32(phys(p.player)) or 0 end
+    if p.itemLoad then
+        addExec(p.itemLoad, 'tp_item_load_' .. name, function(regs)
+            if not mine() then return end
+            uploads[#uploads + 1] = regs.GPR.n.a0 + 0x10000 * player()
+            if uploadLog then log(string.format('up %d from 0x%08x', regs.GPR.n.a0, regs.GPR.n.ra)) end
+        end)
+    end
+    if p.itemQueue then
+        addExec(p.itemQueue, 'tp_item_queue_' .. name, function(regs)
+            if not mine() then return end
+            uploads[#uploads + 1] = regs.GPR.n.a0 + 0x10000 * player() + 0x100000
+            if uploadLog then log(string.format('upq %d from 0x%08x', regs.GPR.n.a0, regs.GPR.n.ra)) end
+        end)
+    end
+end
 
 ------------------------------------------------------------------------------ audio
 -- Trace version 3. Redux doesn't expose the SPU's registers to Lua, so a write breakpoint on
@@ -583,31 +658,36 @@ TpSpuBreakpoint = PCSX.addBreakpoint(0x1f801c00, 'Write', 0x400, 'tp_spu', funct
     return true
 end)
 
-local CD_FUNCTIONS = { 0x800c5ee8, 0x800c6020, 0x800c614c } -- CdControl, CdControlF, CdControlB
 local CD_PARAMS = { [0x02] = 3, [0x0e] = 1 } -- libcd sends Play (0x03) without a parameter
-for _, address in ipairs(CD_FUNCTIONS) do
-    addExec(address, 'tp_cd', function(regs)
-        if slotFingerprint() ~= PAZLE_FINGERPRINT then return end
-        local com = bit.band(regs.GPR.n.a0, 0xff)
-        local entry = { com }
-        if regs.GPR.n.a1 ~= 0 and CD_PARAMS[com] then
-            local p = phys(regs.GPR.n.a1)
-            for k = 0, CD_PARAMS[com] - 1 do entry[#entry + 1] = mem[p + k] end
-        end
-        cdCommands[#cdCommands + 1] = entry
-        TpAudioLog('cd', table.concat(entry, ' '))
-    end)
-end
-addExec(0x80095c5c, 'tp_cd_report', function(regs)
-    if slotFingerprint() ~= PAZLE_FINGERPRINT then return end
-    local entry = { regs.GPR.n.a0 }
-    if regs.GPR.n.a1 ~= 0 then
-        local p = phys(regs.GPR.n.a1)
-        for k = 0, 5 do entry[#entry + 1] = mem[p + k] end
+for name, prg in pairs(PROGRAMS) do
+    -- CdControl, CdControlF, CdControlB of this program's libcd
+    for _, address in ipairs(prg.cd or {}) do
+        addExec(address, 'tp_cd_' .. name, function(regs)
+            if not active or prog ~= prg then return end
+            local com = bit.band(regs.GPR.n.a0, 0xff)
+            local entry = { com }
+            if regs.GPR.n.a1 ~= 0 and CD_PARAMS[com] then
+                local p = phys(regs.GPR.n.a1)
+                for k = 0, CD_PARAMS[com] - 1 do entry[#entry + 1] = mem[p + k] end
+            end
+            cdCommands[#cdCommands + 1] = entry
+            TpAudioLog('cd', table.concat(entry, ' '))
+        end)
     end
-    cdReports[#cdReports + 1] = entry
-    TpAudioLog('cdr', table.concat(entry, ' '))
-end)
+    -- The program's CD report callback (PAZLE: bgm_report_callback)
+    if prg.cdReport then
+        addExec(prg.cdReport, 'tp_cd_report_' .. name, function(regs)
+            if not active or prog ~= prg then return end
+            local entry = { regs.GPR.n.a0 }
+            if regs.GPR.n.a1 ~= 0 then
+                local p = phys(regs.GPR.n.a1)
+                for k = 0, 5 do entry[#entry + 1] = mem[p + k] end
+            end
+            cdReports[#cdReports + 1] = entry
+            TpAudioLog('cdr', table.concat(entry, ' '))
+        end)
+    end
+end
 
 ------------------------------------------------------------------------------ per vblank
 
@@ -637,17 +717,21 @@ TpMovieListener = PCSX.Events.createEventListener('GPU::Vsync', function()
         TpSpuRestore(side:match('"spu":%[([%d,]*)%]'))
         PCSX.loadSaveState(Support.File.open(loadPath, 'READ'))
         active = true
+        segIndex = 1
         previous = {}
         print(string.format('frame %d: loaded %s at tick %d', frame, loadPath, tick))
         return
     end
-    if not active and not loadPath then applyRoute() end
-    if active and slotFingerprint() ~= PAZLE_FINGERPRINT then
-        log('PAZLE.EXE has exited')
-        dumpRam('ram_end.bin')
-        trace:close()
-        PCSX.quit(0)
-        return
+    if segIndex == 0 and not loadPath then applyRoute() end
+    if active and slotFingerprint() ~= prog.fingerprint then
+        log(prog.name .. '.EXE has exited')
+        active = false
+        if segIndex == #movie.segments then
+            dumpRam('ram_end.bin')
+            trace:close()
+            PCSX.quit(0)
+            return
+        end
     end
     if pending.shot then screenshot(pending.shot) end
     if pending.save then saveState(pending.save) end

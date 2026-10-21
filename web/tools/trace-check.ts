@@ -16,6 +16,7 @@ import { audioModel } from '../test/audio';
 import { compareMovie } from '../test/replay';
 import { readPack } from '../src/assets/pack';
 import { Renderer } from '../src/render/renderer';
+import { PROGRAM_ART } from '../src/render/programs';
 
 const ROOT = join(import.meta.dirname, '..', '..');
 const args = process.argv.slice(2);
@@ -44,10 +45,13 @@ let failed = 0;
 for (const name of movies) {
   const movie = loadMovie(join(ROOT, 're/movies', `${name}.tpm`));
   const trace = loadTrace(join(ROOT, 're/traces', `${name}.jsonl.gz`));
-  const renderer = render
-    ? new Renderer(readPack(new Uint8Array(readFileSync(join(ROOT, 'web/public/assets/pazlee.pack')))))
+  const pack = (file: string) => readPack(new Uint8Array(readFileSync(join(ROOT, 'web/public/assets', file))));
+  const renderers = render
+    ? Object.fromEntries(Object.entries(PROGRAM_ART).map(([n, a]) => [n, new Renderer(pack(a.pack), a.style)]))
     : undefined;
-  const result = compareMovie(movie, trace, { ignore, to, context, renderer, audio: audio ? audioModel : undefined });
+  const result = compareMovie(movie, trace, {
+    ignore, to, context, renderer: renderers?.PAZLE, renderers, audio: audio ? audioModel : undefined,
+  });
   console.log(`${name}: ${result.report}`);
   if (!result.ok) failed++;
 }

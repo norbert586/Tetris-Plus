@@ -1,0 +1,45 @@
+tpm 1
+boot puzzle
+# ranking: retire on Egypt 1 (pause-retire's route), let the continue countdown run out; on the
+# save screen, Quit: player 1 leaves, both players are on screen 8, and Puzzle Mode exits to
+# RANKING.EXE, which shows both tables, holds them 300 frames and starts TIT_DEMO.
+100 4 CROSS
+220 4 CROSS
+340 4 CROSS
+460 4 CROSS
+580 4 CROSS
+700 4 CROSS
+820 4 CROSS
+940 4 CROSS
+1060 4 CROSS
+1180 4 CROSS
+1300 4 CROSS
+1420 4 CROSS
+1540 4 CROSS
+1660 4 CROSS
+1780 4 CROSS
+1900 4 CROSS
+2020 4 CROSS
+2140 4 CROSS
+2260 4 CROSS
+2380 4 CROSS
+2500 4 CROSS
+2620 4 CROSS
+2740 4 CROSS
+2860 4 CROSS
+2980 4 CROSS
+3100 1 START
+3130 1 SELECT
+3160 1 DOWN
+3190 1 CROSS
+3260 1 CROSS
+3290 1 DOWN
+3310 1 DOWN
+3340 1 CROSS
+3370 1 RIGHT
+3390 1 LEFT
+3420 1 CROSS
+5000 1 DOWN
+5030 1 DOWN
+5060 1 CROSS
+program RANKING
