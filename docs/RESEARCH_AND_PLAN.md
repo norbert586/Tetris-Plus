@@ -1,6 +1,6 @@
 # Tetris Plus (PS1) on the web — Puzzle Mode: research and plan
 
-Status: written 2026-10-16 as the research plan; progress is tracked in §10 (Phases 0–7 complete).
+Status: written 2026-10-16 as the research plan; progress is tracked in §10 (Phases 0–9 complete).
 
 ## TL;DR
 

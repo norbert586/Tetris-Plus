@@ -1,5 +1,6 @@
-// The settings panel (Escape): controls for keyboard and gamepad, display, volume. Plain HTML
+// The settings panel (Escape): controls for keyboard and gamepad, display, volume, the memory card. Plain HTML
 // over the paused game; every change is saved at once.
+import { formattedCard, parseCardFile } from '../flow/memcard';
 import { Input } from './input';
 import { BINDABLE, DEFAULTS, saveSettings, type Button, type Settings } from './settings';
 
@@ -17,12 +18,17 @@ export interface PanelHost {
   apply(settings: Settings): void;
   toggleFullscreen(): void;
   close(): void;
+  /** The card in slot 1 (a copy), and putting another in its place (docs/re/shell.md). */
+  card(): Uint8Array | null;
+  setCard(image: Uint8Array): void;
 }
 
 export class SettingsPanel {
   readonly el: HTMLElement;
   /** A binding in progress: the button and whether a key or a gamepad button is awaited. */
   private binding?: { button: Button; kind: 'key' | 'pad'; poll?: number };
+  /** The outcome of the last card import or erase, shown under the card buttons. */
+  private cardNote = '';
 
   constructor(private readonly host: PanelHost) {
     this.el = document.createElement('div');
@@ -37,6 +43,7 @@ export class SettingsPanel {
 
   show(): void {
     this.el.hidden = false;
+    this.cardNote = '';
     this.render();
   }
 
@@ -163,6 +170,44 @@ export class SettingsPanel {
     volLabel.prepend(vol);
     sound.append(volLabel);
     el.append(h('h3', 'Sound'), sound);
+
+    const card = h('div', undefined, 'row');
+    const file = h('input') as HTMLInputElement;
+    file.type = 'file';
+    file.accept = '.mcd,.mcr,.gme';
+    file.hidden = true;
+    file.addEventListener('change', async () => {
+      const f = file.files?.[0];
+      if (!f) return;
+      try {
+        this.host.setCard(parseCardFile(new Uint8Array(await f.arrayBuffer())));
+        this.cardNote = `Card 1 replaced by ${f.name}.`;
+      } catch (e) {
+        this.cardNote = `${f.name}: ${e instanceof Error ? e.message : String(e)}`;
+      }
+      this.render();
+    });
+    card.append(
+      button('Export (.mcd)', () => {
+        const image = this.host.card();
+        if (!image) return;
+        const a = h('a') as HTMLAnchorElement;
+        a.href = URL.createObjectURL(new Blob([new Uint8Array(image)], { type: 'application/octet-stream' }));
+        a.download = 'tetris-plus-card1.mcd';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      }),
+      button('Import…', () => file.click()),
+      button('Erase', () => {
+        if (!confirm('Erase memory card 1? Saved progress, records and options are lost.')) return;
+        this.host.setCard(formattedCard());
+        this.cardNote = 'Card 1 erased.';
+        this.render();
+      }),
+      file,
+    );
+    el.append(h('h3', 'Memory card 1'), card);
+    if (this.cardNote) el.append(h('p', this.cardNote, 'note'));
 
     const other = h('div', undefined, 'row');
     other.append(
