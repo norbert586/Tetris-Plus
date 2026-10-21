@@ -9,3 +9,4 @@ node_modules/
 dist/
 __pycache__/
 .DS_Store
+web/tmp-*
