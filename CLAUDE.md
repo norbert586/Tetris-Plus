@@ -57,6 +57,9 @@ original PS1 game (US, SLUS-00338) and verified against it in an emulator.
   - The core records presentation events the renderer replays: image uploads (`Game.uploads`,
     trace field `up`; add `itemLoad`/`itemQueue` wherever the original calls `item_load` or
     `FUN_8009747C`) and boxes sorted during the logic (`Game.boxes`).
+  - The complete-run movie (power-on to the ending and back to the title, all 100 stages):
+    `npx tsx tools/complete-run.ts [OUT.tpm] [--log]` plays it on the port and writes
+    `re/movies/complete-run.tpm`.
   - Design a movie on the core before running it on the original:
     `npx tsx tools/simulate.ts ../re/movies/<name>.tpm [--to T] [--fields a,b]`.
   - Movies can poke memory after a tick (`poke TICK ADDRESS VALUE [SIZE]`) to set up a scenario;

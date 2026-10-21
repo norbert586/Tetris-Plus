@@ -12,10 +12,12 @@ complete run. This page records what is done so far.
 | Browser shell: keyboard and gamepad input, remapping, scaling, scanlines, fullscreen, pausing, master volume | Done (§3) |
 | Persistence: the cards in the browser, import/export as `.mcd` | Done (§4) |
 | Several programs in one trace, the port's `Machine` | Done (§6): the tracer follows a movie through every program; the port runs them in turn on shared memory |
-| RANKING.EXE | Ported (§7): identical to the original, frames included |
-| SW_ON, TIT_DEMO, TITLE, SELECT | Being ported (§7); recorded movies `boot-story` and `boot-select`. Until they are, the shell gives way to Puzzle Mode where a program isn't ported |
-| JLOGO.EXE (the Jaleco logo) | Its video as MP4 (§8) |
-| A complete run on the port | Open |
+| SW_ON, TIT_DEMO, TITLE, SELECT (with Option mode), RANKING | Ported (§7): every movie that runs them is identical to the original, frames and card images included, from power-on |
+| The attract demos HOW_N, HOW_VS | Not ported (they play the other modes); the `Machine` stands in for them with what they leave (§6), so the attract loop keeps the original's counter and random numbers |
+| The other modes (Classic, VS Puzzle, Edit) | Not ported; choosing one in the shell returns to the mode select |
+| JLOGO.EXE (the Jaleco logo) | Its video as WebM and MP4 (§8); the shell plays it at power-on |
+| Sound of the programs around Puzzle Mode | In progress: they record their sound requests, but the browser plays them only for Puzzle Mode so far |
+| A complete run | The port plays the whole game (§9); the movie is being checked on the original |
 
 ## 2. The memory card
 
@@ -125,6 +127,13 @@ Identical to the original over its 1,600 ticks: traced fields and frames.
   window at 4:3, pixelated; optional scanlines; fullscreen with F or a double click.
 - **Pausing.** Esc opens the settings and pauses; leaving the tab or the window pauses too
   (input released, sound suspended).
+- **Power-on.** The first key press or click switches the console on (browsers need a gesture
+  for sound): the Jaleco logo plays (WebM, or MP4 where VP9 is missing), then the `Machine`
+  starts SW_ON with the frame counter at 0 and the BIOS seed measured at power-on
+  (`0x57729884`), and the programs follow as on the console: the card check and copyright, the
+  story, the title, the mode select, Puzzle Mode, the rankings and the attract loop.
+- **Other modes.** Choosing Classic, VS Puzzle or Edit on the mode select returns to it (the
+  boot program is told to load SELECT, as TITLE's Start does) with a note in the status line.
 - **Sound.** Starts with the first key press or click; a master volume in the settings.
 
 ## 4. Persistence
@@ -193,10 +202,22 @@ that pause (`docs/RESEARCH_AND_PLAN.md` §6), but the loader's main loop calls `
 frame, and the BIOS generator is the one every program uses. The loader leaves the frame counter
 alone. Measured on the original (`LOADER_RAND`), the number of calls is the same every time for
 each transition, whatever the program did before: SW_ON → TIT_DEMO 200, TIT_DEMO → TITLE 260,
-TITLE → SELECT 214, SELECT → PAZLE 414, PAZLE → RANKING 194 (plus the one `rand()` in the
-exiting program's last main-loop iteration). The `Machine` makes the same calls, so a session
+TITLE → SELECT 214, SELECT → PAZLE 414, PAZLE → RANKING 194, RANKING → TIT_DEMO 200 (plus the
+one `rand()` in the exiting program's last main-loop iteration). The `Machine` makes the same calls, so a session
 on the port gets the original's random numbers across the whole chain. Replays take the
 counter and seed each program starts with from the trace.
+
+**The attract demos.** After 1,800 idle frames TITLE starts a how-to-play demo, HOW_N or
+HOW_VS in turn (`state+0x4B540` bit 0), which plays the other modes and goes on to RANKING.
+They aren't ported; movie `attract` (power-on, no input, two rounds: 11,544 traced ticks, the
+demos untraced) measured what each leaves, and the `Machine` applies it in their place
+(`DEMO_STAND_IN`): the frames they and their loads take (HOW_N 6,835, HOW_VS 2,980), their
+`rand()` calls with TITLE's last one (20,850 and 3,433), the shared words they write
+(`state+0x18` 50, `+0x20` 19 or −11, `+0x24` 4 or 5, `+0x58` 102, `+0x4B540` 1 or 0), and
+RANKING as the next program, phase 0. The sprite objects they leave don't matter: RANKING
+clears them all as it starts. Run free from power-on with no re-syncing, the port's frame
+counter, seed, objects and next-program words equal the original's on every tick of both
+rounds; the replay is identical too, frames included.
 
 **Rendering.** Each program's images come from its own data file
 (`tools/extract-assets.ts` writes one pack per program: `swone`, `tdemoe`, `titlee`,
@@ -208,6 +229,12 @@ draws objects whose image is above `0x10000` and sets only the blend-rate bits; 
 non-zero image and also sets the semi-transparency bit.
 
 ## 7. The programs
+
+Each is ported from its decompile (`../tp-private/work/decomp/<EXE>.c`) into
+`web/src/core/programs/<name>/`, in full, quirks included, and checked by movies recorded for
+it (traces in `re/traces/`): `npm run trace -- --render` replays each from power-on and is
+identical on every traced field, the GPU packet hash and the frame hash. The card movies also
+compare the card images the run leaves with the emulator's, byte for byte.
 
 ### 7.1 RANKING.EXE
 
@@ -223,11 +250,99 @@ No input but the soft reset, no sound (its sound code is there but nothing calls
 screen 8, Puzzle Mode exits to RANKING, which runs 440 ticks. Identical to the original, every
 field and frame of both programs, on the first recording.
 
+### 7.2 SW_ON.EXE
+
+The card check and the copyright (`programs/sw_on/sw_on.ts`): all 36 steps of its state machine,
+its own card routines (check, load, format; the create routine is ported but unreachable), the
+copyright scroll, hold and fade. Movies: `sw-on-saved` (a save loads silently, 370 ticks),
+`sw-on-port2` (port 1 empty, a blank card in port 2, 371), `sw-on-nocard` (no card: retry,
+then on, 517), `sw-on-format` (an unformatted card, formatted on screen, 529),
+`sw-on-noformat` (format declined: "can't save", 567), `sw-on-full` (15 blocks used, 517).
+
+Found in the original:
+- **Format never creates the file.** After "format" the step machine goes back to the check,
+  which finds room and moves on: the card stays formatted but empty.
+- **The format result lands in the CD watchdog flag** (`0x800B5D04`), so the next main-loop
+  pass resets the CD and plays the lead-out (DataEnd about every 95 ticks until SW_ON exits).
+  SELECT does the same with its own flag. The port keeps the variables; the CD isn't modelled
+  for these programs.
+- **New cards.** An unformatted card reports "new card" to the first `_card_info`; formatted
+  ones don't (`MemoryCard.fresh`). `_card_clear`'s dummy write sends 128 bytes from RAM
+  address 0 to frame 63 (2 at `0x60`, `0xFF` at `0x68`); the BIOS format leaves frame 63 alone;
+  creating a file copies frame 0 over frame 63 (OpenBIOS). With these the card images match.
+- The "formatting" message writes object 0's y twice and never object 1's; the unreachable
+  header writer would store `0xC8 0xCC` for "SC"; main's pad init clears 48 bytes past the end
+  of the BSS; there is no soft-reset check; the card check takes about 95 vblanks on the
+  emulator (not held on the port).
+
+`powerOnBlock` (`programs/sw_on/power-on-block.ts`) runs SW_ON headless for the persistent
+block it leaves; replays and the simulator that start in Puzzle Mode use it.
+
+### 7.3 TIT_DEMO.EXE
+
+The story (`programs/tit_demo/tit_demo.ts`): the scene machine (fades, the scrolling picture,
+the blinking captions), the text machine and its typewriter (three pages, wide glyphs), Start to
+skip. It draws differently from the other programs (renderer style `titdemo`): objects with a
+non-zero image, all in one bucket by object number, the per-image offsets for every image,
+sprites at y − 0x70. Movies: `boot-story` (the whole story), `tit-demo-start` (Start during
+setup, ignored, then at tick 1,200), `tit-demo-skip` (Start while the captions blink).
+
+Found: the text never shakes (the shake amplitude is copied from a variable nothing writes); the
+soft-reset check is linked but never called; one scene step fades an object that was never set
+up, so it ends at once; the init's pad clear writes past the end of the BSS.
+
+### 7.4 TITLE.EXE
+
+The logo animation (`programs/title/title.ts`): ten phases with their sub-steps, the sparkles,
+the letters, the white flash, Start to SELECT, and after 1,800 idle frames the attract demo
+(HOW_N or HOW_VS by `state+0x4B540`). Movies: `boot-story` (the full animation and the
+timeout), `boot-select`, `title-skip` (Start mid-animation), `title-early` (Start on tick 2),
+`title-retire` (Puzzle Mode quits to the title, which starts at its last phase).
+
+Found: Start on tick 2 skips phase 0 before it requests the title music, which then never
+plays; a skip doesn't reset the step counter (phase 9 does); phase 1's fourth sub-step is
+unreachable; there is no soft-reset check. TITLE re-uploads images through a buffer address,
+which the tracer can't name, so its `up` field is empty; the frame hashes confirm the uploads.
+
+### 7.5 SELECT.EXE
+
+The mode select and Option mode (`programs/select/select.ts`, with its own card routines in
+`programs/select/card.ts`): the banners, the icons and their neighbour moves, the zoom, the
+confirmation, the 75-frame wait and the exit to the chosen mode; every Option row (both pads'
+button configuration, difficulty, VS settings, stereo, music arrangement, music and sound test,
+both volumes, card load and save, exit); the card screens. Movies: `boot-select`,
+`select-moves` (every move, the zoom, Classic), `select-option` (every row with both pads, then
+VS Puzzle), `select-card` (no data, no card, save, overwrite, load, Edit), `select-card-saved`
+(load, overwrite, format and create on a second card, Puzzle Mode), `select-card-full` (a full
+card, then the soft reset).
+
+Found: the card header's magic is `D8 DC`, the low bytes of the strings' addresses (the same
+slip as Puzzle Mode's); a new card leaves the step where it is, so it probes again next frame
+after another `VSync(90)`; each pad configures its own player's buttons and skips the one the
+other row holds; saving the options also copies the rankings; No on the overwrite or format
+question goes back to the port prompt.
+
 ## 8. JLOGO.EXE: the Jaleco logo
 
 JLOGO plays `J_PS.STR` with the library's MDEC and XA players: 120 frames at 15 fps (8 s), the
 logo animating, then a fade to black, with sound. The port plays it as a video:
 `tools/extract-video.ts` rebuilds the file's raw sectors (the disc's Form 2 file lacks their sync
-and header) for FFmpeg's `psxstr` demuxer and encodes `public/assets/jlogo.mp4` (H.264 and AAC,
-95 KB). Its picture comes from FFmpeg's MDEC decoder, not the console's, so it isn't checked
+and header) for FFmpeg's `psxstr` demuxer and encodes `public/assets/jlogo.webm` (VP9 and Opus,
+134 KB) and `jlogo.mp4` (H.264 and AAC, 95 KB, for browsers without VP9). Its picture comes from FFmpeg's MDEC decoder, not the console's, so it isn't checked
 pixel for pixel: an approximation of the original's decoder output.
+
+## 9. A complete run
+
+`tools/complete-run.ts` plays the whole game on the port and writes what it did as a movie,
+`re/movies/complete-run.tpm`, for the original to play. From power-on with blank cards:
+SW_ON; Start on the story and the title; Right, Cross, Cross on the mode select (Puzzle); in
+Puzzle Mode Cross every 40 ticks (the menu, the map, the story pages, the stage screens, the
+letters of the name), and once each stage's play has started a poke puts the professor on row
+15, the goal, so the stage clears as if he had climbed there (the 100 boards aren't solved:
+the run checks the flow, not the puzzles); after the ending the save screen saves to the card
+in port 1, then Quit; RANKING; the story again, until the title starts.
+
+On the port: 96,709 ticks (27 minutes): SW_ON 370, TIT_DEMO 101, TITLE 101, SELECT 667, Puzzle
+Mode 94,927 (the 100 stages, five zone clears, the ending and credits, the game over, name
+entry, the save), RANKING 440, TIT_DEMO 101, then TITLE.
+
