@@ -14,7 +14,8 @@ key or (once the page has focus) a gamepad button. Then:
    same stream with the MDEC; the port shows the decoded video instead (the only part of the game
    not drawn by the GPU model). Any key skips it, and a setting turns it off.
 2. The Console starts `SW_ON.EXE` with the state block as the boot program leaves it at power-on
-   (`web/src/flow/power-state.ts`).
+   (`web/src/flow/power-state.ts`). Its mode select shows only the modes the port can start, Puzzle and
+   Option, centred (`playableModesOnly`, `docs/re/select.md` §7).
 
 All program packs are fetched before the gesture prompt (about 7 MB), so programs change without
 a pause, as decided (no loading pauses, docs/RESEARCH_AND_PLAN.md §6).

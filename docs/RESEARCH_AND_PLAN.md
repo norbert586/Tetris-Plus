@@ -458,8 +458,9 @@ start of each session. If a later session asks you to approve a tool server call
 
 - Reference version: **NTSC-U SLUS-00338**.
 - Asset strategy: **decided: private repo with extracted assets committed, site behind a login**.
-- Menus: **original title and mode-select screens, with non-Puzzle modes visible but disabled**
-  (or hidden).
+- Menus: **decided (2026-10-22): original title and mode-select screens; the mode select shows
+  only Puzzle and Option, centred** (the modes the port can't start are hidden; see
+  `docs/re/select.md` §7).
 - Display defaults: **pixel-perfect integer scaling, 4:3, CRT filter off but available**.
 - Loading pauses and slowdown: **don't reproduce loading pauses; reproduce gameplay timing exactly**.
 - Platforms: **decided: desktop web browsers only, with keyboard and gamepad. No touch controls.**

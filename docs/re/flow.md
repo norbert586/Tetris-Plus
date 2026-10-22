@@ -70,7 +70,7 @@ All programs share:
 | What | Why | Where |
 |---|---|---|
 | HOW_N, HOW_P and HOW_VS don't run. Each stand-in advances the frame counter by the demo's length (2,426, 4,409 and 2,980 ticks), leaves its numbers in `state+0x18/+0x20/+0x24` (HOW_VS also sets `+0x4B53C`) and names the demo's next program, so the attract loop goes straight from the title's timeout to the ranking screen | The demos belong to out-of-scope modes; HOW_P could be ported later | `web/src/flow/stand-ins.ts` |
-| SELECT doesn't start Classic, VS or Edit: Cross on their confirmation does nothing, with no sound (SELECT has no error sound) | Visible but disabled, as decided | `Select.modeAvailable`, `select.md` |
+| SELECT doesn't start Classic, VS or Edit: Cross on their confirmation does nothing, with no sound (SELECT has no error sound). In the browser their tiles are hidden: Puzzle and Option are shown side by side, centred | Decided 2026-10-22: hide what can't be played | `Select.modeAvailable`, `Shared.playableModesOnly`, `select.md` §7 |
 | JLOGO plays as a video | It is an MDEC stream; the decoded frames and audio are the same | `shell.md` |
 | No loading pauses; the old music stops at the program change instead of during the load | As decided | `audio.md` §11 |
 | Player 2's side of Puzzle Mode is hidden; pad 2 is released | Decided 2026-10-17 | Phase 7 |

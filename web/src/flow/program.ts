@@ -24,6 +24,11 @@ export interface Shared {
   rng: Rng;
   /** The memory cards (src/flow/memcard.ts); the Console always provides them. */
   cards?: MemoryCards;
+  /**
+   * The mode select shows only the modes the port can start (Puzzle and Option), centred,
+   * instead of the original's five tiles (the shell's choice; docs/re/select.md §7).
+   */
+  playableModesOnly?: boolean;
 }
 
 export interface Program {

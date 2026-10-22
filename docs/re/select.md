@@ -7,7 +7,7 @@ It is ported in `web/src/programs/select/`. The port matches the original on eve
 runs recorded from power-on (§8): every traced field, every `rand()` call, every image upload,
 every sound call, the ordering table's GPU packets (`ot`) and the drawn frame (`fb`). The CD
 commands it issues and the memory card it leaves are checked too. There is one deliberate
-deviation: Classic, VS and Edit are shown but cannot be started (§7).
+deviation: Classic, VS and Edit cannot be started; the browser hides their tiles (§7).
 
 Names: `re/symbols/SELECT.game.tsv`. Fields traced: `re/lua/fields/SELECT.lua` (mirrored by
 `web/src/programs/select/trace.ts`). State block S = 0x8003E668 (`web/src/core/addr.ts`).
@@ -213,6 +213,16 @@ the same way, but they cannot be started. The rule is in one function,
   sets param 2 (§1); this only guards the path.
 
 `web/test/select.test.ts` ("deviation") checks both paths, and that Puzzle still starts PAZLE.
+
+**The browser hides them (`Shared.playableModesOnly`).** The shell starts the Console with
+`playableModesOnly`, and the mode select then shows only Puzzle and Option, side by side and
+centred under the title (`COMPACT_TILES`: tiles at x 60 and 164, y 84; the original's second row
+is at x 60 and 164, y 137). The other three tiles' objects stay cleared. Each tile's name,
+shadow and cover keep their offsets from it, and its zoom is corrected by how far it moved, so
+the zoom ends where the original's does and each mode's page looks the same. The cursor starts on
+Puzzle, and Left or Right moves between the two tiles; Up and Down do nothing. Without the flag
+(tests, `?start=` runs keep it too: it is the shell's) the five tiles behave as in §3 and the
+movies replay unchanged.
 
 ## 8. Verification
 

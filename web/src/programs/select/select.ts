@@ -62,6 +62,13 @@ const TEXT_IMAGES = 0x800b2904; // [5] the description
 const TEXT_POS = 0x800b2918;
 const PLAYERS_IMAGES = 0x800b2940; // [5] "one player only" / "two players only"
 const PLAYERS_POS = 0x800b2954;
+/**
+ * The port's compact mode select (Shared.playableModesOnly): only Puzzle (1) and Option (4),
+ * side by side and centred under the title, at these tile positions (whole pixels). The names,
+ * shadows and covers keep their offsets from the tile, and the zoom ends where the original's
+ * does, so a mode's page is the same.
+ */
+const COMPACT_TILES: Partial<Record<number, [number, number]>> = { 1: [60, 84], 4: [164, 84] };
 /** Sprite animations: pointers to { frame time, image, image, ..., 0xFFFE loop | 0xFFFF end }. */
 export const ANIMS = 0x800b2744;
 
@@ -96,6 +103,8 @@ export class Select implements Program {
   readonly m: Mem;
   readonly rng: Rng;
   readonly cards?: MemoryCards;
+  /** Shared.playableModesOnly: the compact mode select. */
+  readonly compact: boolean;
   tick = 0;
   uploads: number[] = [];
   sound: SoundCall[] = [];
@@ -120,6 +129,7 @@ export class Select implements Program {
     this.m = shared.m;
     this.rng = shared.rng;
     this.cards = shared.cards;
+    this.compact = shared.playableModesOnly ?? false;
     // The program's set-up: card_init (0x8009AF68: InitCARD, StartCARD, _bu_init).
     this.cards?.init();
     const m = this.m;
@@ -321,6 +331,42 @@ export class Select implements Program {
 
   // ---- mode select ----
 
+  /** Whether tile i is on the screen (all five, or the compact select's two). */
+  private shown(i: number): boolean {
+    return !this.compact || COMPACT_TILES[i] !== undefined;
+  }
+
+  /** How far tile i is moved from the original's position (16.16 x, y). */
+  private shift(i: number): [number, number] {
+    const at = this.compact ? COMPACT_TILES[i] : undefined;
+    if (!at) return [0, 0];
+    return [(at[0] << 16) - this.m.s32(TILE_POS + 8 * i), (at[1] << 16) - this.m.s32(TILE_POS + 8 * i + 4)];
+  }
+
+  /** Entry i of a table of x, y pairs placed relative to tile i, moved with the tile. */
+  private placed(table: number, i: number): [number, number] {
+    const [dx, dy] = this.shift(i);
+    return [this.m.s32(table + 8 * i) + dx, this.m.s32(table + 8 * i + 4) + dy];
+  }
+
+  /** Tile i's zoom: { dx, dy, shadow dx, shadow dy } per 16 ticks, ending where the original's does. */
+  private zoom(i: number): [number, number, number, number] {
+    const z = ZOOM + 16 * i;
+    const [dx, dy] = this.shift(i);
+    return [this.m.s32(z) - dx, this.m.s32(z + 4) - dy, this.m.s32(z + 8) - dx, this.m.s32(z + 12) - dy];
+  }
+
+  /** The tile a direction press moves the cursor to, or -1. */
+  private navigate(sel: number, dir: number): number {
+    if (this.compact) return dir === 0x2000 || dir === 0x8000 ? 5 - sel : -1;
+    const nav = NAV + 16 * sel;
+    if (dir === 0x2000) return this.m.s32(nav);
+    if (dir === 0x1000) return this.m.s32(nav + 12);
+    if (dir === 0x4000) return this.m.s32(nav + 8);
+    if (dir === 0x8000) return this.m.s32(nav + 4);
+    return -1;
+  }
+
   private modeSelect(): void {
     const m = this.m;
     const S = A.S;
@@ -330,7 +376,7 @@ export class Select implements Program {
       case 0: {
         // FUN_80097298: the background halves.
         this.objectsClearAll();
-        m.w32(M_SEL, 0);
+        m.w32(M_SEL, this.compact ? 1 : 0);
         bgmRequest(this, 0x2f);
         m.w32(S + 0x5d4, 0x10004);
         m.w32(S + 0x558, 0x10003);
@@ -366,48 +412,58 @@ export class Select implements Program {
       }
       case 3: {
         // FUN_8009740C: the tiles, their shadows, the names, the covers and the cursor.
+        // The compact select leaves the other tiles' objects cleared.
         for (let i = 0; i < 5; i++) {
+          if (!this.shown(i)) continue;
           const b = o(100 + i);
+          const [x, y] = this.placed(TILE_POS, i);
           m.w32(b + A.O_IMAGE, m.s32(TILE_IMAGES + 4 * i) + 0x10000);
-          m.w32(b + A.O_X, m.s32(TILE_POS + 8 * i));
-          m.w32(b + A.O_Y, m.s32(TILE_POS + 8 * i + 4));
+          m.w32(b + A.O_X, x);
+          m.w32(b + A.O_Y, y);
         }
         for (let i = 0; i < 5; i++) {
+          if (!this.shown(i)) continue;
           const b = o(95 + i);
+          const [x, y] = this.placed(TILE_POS, i);
           m.w32(b + A.O_IMAGE, 0x10011);
-          m.w32(b + A.O_X, m.s32(TILE_POS + 8 * i) + 0x80000);
+          m.w32(b + A.O_X, x + 0x80000);
           m.w32(b + A.O_KIND, 3);
-          m.w32(b + A.O_Y, m.s32(TILE_POS + 8 * i + 4) + 0x80000);
+          m.w32(b + A.O_Y, y + 0x80000);
         }
         for (let i = 0; i < 5; i++) {
+          if (!this.shown(i)) continue;
           const b = o(105 + i);
+          const [x, y] = this.placed(LABEL_POS, i);
           m.w32(b + A.O_IMAGE, m.s32(LABEL_IMAGES + 4 * i) + 0x10000);
-          m.w32(b + A.O_X, m.s32(LABEL_POS + 8 * i));
-          m.w32(b + A.O_Y, m.s32(LABEL_POS + 8 * i + 4));
+          m.w32(b + A.O_X, x);
+          m.w32(b + A.O_Y, y);
         }
         for (let i = 0; i < 5; i++) {
+          if (!this.shown(i)) continue;
           const b = o(110 + i);
+          const [x, y] = this.placed(SHADE_POS, i);
           m.w32(b + A.O_IMAGE, 0);
-          m.w32(b + A.O_X, m.s32(SHADE_POS + 8 * i));
+          m.w32(b + A.O_X, x);
           m.w32(b + A.O_KIND, 3);
-          m.w32(b + A.O_Y, m.s32(SHADE_POS + 8 * i + 4));
+          m.w32(b + A.O_Y, y);
         }
         const c = o(116);
+        const [cx, cy] = this.placed(LABEL_POS, sel());
         m.w32(c + A.O_ANIM, 1);
         const t = m.u32(ANIMS + 4);
         m.w32(c + A.O_IMAGE, m.s32(t + 4) + 0x10000);
         m.w32(c + A.O_ANIM_FRAME, 0);
         m.w32(c + A.O_ANIM_TIMER, m.s32(t));
-        m.w32(c + A.O_X, m.s32(LABEL_POS + 8 * sel()));
+        m.w32(c + A.O_X, cx);
         m.add32(M_STEP, 1);
-        m.w32(c + A.O_Y, m.s32(LABEL_POS + 8 * sel() + 4));
+        m.w32(c + A.O_Y, cy);
         return;
       }
       case 4: {
         // FUN_80097650: choose a tile.
         const p = this.pressed();
         if (p & 0x40) {
-          for (let i = 0; i < 5; i++) if (i !== sel()) m.w32(o(110 + i) + A.O_IMAGE, 0x10015);
+          for (let i = 0; i < 5; i++) if (i !== sel() && this.shown(i)) m.w32(o(110 + i) + A.O_IMAGE, 0x10015);
           const t = o(sel() + 100);
           m.w32(o(116) + A.O_IMAGE, 0);
           m.w32(o(118) + A.O_IMAGE, m.s32(t + A.O_IMAGE));
@@ -420,37 +476,32 @@ export class Select implements Program {
           m.add32(M_STEP, 1);
           return;
         }
-        const dir = p & 0xf000;
-        const nav = NAV + 16 * sel();
-        let next = -1;
-        if (dir === 0x2000) next = m.s32(nav);
-        else if (dir === 0x1000) next = m.s32(nav + 12);
-        else if (dir === 0x4000) next = m.s32(nav + 8);
-        else if (dir === 0x8000) next = m.s32(nav + 4);
+        const next = this.navigate(sel(), p & 0xf000);
         if (next >= 0) {
           m.w32(M_SEL, next);
           sePlay(this, 3);
         }
-        m.w32(o(116) + A.O_X, m.s32(LABEL_POS + 8 * sel()));
-        m.w32(o(116) + A.O_Y, m.s32(LABEL_POS + 8 * sel() + 4));
+        const [cx, cy] = this.placed(LABEL_POS, sel());
+        m.w32(o(116) + A.O_X, cx);
+        m.w32(o(116) + A.O_Y, cy);
         this.animTick(116, false);
         return;
       }
       case 5: {
         // FUN_80097868: the tile grows (16 ticks), then its page.
         const s = sel();
-        const z = ZOOM + 16 * s;
+        const z = this.zoom(s);
         const big = o(118);
         const sh = o(s + 95);
         if (m.s32(big + A.O_SCALE_X) < 0x1000) {
           m.add32(big + A.O_SCALE_X, 0x100);
           m.add32(big + A.O_SCALE_Y, 0x100);
-          m.add32(big + A.O_X, div16(m.s32(z)));
-          m.add32(big + A.O_Y, div16(m.s32(z + 4)));
+          m.add32(big + A.O_X, div16(z[0]));
+          m.add32(big + A.O_Y, div16(z[1]));
           m.add32(sh + A.O_SCALE_X, 0x100);
           m.add32(sh + A.O_SCALE_Y, 0x100);
-          m.add32(sh + A.O_X, div16(m.s32(z + 8)));
-          m.add32(sh + A.O_Y, div16(m.s32(z + 12)));
+          m.add32(sh + A.O_X, div16(z[2]));
+          m.add32(sh + A.O_Y, div16(z[3]));
           if (this.pressed() & 0x20) m.add32(M_STEP, 2);
           return;
         }
@@ -526,16 +577,16 @@ export class Select implements Program {
           m.w32(big + A.O_IMAGE, 0);
           return;
         }
-        const z = ZOOM + 16 * s;
+        const z = this.zoom(s);
         const sh = o(s + 95);
         m.add32(big + A.O_SCALE_X, -0x100);
         m.add32(big + A.O_SCALE_Y, -0x100);
-        m.add32(big + A.O_X, -div16(m.s32(z)));
-        m.add32(big + A.O_Y, -div16(m.s32(z + 4)));
+        m.add32(big + A.O_X, -div16(z[0]));
+        m.add32(big + A.O_Y, -div16(z[1]));
         m.add32(sh + A.O_SCALE_X, -0x100);
         m.add32(sh + A.O_SCALE_Y, -0x100);
-        m.add32(sh + A.O_X, -div16(m.s32(z + 8)));
-        m.add32(sh + A.O_Y, -div16(m.s32(z + 12)));
+        m.add32(sh + A.O_X, -div16(z[2]));
+        m.add32(sh + A.O_Y, -div16(z[3]));
         return;
       }
       case 8: {

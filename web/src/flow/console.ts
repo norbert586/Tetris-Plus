@@ -20,6 +20,8 @@ export interface ConsoleOptions {
   ram?: Uint8Array;
   /** The memory cards (default: a formatted empty card in slot 1, slot 2 empty, kept in memory). */
   cards?: MemoryCards;
+  /** The mode select shows only the modes the port has (Shared.playableModesOnly). */
+  playableModesOnly?: boolean;
 }
 
 export class Console {
@@ -34,7 +36,12 @@ export class Console {
   ) {
     const m = new Mem(opts.ram ?? new Uint8Array(0x200000));
     if (!opts.ram) for (const r of POWER_STATE) m.bytes.set(decodeBase64(r.base64), (A.S + r.offset) & 0x1fffff);
-    this.shared = { m, rng: new Rng(opts.seed ?? 0), cards: opts.cards ?? new MemoryCards() };
+    this.shared = {
+      m,
+      rng: new Rng(opts.seed ?? 0),
+      cards: opts.cards ?? new MemoryCards(),
+      playableModesOnly: opts.playableModesOnly,
+    };
     this.program = this.start(opts.first ?? 'SW_ON', !opts.ram);
   }
 

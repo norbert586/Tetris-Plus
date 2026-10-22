@@ -138,6 +138,8 @@ class Shell {
       first: first && PROGRAMS[first] ? first : undefined,
       // The memory card in slot 1 is kept in the browser (docs/re/memcard.md); slot 2 is empty.
       cards: new MemoryCards(new LocalStorageBackend()),
+      // The mode select shows only Puzzle and Option, the modes the port can start.
+      playableModesOnly: true,
     });
     this.mode = 'run';
     this.last = performance.now();

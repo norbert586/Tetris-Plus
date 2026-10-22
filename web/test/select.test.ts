@@ -5,7 +5,7 @@
 // it names next must be the original's. Each movie runs from power-on (every program before
 // SELECT is ported) and from SELECT's first tick, with the state block the original's SELECT
 // found (test/fixtures/select-starts.ts). Also the port's one deviation: Classic, VS and Edit
-// cannot be started.
+// cannot be started, and the browser shows only Puzzle and Option (Shared.playableModesOnly).
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -170,5 +170,74 @@ describe('SELECT.EXE deviation: only Puzzle Mode starts', () => {
     expect(s.m.s32(A.NEXT_PARAM)).toBe(0);
     for (let i = 0; i < 80; i++) c.step(0);
     expect(s.m.s32(M_STEP)).toBe(4);
+  });
+});
+
+describe('SELECT.EXE in the browser: only the playable modes are shown', () => {
+  const CROSS = 0x40, CIRCLE = 0x20, RIGHT = 0x2000, LEFT = 0x8000, DOWN = 0x4000;
+  const M_STEP = 0x800b9094, M_SEL = 0x800b90a0;
+  const image = (s: Select, n: number) => s.m.s32(A.obj(n) + A.O_IMAGE);
+
+  function compact() {
+    const c = new Console(
+      { SELECT: SELECT_MODULE.create },
+      { first: 'SELECT', seed: 0, ram: startRam('select-tour'), cards: cardsFor(formattedCard), playableModesOnly: true },
+    );
+    const s = () => c.program as Select;
+    const press = (pad: number, wait = 4) => {
+      c.step(pad);
+      for (let i = 0; i < wait; i++) c.step(0);
+    };
+    for (let i = 0; i < 80; i++) c.step(0);
+    expect(s().m.s32(M_STEP)).toBe(4);
+    return { c, s, press };
+  }
+
+  it('shows Puzzle and Option only, centred, with the cursor on Puzzle', () => {
+    const { s } = compact();
+    for (const tile of [0, 2, 3]) for (const base of [95, 100, 105, 110]) expect(image(s(), base + tile)).toBe(0);
+    for (const tile of [1, 4]) expect(image(s(), 100 + tile)).not.toBe(0);
+    expect(s().m.s32(A.obj(101) + A.O_X) >> 16).toBe(60);
+    expect(s().m.s32(A.obj(104) + A.O_X) >> 16).toBe(164);
+    expect(s().m.s32(A.obj(101) + A.O_Y)).toBe(s().m.s32(A.obj(104) + A.O_Y));
+    expect(s().m.s32(M_SEL)).toBe(1);
+  });
+
+  it('Left and Right move between the two; Up and Down do nothing', () => {
+    const { s, press } = compact();
+    press(RIGHT);
+    expect(s().m.s32(M_SEL)).toBe(4);
+    press(RIGHT);
+    expect(s().m.s32(M_SEL)).toBe(1);
+    press(LEFT);
+    expect(s().m.s32(M_SEL)).toBe(4);
+    press(DOWN);
+    expect(s().m.s32(M_SEL)).toBe(4);
+  });
+
+  it("each mode's page ends where the original's does, and closes back to its tile", () => {
+    for (const sel of [1, 4]) {
+      const { s, press } = compact();
+      if (sel === 4) press(RIGHT);
+      const tileX = s().m.s32(A.obj(100 + sel) + A.O_X);
+      press(CROSS, 30);
+      expect(s().m.s32(M_STEP)).toBe(6);
+      // The page's position before it snapped to the big picture (O_4C/O_50), as the original's.
+      const big = A.obj(118);
+      const z = 0x800b27b0 + 16 * sel;
+      const orig = s().m.s32(0x800b2814 + 8 * sel) + s().m.s32(z);
+      expect(s().m.s32(big + A.O_4C)).toBe(orig);
+      press(CIRCLE, 30);
+      expect(s().m.s32(M_STEP)).toBe(4);
+      expect(s().m.s32(A.obj(100 + sel) + A.O_X)).toBe(tileX);
+    }
+  });
+
+  it('Cross, Cross on Puzzle starts Puzzle Mode', () => {
+    const { c, s, press } = compact();
+    press(CROSS, 30);
+    c.step(CROSS);
+    for (let i = 0; i < 90 && !s().exited; i++) c.step(0);
+    expect(c.next).toBe('PAZLE');
   });
 });
