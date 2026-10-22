@@ -1,0 +1,41 @@
+tpm 1
+boot puzzle
+end 787
+# stage-043: stage 43 (zone 3, stage 3), found by web/tools/solve.ts (docs/re/stages.md).
+# Password 1 2 4 3 5 2 from the main menu; play starts at tick 397.
+# 2 pieces; the professor reaches row 15 (goal) at tick 727.
+100 1 DOWN
+104 1 DOWN
+108 1 CROSS
+132 1 DOWN
+136 1 RIGHT
+140 1 DOWN
+144 1 DOWN
+148 1 RIGHT
+152 1 DOWN
+156 1 DOWN
+160 1 DOWN
+164 1 DOWN
+168 1 RIGHT
+172 1 DOWN
+176 1 DOWN
+180 1 DOWN
+184 1 RIGHT
+188 1 UP
+192 1 UP
+196 1 UP
+200 1 RIGHT
+204 1 DOWN
+208 1 DOWN
+212 1 CROSS
+406 1 CIRCLE+RIGHT+DOWN
+407 1 DOWN
+408 1 RIGHT+DOWN
+409 1 DOWN
+410 1 RIGHT+DOWN
+411 31 DOWN
+453 1 LEFT
+455 1 LEFT
+457 1 LEFT
+459 1 LEFT
+694 34 DOWN

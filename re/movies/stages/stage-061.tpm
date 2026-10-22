@@ -1,0 +1,49 @@
+tpm 1
+boot puzzle
+end 632
+# stage-061: stage 61 (zone 4, stage 1), found by web/tools/solve.ts (docs/re/stages.md).
+# Password 1 2 5 3 1 2 from the main menu; play starts at tick 385.
+# 3 pieces; the professor reaches row 15 (goal) at tick 572. Search: beam 6.
+100 1 DOWN
+104 1 DOWN
+108 1 CROSS
+132 1 DOWN
+136 1 RIGHT
+140 1 DOWN
+144 1 DOWN
+148 1 RIGHT
+152 1 UP
+156 1 UP
+160 1 UP
+164 1 RIGHT
+168 1 DOWN
+172 1 DOWN
+176 1 DOWN
+180 1 RIGHT
+184 1 DOWN
+188 1 RIGHT
+192 1 DOWN
+196 1 DOWN
+200 1 CROSS
+394 1 DOWN+LEFT
+395 1 DOWN
+396 1 DOWN+LEFT
+397 1 DOWN
+398 1 DOWN+LEFT
+399 1 DOWN
+400 1 DOWN+LEFT
+401 35 DOWN
+447 1 CIRCLE+RIGHT+DOWN
+448 1 DOWN
+449 1 RIGHT+DOWN
+450 1 DOWN
+451 1 RIGHT+DOWN
+452 1 DOWN
+453 1 RIGHT+DOWN
+454 1 DOWN
+455 1 RIGHT+DOWN
+456 33 DOWN
+518 1 LEFT
+520 1 LEFT
+522 1 LEFT
+524 1 LEFT

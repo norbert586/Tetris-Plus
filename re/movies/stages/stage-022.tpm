@@ -1,0 +1,36 @@
+tpm 1
+boot puzzle
+end 1129
+# stage-022: stage 22 (zone 2, stage 2), found by web/tools/solve.ts (docs/re/stages.md).
+# Password 1 2 5 6 1 2 from the main menu; play starts at tick 381.
+# 3 pieces; the professor reaches row 15 (goal) at tick 1069. Search: beam 6.
+100 1 DOWN
+104 1 DOWN
+108 1 CROSS
+132 1 DOWN
+136 1 RIGHT
+140 1 DOWN
+144 1 DOWN
+148 1 RIGHT
+152 1 UP
+156 1 UP
+160 1 UP
+164 1 RIGHT
+168 1 UP
+172 1 UP
+176 1 RIGHT
+180 1 DOWN
+184 1 RIGHT
+188 1 DOWN
+192 1 DOWN
+196 1 CROSS
+390 1 LEFT
+392 1 LEFT
+481 31 DOWN
+523 1 CROSS
+764 22 DOWN
+816 1 LEFT
+818 1 LEFT
+820 1 LEFT
+822 1 LEFT
+1057 13 DOWN

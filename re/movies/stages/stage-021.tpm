@@ -1,0 +1,36 @@
+tpm 1
+boot puzzle
+end 893
+# stage-021: stage 21 (zone 2, stage 1), found by web/tools/solve.ts (docs/re/stages.md).
+# Password 0 6 5 2 1 2 from the main menu; play starts at tick 377.
+# 3 pieces; the professor reaches row 15 (goal) at tick 833. Search: beam 6.
+100 1 DOWN
+104 1 DOWN
+108 1 CROSS
+132 1 RIGHT
+136 1 UP
+140 1 UP
+144 1 RIGHT
+148 1 UP
+152 1 UP
+156 1 UP
+160 1 RIGHT
+164 1 DOWN
+168 1 DOWN
+172 1 RIGHT
+176 1 DOWN
+180 1 RIGHT
+184 1 DOWN
+188 1 DOWN
+192 1 CROSS
+386 45 DOWN
+442 1 LEFT
+444 1 LEFT
+446 1 LEFT
+448 1 LEFT
+683 37 DOWN
+731 1 LEFT
+733 1 LEFT
+735 1 LEFT
+737 1 LEFT
+822 12 DOWN

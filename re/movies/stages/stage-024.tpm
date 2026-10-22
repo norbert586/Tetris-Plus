@@ -1,0 +1,49 @@
+tpm 1
+boot puzzle
+end 1139
+# stage-024: stage 24 (zone 2, stage 4), found by web/tools/solve.ts (docs/re/stages.md).
+# Password 1 6 4 6 1 2 from the main menu; play starts at tick 385.
+# 4 pieces; the professor reaches row 15 (goal) at tick 1079. Search: beam 6, et=10,cost=20.
+100 1 DOWN
+104 1 DOWN
+108 1 CROSS
+132 1 DOWN
+136 1 RIGHT
+140 1 UP
+144 1 UP
+148 1 RIGHT
+152 1 DOWN
+156 1 DOWN
+160 1 DOWN
+164 1 DOWN
+168 1 RIGHT
+172 1 UP
+176 1 UP
+180 1 RIGHT
+184 1 DOWN
+188 1 RIGHT
+192 1 DOWN
+196 1 DOWN
+200 1 CROSS
+394 1 LEFT
+635 25 DOWN
+671 1 LEFT
+912 22 DOWN
+945 1 CROSS+DOWN+LEFT
+946 1 DOWN
+947 1 DOWN+LEFT
+948 1 DOWN
+949 1 DOWN+LEFT
+950 1 DOWN
+951 1 DOWN+LEFT
+952 1 DOWN
+953 1 DOWN+LEFT
+954 42 DOWN
+1026 1 DOWN+LEFT
+1027 1 DOWN
+1028 1 DOWN+LEFT
+1029 1 DOWN
+1030 1 DOWN+LEFT
+1031 1 DOWN
+1032 1 DOWN+LEFT
+1033 41 DOWN
