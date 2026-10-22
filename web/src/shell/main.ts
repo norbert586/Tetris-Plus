@@ -56,6 +56,8 @@ class Shell {
       apply: (s) => this.apply(s),
       toggleFullscreen: () => this.toggleFullscreen(),
       close: () => this.closeSettings(),
+      card: () => this.console?.shared.cards?.image(0) ?? new LocalStorageBackend().load(0),
+      setCard: (image) => this.setCard(image),
     });
     this.input.onKey = (code, e) => this.hotkey(code, e);
     this.apply(this.settings);
@@ -92,6 +94,16 @@ class Shell {
       else requestAnimationFrame(poll);
     };
     requestAnimationFrame(poll);
+  }
+
+  /**
+   * Replaces the card in slot 1. While the game runs it is a card swap (the programs see a new
+   * card at their next check, as on the console); before power-on it is just what is stored.
+   */
+  private setCard(image: Uint8Array): void {
+    const cards = this.console?.shared.cards;
+    if (cards) cards.insert(0, image);
+    else new LocalStorageBackend().save(0, image);
   }
 
   private say(text: string): void {
