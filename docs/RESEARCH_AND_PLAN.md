@@ -458,9 +458,12 @@ start of each session. If a later session asks you to approve a tool server call
 
 - Reference version: **NTSC-U SLUS-00338**.
 - Asset strategy: **decided: private repo with extracted assets committed, site behind a login**.
-- Menus: **decided (2026-10-22): original title and mode-select screens; the mode select shows
-  only Puzzle and Option, centred** (the modes the port can't start are hidden; see
-  `docs/re/select.md` §7).
+- Menus: **decided (2026-10-23): original title and mode-select screens; the mode select shows
+  Puzzle, Option and Stats, centred** (the modes the port can't start are hidden; Stats shows
+  the ranking screen until the port has its own; see `docs/re/select.md` §7).
+- Saving: **decided (2026-10-23): pause and save.** One browser save of the whole game, made on
+  Puzzle Mode's pause screen and resumed from the start screen (`docs/re/shell.md`). The game's
+  own memory-card saves stay as they are.
 - Display defaults: **pixel-perfect integer scaling, 4:3, CRT filter off but available**.
 - Loading pauses and slowdown: **don't reproduce loading pauses; reproduce gameplay timing exactly**.
 - Platforms: **decided: desktop web browsers only, with keyboard and gamepad. No touch controls.**

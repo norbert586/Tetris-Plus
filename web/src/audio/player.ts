@@ -122,6 +122,18 @@ export class AudioPlayer {
     if (this.ctx.state === 'running') void this.ctx.suspend();
   }
 
+  /**
+   * Forgets the sound state (a saved game was loaded, src/flow/snapshot.ts): the music stops, and
+   * the next tick starts the sound afresh for its program, as when that program starts.
+   */
+  reset(): void {
+    this.stopSource(this.ctx.currentTime);
+    this.model = undefined;
+    this.running = undefined;
+    this.mono = undefined;
+    this.anchorTime = -1;
+  }
+
   /** Master volume, 0-1. */
   set volume(v: number) {
     if (this.master) this.master.gain.value = v;

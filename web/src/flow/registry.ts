@@ -16,14 +16,14 @@ export const PROGRAMS: Partial<Record<ProgramName, ProgramModule>> = {
   RANKING: RANKING_MODULE,
   SELECT: SELECT_MODULE,
   PAZLE: {
-    create: (shared) => new Game({ counter: 0, seed: 0, shared }),
+    create: (shared, resume) => new Game({ counter: 0, seed: 0, shared, resume }),
     pack: 'pazlee.pack',
     renderer: (items) => {
       const r = new Renderer(items);
       // Player 2's side stays hidden until two-player mode exists (an approved deviation;
       // verification draws it).
       r.hidePlayer2 = true;
-      return { frame: (p) => r.frame(p as Game), pixels: (b) => r.pixels(b) };
+      return { frame: (p) => r.frame(p as Game), pixels: (b) => r.pixels(b), vram: r.gpu.vram };
     },
   },
 };

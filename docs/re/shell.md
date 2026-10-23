@@ -8,14 +8,19 @@ from power-on (`web/src/flow/console.ts`, docs/re/flow.md) and adds only what a 
 Browsers start sound and fullscreen only after a user gesture, so the page waits for a click, a
 key or (once the page has focus) a gamepad button. Then:
 
+With a saved game, the page instead offers **Continue** (Enter, or Start or Cross on a gamepad)
+or **New game** (N, or Select), with where and when it was saved. A gamepad button acts when it
+is released, so the game doesn't see it held. Continue skips the logo and the programs before
+Puzzle Mode (see Saving below); New game is the start below, and keeps the save.
+
 1. The Jaleco logo plays as a video (`public/assets/jlogo.webm`, `jlogo.mp4` for browsers without
    WebM), made from `J_PS.STR` by `tools/extract-video.ts`: 120 MDEC frames at 30 frames a second
    (double-speed CD, five sectors a frame) with its XA audio. The original's `JLOGO.EXE` plays the
    same stream with the MDEC; the port shows the decoded video instead (the only part of the game
    not drawn by the GPU model). Any key skips it, and a setting turns it off.
 2. The Console starts `SW_ON.EXE` with the state block as the boot program leaves it at power-on
-   (`web/src/flow/power-state.ts`). Its mode select shows only the modes the port can start, Puzzle and
-   Option, centred (`playableModesOnly`, `docs/re/select.md` §7).
+   (`web/src/flow/power-state.ts`). Its mode select shows Puzzle, Option and Stats, centred
+   (`browserMenu`, `docs/re/select.md` §7).
 
 All program packs are fetched before the gesture prompt (about 7 MB), so programs change without
 a pause, as decided (no loading pauses, docs/RESEARCH_AND_PLAN.md §6).
@@ -47,6 +52,30 @@ the game runs, an import or erase is a card swap: the card is inserted with its 
 raised, so the programs see a new card at their next check, as on the console.
 The game's own settings (turn buttons, stereo/mono, music mode, volumes) stay in its Option mode
 and its memory-card save, as on the console.
+
+## Saving (`web/src/flow/snapshot.ts`, `saves.ts`)
+
+One saved game, made on Puzzle Mode's pause screen: while player 1's "PAUSE" shows (screen 12,
+step 0), a note over the game says "Press △ (S) to save your game", and a fresh Triangle press
+saves (the game ignores Triangle there). The settings panel also has **Save now** (enabled on
+that screen), and **Load** and **Delete** for the save. Saving again replaces the save.
+
+- **What a save holds** (`Snapshot`): the 2 MB of RAM (Puzzle Mode keeps all its state at the
+  original's addresses), the BIOS rand() seed, the program's tick count and the renderer's VRAM
+  (1 MB), plus where and when (zone, stage, 100-stage mode; shown as "Egypt, stage 3"). It is
+  kept in IndexedDB (`tetris-plus` / `saves` / `game`); saving also asks the browser to keep the
+  site's storage (`navigator.storage.persist`). The memory card is not part of it.
+- **Resuming** starts the Console on the saved RAM with Puzzle Mode carrying on at the saved tick
+  (`ConsoleOptions.resume`; `Game` skips its start-up), puts the VRAM back in a new renderer and
+  shows the saved frame. The pause screen is where the game has stopped its music, so the sound
+  starts afresh (`AudioPlayer.reset`: a new model for Puzzle Mode, every voice keyed off), and
+  unpausing restarts the stage's music as the game always does.
+- **Exact**: `web/test/snapshot.test.ts` saves on the pause screens of `full-run` and
+  `pause-retire`, resumes from a structured clone of the save (as IndexedDB stores it), and checks
+  that every later tick equals the run that was never saved: the RAM, the program, its sound calls
+  and image uploads, and every frame (`ot`, `fb`, and the pixels at the end), through RANKING and
+  TIT_DEMO in `full-run`.
+- A save from a later port whose format changed is not offered (`SNAPSHOT_VERSION`).
 
 ## Pause
 

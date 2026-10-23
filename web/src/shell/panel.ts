@@ -1,7 +1,9 @@
-// The settings panel (Escape): controls for keyboard and gamepad, display, volume, the memory card. Plain HTML
-// over the paused game; every change is saved at once.
+// The settings panel (Escape): the saved game, controls for keyboard and gamepad, display, volume,
+// the memory card. Plain HTML over the paused game; every change is saved at once.
 import { formattedCard, parseCardFile } from '../flow/memcard';
+import { describeSnapshot, type Snapshot } from '../flow/snapshot';
 import { Input } from './input';
+import { savedWhen } from './saves';
 import { BINDABLE, DEFAULTS, saveSettings, type Button, type Settings } from './settings';
 
 const LABELS: Record<Button, string> = {
@@ -9,7 +11,7 @@ const LABELS: Record<Button, string> = {
   TRIANGLE: 'Triangle', START: 'Start', SELECT: 'Select', L1: 'L1', R1: 'R1', L2: 'L2', R2: 'R2',
 };
 
-const keyName = (code: string) =>
+export const keyName = (code: string) =>
   code.replace(/^Key/, '').replace(/^Digit/, '').replace(/^Arrow/, '').replace(/^Numpad/, 'Num ').replace(/(Left|Right)$/, ' $1').trim();
 
 export interface PanelHost {
@@ -21,6 +23,12 @@ export interface PanelHost {
   /** The card in slot 1 (a copy), and putting another in its place (docs/re/shell.md). */
   card(): Uint8Array | null;
   setCard(image: Uint8Array): void;
+  /** The saved game (src/flow/snapshot.ts), whether the game can be saved now, and the actions. */
+  saved(): Snapshot | undefined;
+  canSave(): boolean;
+  saveGame(): void;
+  loadGame(): void;
+  deleteGame(): void;
 }
 
 export class SettingsPanel {
@@ -45,6 +53,11 @@ export class SettingsPanel {
     this.el.hidden = false;
     this.cardNote = '';
     this.render();
+  }
+
+  /** Draws the panel again if it is open (the saved game changed). */
+  refresh(): void {
+    if (this.open) this.render();
   }
 
   hide(): void {
@@ -131,6 +144,27 @@ export class SettingsPanel {
       return b;
     };
     el.append(h('h2', 'Settings'));
+
+    const saved = this.host.saved();
+    const game = h('div', undefined, 'row');
+    if (saved) game.append(h('span', `${describeSnapshot(saved)} (saved ${savedWhen(saved)})`));
+    else game.append(h('span', 'No saved game.'));
+    const saveNow = button('Save now', () => this.host.saveGame(), 'primary') as HTMLButtonElement;
+    saveNow.disabled = !this.host.canSave();
+    game.append(saveNow);
+    if (saved) {
+      game.append(
+        button('Load', () => {
+          if (confirm(`Load your saved game (${describeSnapshot(saved)})? Play since then is lost.`)) this.host.loadGame();
+        }),
+        button('Delete', () => {
+          if (confirm('Delete your saved game?')) this.host.deleteGame();
+        }),
+      );
+    }
+    el.append(h('h3', 'Saved game'), game);
+    const triangle = s.keys.TRIANGLE[0];
+    el.append(h('p', `To save: pause Puzzle Mode (Start), then press △${triangle ? ` (${keyName(triangle)})` : ''}. One save; saving again replaces it.`, 'note'));
 
     const controls = h('table', undefined, 'controls');
     const head = h('tr');

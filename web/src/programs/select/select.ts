@@ -12,6 +12,7 @@ import type { SoundCall } from '../../core/sound';
 import type { MemoryCards } from '../../flow/memcard';
 import type { Program, Shared } from '../../flow/program';
 import { cardStep } from './card';
+import { STATS_LABEL, STATS_TEXT } from './stats';
 import { ROM } from './rom';
 import {
   BGM_CUR_ID,
@@ -63,12 +64,18 @@ const TEXT_POS = 0x800b2918;
 const PLAYERS_IMAGES = 0x800b2940; // [5] "one player only" / "two players only"
 const PLAYERS_POS = 0x800b2954;
 /**
- * The port's compact mode select (Shared.playableModesOnly): only Puzzle (1) and Option (4),
- * side by side and centred under the title, at these tile positions (whole pixels). The names,
+ * The browser's mode select (Shared.browserMenu): Puzzle (1), Option (4) and Stats, which takes
+ * Classic's place (0: its picture and page, its own name and banner, stats.ts), in one row
+ * centred under the title, in this order, at these tile positions (whole pixels). The names,
  * shadows and covers keep their offsets from the tile, and the zoom ends where the original's
- * does, so a mode's page is the same.
+ * does, so each page is the same. Stats opens the ranking screen (RANKING), which the Console
+ * leaves for the mode select again (Shared.statsVisit).
  */
-const COMPACT_TILES: Partial<Record<number, [number, number]>> = { 1: [60, 84], 4: [164, 84] };
+const COMPACT_ORDER = [1, 4, 0];
+const COMPACT_Y = 88;
+const COMPACT_TILES: Partial<Record<number, [number, number]>> = { 1: [8, COMPACT_Y], 4: [112, COMPACT_Y], 0: [216, COMPACT_Y] };
+const STATS = 0;
+const PRG_RANKING = 7;
 /** Sprite animations: pointers to { frame time, image, image, ..., 0xFFFE loop | 0xFFFF end }. */
 export const ANIMS = 0x800b2744;
 
@@ -103,7 +110,8 @@ export class Select implements Program {
   readonly m: Mem;
   readonly rng: Rng;
   readonly cards?: MemoryCards;
-  /** Shared.playableModesOnly: the compact mode select. */
+  private readonly shared: Shared;
+  /** Shared.browserMenu: the browser's mode select. */
   readonly compact: boolean;
   tick = 0;
   uploads: number[] = [];
@@ -129,7 +137,8 @@ export class Select implements Program {
     this.m = shared.m;
     this.rng = shared.rng;
     this.cards = shared.cards;
-    this.compact = shared.playableModesOnly ?? false;
+    this.shared = shared;
+    this.compact = shared.browserMenu ?? false;
     // The program's set-up: card_init (0x8009AF68: InitCARD, StartCARD, _bu_init).
     this.cards?.init();
     const m = this.m;
@@ -259,6 +268,11 @@ export class Select implements Program {
     this.mix.push({ kind: (m.u8(A.SETTING_4FC) & 1) === 0 ? 'stereo' : 'mono' });
     // FUN_80095FFC: every item uploaded and its sprite template made.
     for (let i = 0; i < 0xb1; i++) this.upload(i);
+    // The browser's Stats tile: its name and banner (stats.ts), over images it doesn't show.
+    if (this.compact) {
+      this.upload(STATS_LABEL);
+      this.upload(STATS_TEXT);
+    }
     for (let i = 0; i < 8; i++) {
       m.w16(0x800be124 + 6 * i, 0);
       m.w16(0x800be126 + 6 * i, 0);
@@ -331,7 +345,7 @@ export class Select implements Program {
 
   // ---- mode select ----
 
-  /** Whether tile i is on the screen (all five, or the compact select's two). */
+  /** Whether tile i is on the screen (all five, or the browser's three). */
   private shown(i: number): boolean {
     return !this.compact || COMPACT_TILES[i] !== undefined;
   }
@@ -358,7 +372,12 @@ export class Select implements Program {
 
   /** The tile a direction press moves the cursor to, or -1. */
   private navigate(sel: number, dir: number): number {
-    if (this.compact) return dir === 0x2000 || dir === 0x8000 ? 5 - sel : -1;
+    if (this.compact) {
+      const k = COMPACT_ORDER.indexOf(sel);
+      if (dir === 0x2000) return COMPACT_ORDER[(k + 1) % COMPACT_ORDER.length];
+      if (dir === 0x8000) return COMPACT_ORDER[(k + COMPACT_ORDER.length - 1) % COMPACT_ORDER.length];
+      return -1;
+    }
     const nav = NAV + 16 * sel;
     if (dir === 0x2000) return this.m.s32(nav);
     if (dir === 0x1000) return this.m.s32(nav + 12);
@@ -434,7 +453,8 @@ export class Select implements Program {
           if (!this.shown(i)) continue;
           const b = o(105 + i);
           const [x, y] = this.placed(LABEL_POS, i);
-          m.w32(b + A.O_IMAGE, m.s32(LABEL_IMAGES + 4 * i) + 0x10000);
+          const label = this.compact && i === STATS ? STATS_LABEL + 1 : m.s32(LABEL_IMAGES + 4 * i);
+          m.w32(b + A.O_IMAGE, label + 0x10000);
           m.w32(b + A.O_X, x);
           m.w32(b + A.O_Y, y);
         }
@@ -519,10 +539,12 @@ export class Select implements Program {
         m.w32(sh + A.O_SCALE_X, 0);
         m.w32(sh + A.O_SCALE_Y, 0);
         m.w32(sh + A.O_Y, m.s32(BIG_SHADOW_POS + 8 * s + 4));
-        m.w32(o(121) + A.O_IMAGE, m.s32(TEXT_IMAGES + 4 * s) + 0x10000);
+        const stats = this.compact && s === STATS;
+        m.w32(o(121) + A.O_IMAGE, (stats ? STATS_TEXT + 1 : m.s32(TEXT_IMAGES + 4 * s)) + 0x10000);
         m.w32(o(121) + A.O_X, m.s32(TEXT_POS + 8 * s));
         m.w32(o(121) + A.O_Y, m.s32(TEXT_POS + 8 * s + 4));
-        m.w32(o(119) + A.O_IMAGE, m.s32(PLAYERS_IMAGES + 4 * s) + 0x10000);
+        // Stats has no "one player only" note.
+        m.w32(o(119) + A.O_IMAGE, stats ? 0 : m.s32(PLAYERS_IMAGES + 4 * s) + 0x10000);
         m.w32(o(119) + A.O_X, m.s32(PLAYERS_POS + 8 * s));
         m.add32(M_STEP, 1);
         m.w32(o(119) + A.O_Y, m.s32(PLAYERS_POS + 8 * s + 4));
@@ -532,7 +554,7 @@ export class Select implements Program {
         // FUN_80097B3C: Cross starts the mode, Circle goes back.
         const s = sel();
         const p = this.pressed();
-        if (p & 0x40 && (s >= 4 || Select.modeAvailable(s))) {
+        if (p & 0x40 && (s >= 4 || Select.modeAvailable(s) || (this.compact && s === STATS))) {
           const c = o(120);
           m.w32(c + A.O_ANIM, 2);
           const t = m.u32(ANIMS + 8);
@@ -599,7 +621,10 @@ export class Select implements Program {
         // FUN_80097E74: off to the mode (program 9 + tile), or Option mode (state+0x4C + 1).
         m.w32(M_STEP, 0);
         const s = m.s32(M_SEL);
-        if (s < 4) {
+        if (this.compact && s === STATS) {
+          this.shared.statsVisit = true;
+          this.exitTo(PRG_RANKING, 0, 0);
+        } else if (s < 4) {
           this.leaveForMode(s, false);
         } else {
           m.w32(A.PHASE, 0);

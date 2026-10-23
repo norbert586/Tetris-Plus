@@ -3,21 +3,27 @@
 // video (the original's JLOGO.EXE plays it with the MDEC), then the Console runs the programs
 // from SW_ON on at the original's frame rate, one tick per 1/59.826 s whatever the display's
 // refresh rate. Escape opens the settings; the game pauses when the window loses focus.
+// Saving (src/flow/snapshot.ts): on Puzzle Mode's pause screen, Triangle saves the game; the
+// start screen offers to carry on from the save, and the settings panel loads or deletes it.
 import { readPack } from '../assets/pack';
 import { AudioPlayer } from '../audio/player';
 import { Console } from '../flow/console';
 import { LocalStorageBackend, MemoryCards } from '../flow/memcard';
 import type { Program, ProgramName, ProgramRenderer } from '../flow/program';
-import { PROGRAMS } from '../flow/registry';
+import { FACTORIES, PROGRAMS } from '../flow/registry';
+import { canSave, describeSnapshot, takeSnapshot, type Snapshot } from '../flow/snapshot';
 import { toRgba } from '../render/present';
 import { Input } from './input';
-import { SettingsPanel } from './panel';
-import { loadSettings, type Settings } from './settings';
+import { keyName, SettingsPanel } from './panel';
+import { deleteSave, loadSave, savedWhen, storeSave } from './saves';
+import { BUTTON_BITS, loadSettings, type Settings } from './settings';
 
 /** NTSC progressive refresh (docs/RESEARCH_AND_PLAN.md §6). */
 const TICK_MS = 1000 / 59.826;
 /** At most this much catch-up after a stall (a background tab, a slow frame). */
 const MAX_BEHIND_MS = 250;
+/** How long a note ("Game saved") stays up. */
+const NOTE_MS = 2500;
 
 type Mode = 'gate' | 'logo' | 'run' | 'paused' | 'settings' | 'stopped';
 
@@ -30,6 +36,16 @@ class Shell {
   private readonly ctx = this.canvas.getContext('2d')!;
   private readonly image = this.ctx.createImageData(320, 240);
   private readonly message = document.getElementById('message') as HTMLElement;
+  private readonly gate = document.getElementById('gate') as HTMLElement;
+  private readonly hint = document.getElementById('hint') as HTMLElement;
+  private hintText = '';
+  private note?: { text: string; until: number };
+  /** The saved game, if any (saves.ts). */
+  private saved?: Snapshot;
+  /** A gamepad button pressed on the start screen, acted on when it is released. */
+  private gateButton?: number;
+  /** The last tick's pad word (for Triangle's fresh press). */
+  private lastPad = 0;
   private readonly video = document.getElementById('logo') as HTMLVideoElement;
   private packs = new Map<string, Uint8Array[]>();
   private console?: Console;
@@ -50,6 +66,18 @@ class Shell {
       close: () => this.closeSettings(),
       card: () => this.console?.shared.cards?.image(0) ?? new LocalStorageBackend().load(0),
       setCard: (image) => this.setCard(image),
+      saved: () => this.saved,
+      canSave: () => this.console !== undefined && canSave(this.console),
+      saveGame: () => this.save(),
+      loadGame: () => {
+        if (!this.saved) return;
+        // From the panel over a paused game, or over one that stopped on an error.
+        this.resumeGame(this.saved);
+        this.panel.hide();
+        this.say('');
+        this.run();
+      },
+      deleteGame: () => this.deleteSaved(),
     });
     this.input.onKey = (code, e) => this.hotkey(code, e);
     this.apply(this.settings);
@@ -61,7 +89,10 @@ class Shell {
     addEventListener('blur', background);
     document.addEventListener('visibilitychange', () => document.hidden && background());
     this.screen.addEventListener('dblclick', () => this.toggleFullscreen());
-    addEventListener('pointerdown', () => this.gesture());
+    // With a save, the start screen's buttons choose (a click elsewhere doesn't start).
+    addEventListener('pointerdown', () => {
+      if (!(this.mode === 'gate' && this.saved)) this.gesture();
+    });
     addEventListener('gamepadconnected', () => {
       if (this.mode === 'gate') this.say('Gamepad connected. Press any button to start.');
     });
@@ -77,15 +108,64 @@ class Shell {
         this.packs.set(name, readPack(new Uint8Array(await res.arrayBuffer())));
       }),
     );
-    this.say('Click or press any key to start.');
+    this.saved = await loadSave().catch((e) => {
+      console.warn('no saved game:', e);
+      return undefined;
+    });
+    this.showGate();
     // Gamepads can't start the game by themselves (no user gesture for sound), but a press
     // while the page has focus counts once a key or click has been seen; poll for it here.
+    // With a save, the button decides when it is released (so the game doesn't see it held):
+    // Start or Cross carries on, Select starts a new game.
     const poll = () => {
       if (this.mode !== 'gate') return;
-      if (Input.padButton() !== undefined) this.gesture();
-      else requestAnimationFrame(poll);
+      const i = Input.padButton();
+      if (!this.saved) {
+        if (i !== undefined) this.gesture();
+      } else if (i !== undefined) {
+        this.gateButton ??= i;
+      } else if (this.gateButton !== undefined) {
+        const b = this.gateButton;
+        this.gateButton = undefined;
+        const pad = this.settings.pad;
+        if (pad.START.includes(b) || pad.CROSS.includes(b)) this.gesture('continue');
+        else if (pad.SELECT.includes(b)) this.gesture('new');
+      }
+      requestAnimationFrame(poll);
     };
     requestAnimationFrame(poll);
+  }
+
+  /** The start screen: "click to start", or a choice between the saved game and a new one. */
+  private showGate(): void {
+    const s = this.saved;
+    this.gate.replaceChildren();
+    if (!s) {
+      this.gate.hidden = true;
+      this.say('Click or press any key to start.');
+      return;
+    }
+    this.say('');
+    const h = (tag: string, text: string, cls?: string) => {
+      const e = document.createElement(tag);
+      e.textContent = text;
+      if (cls) e.className = cls;
+      return e;
+    };
+    const button = (text: string, fn: () => void, cls?: string) => {
+      const b = h('button', text, cls);
+      b.addEventListener('click', fn);
+      return b;
+    };
+    const row = h('div', '', 'row');
+    row.append(button('Continue', () => this.gesture('continue'), 'primary'), button('New game', () => this.gesture('new')));
+    this.gate.append(
+      h('div', `Saved game: ${describeSnapshot(s)}`, 'title'),
+      h('div', `Saved ${savedWhen(s)}`, 'note'),
+      row,
+      h('div', 'Enter or Start: continue · N or Select: new game', 'note'),
+    );
+    this.gate.hidden = false;
   }
 
   /**
@@ -103,16 +183,23 @@ class Shell {
     this.message.hidden = text === '';
   }
 
-  /** The first click or key: start sound, then the logo or the game. */
-  private gesture(): void {
+  /**
+   * The first click or key: start sound, then the logo or the game; or, from the start screen's
+   * choice, the saved game.
+   */
+  private gesture(choice: 'new' | 'continue' = 'new'): void {
     if (this.mode !== 'gate') {
       if (this.mode === 'paused') this.resume();
       return;
     }
     this.mode = 'logo';
     this.say('');
+    this.gate.hidden = true;
     void this.startAudio();
-    if (this.settings.logo) this.playLogo();
+    if (choice === 'continue' && this.saved) {
+      this.resumeGame(this.saved);
+      this.run();
+    } else if (this.settings.logo) this.playLogo();
     else this.powerOn();
   }
 
@@ -134,17 +221,91 @@ class Shell {
   private powerOn(): void {
     // ?start=NAME starts at another program (development: the state block as at power-on).
     const first = new URLSearchParams(location.search).get('start') as ProgramName | null;
-    this.console = new Console(Object.fromEntries(Object.entries(PROGRAMS).map(([n, p]) => [n, p.create])), {
+    this.console = new Console(FACTORIES, {
       first: first && PROGRAMS[first] ? first : undefined,
       // The memory card in slot 1 is kept in the browser (docs/re/memcard.md); slot 2 is empty.
       cards: new MemoryCards(new LocalStorageBackend()),
-      // The mode select shows only Puzzle and Option, the modes the port can start.
-      playableModesOnly: true,
+      // The mode select shows Puzzle, Option and Stats.
+      browserMenu: true,
     });
+    this.run();
+  }
+
+  /** Starts the frame loop (none runs while not in 'run'). */
+  private run(): void {
+    this.audio?.resume();
     this.mode = 'run';
     this.last = performance.now();
     this.acc = 0;
+    this.lastPad = 0;
     requestAnimationFrame((t) => this.frame(t));
+  }
+
+  /** Carries on from a saved game: the game as it was on its pause screen, and that frame shown. */
+  private resumeGame(s: Snapshot): void {
+    this.console = new Console(FACTORIES, {
+      ram: s.ram,
+      seed: s.seed,
+      resume: { program: s.program, tick: s.tick },
+      cards: new MemoryCards(new LocalStorageBackend()),
+      browserMenu: true,
+    });
+    this.newRenderer(this.console.program);
+    this.renderer!.vram!.set(s.vram);
+    // The frame on screen when it was saved (Puzzle Mode draws tick t into buffer t & 1).
+    this.buffer = s.tick & 1;
+    this.showFrame();
+    // The game's music stopped when it paused; unpausing starts it again.
+    this.audio?.reset();
+    this.lastPad = 0;
+    this.notify(`Loaded: ${describeSnapshot(s)}`);
+  }
+
+  /** Saves the game (on Puzzle Mode's pause screen), in place of the last save. */
+  private save(): void {
+    const c = this.console;
+    if (!c || !canSave(c) || !this.renderer?.vram) return;
+    const s = takeSnapshot(c, this.renderer.vram);
+    this.notify('Saving…');
+    storeSave(s).then(
+      () => {
+        this.saved = s;
+        this.notify(`Game saved: ${describeSnapshot(s)}`);
+        this.panel.refresh();
+      },
+      (e) => this.notify(`Could not save: ${e instanceof Error ? e.message : String(e)}`, 6000),
+    );
+  }
+
+  private deleteSaved(): void {
+    deleteSave().then(
+      () => {
+        this.saved = undefined;
+        this.panel.refresh();
+      },
+      (e) => console.warn('could not delete the save:', e),
+    );
+  }
+
+  /** A short note over the game ("Game saved"). */
+  private notify(text: string, ms = NOTE_MS): void {
+    this.note = { text, until: performance.now() + ms };
+    this.updateHint();
+    setTimeout(() => this.updateHint(), ms + 50);
+  }
+
+  /** The note, or on Puzzle Mode's pause screen how to save. */
+  private updateHint(): void {
+    let text = '';
+    if (this.note && performance.now() < this.note.until) text = this.note.text;
+    else if (this.mode === 'run' && this.console && canSave(this.console)) {
+      const key = this.settings.keys.TRIANGLE[0];
+      text = `Press △${key ? ` (${keyName(key)})` : ''} to save your game`;
+    }
+    if (text === this.hintText) return;
+    this.hintText = text;
+    this.hint.textContent = text;
+    this.hint.hidden = text === '';
   }
 
   private async startAudio(): Promise<void> {
@@ -165,7 +326,11 @@ class Shell {
     this.last = now;
     try {
       while (this.acc >= TICK_MS) {
-        c.step(this.input.read());
+        const pad = this.input.read();
+        // Triangle on Puzzle Mode's pause screen saves (the game itself ignores it there).
+        if (pad & ~this.lastPad & BUTTON_BITS.TRIANGLE && canSave(c)) this.save();
+        this.lastPad = pad;
+        c.step(pad);
         const p = c.program;
         if (p !== this.rendererFor) this.newRenderer(p);
         this.buffer = this.renderer!.frame(p).buffer;
@@ -179,11 +344,15 @@ class Shell {
       this.stop(e);
       return;
     }
-    if (this.buffer >= 0 && this.renderer) {
-      this.image.data.set(toRgba(this.renderer.pixels(this.buffer)));
-      this.ctx.putImageData(this.image, 0, 0);
-    }
+    this.showFrame();
+    this.updateHint();
     requestAnimationFrame((t) => this.frame(t));
+  }
+
+  private showFrame(): void {
+    if (this.buffer < 0 || !this.renderer) return;
+    this.image.data.set(toRgba(this.renderer.pixels(this.buffer)));
+    this.ctx.putImageData(this.image, 0, 0);
   }
 
   /**
@@ -215,6 +384,7 @@ class Shell {
     this.mode = 'paused';
     this.audio?.suspend();
     this.input.release();
+    this.updateHint();
     this.say('Paused. Click or press any key to continue.');
   }
 
@@ -233,6 +403,7 @@ class Shell {
     if (was === 'run') this.audio?.suspend();
     this.mode = was === 'run' || was === 'paused' ? 'settings' : was;
     this.input.release();
+    this.updateHint();
     this.panel.show();
   }
 
@@ -254,6 +425,11 @@ class Shell {
     }
     if (code === 'Escape' && this.mode !== 'gate' && this.mode !== 'logo') {
       this.openSettings();
+      return true;
+    }
+    if (this.mode === 'gate' && this.saved) {
+      if (code === 'Enter' || code === 'NumpadEnter') this.gesture('continue');
+      else if (code === 'KeyN') this.gesture('new');
       return true;
     }
     if (this.mode === 'gate' || this.mode === 'paused') {

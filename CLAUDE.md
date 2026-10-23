@@ -9,7 +9,9 @@ original PS1 game (US, SLUS-00338) and verified against it in an emulator.
   memory card in browser storage (`docs/re/memcard.md`), the shell in `web/src/shell/`
   (`docs/re/shell.md`); a complete run, power-on to the ending, is identical to the original on
   every tick and frame, `test/full-run.test.ts`). Per program: `docs/re/sw_on.md`, `title.md`,
-  `select.md`, `ranking.md`.
+  `select.md`, `ranking.md`. Browser additions, kept out of the replays: the mode select's
+  Puzzle/Option/Stats layout (`select.md` §7) and pause-and-save (`web/src/flow/snapshot.ts`,
+  `docs/re/shell.md`).
   `docs/re/audio.md` (Phase 8: the sound in `web/src/audio/`: libsnd's voice
   manager, the SPU, the CD drive and the program's CD callback; every key-on, register write, CD
   command and report of the corpus matches the original's, checked by `npm test` in `web/`).
