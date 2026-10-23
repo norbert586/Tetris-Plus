@@ -24,6 +24,16 @@ export interface Shared {
   rng: Rng;
   /** The memory cards (src/flow/memcard.ts); the Console always provides them. */
   cards?: MemoryCards;
+  /**
+   * The browser's mode select: Puzzle, Option and Stats, centred, instead of the original's five
+   * tiles (the shell's choice; docs/re/select.md §7).
+   */
+  browserMenu?: boolean;
+  /**
+   * RANKING was opened from the browser's Stats tile: the Console brings the mode select back
+   * when it ends, or on Cross, Circle or Start (src/flow/console.ts).
+   */
+  statsVisit?: boolean;
 }
 
 export interface Program {
@@ -42,8 +52,12 @@ export interface Program {
   sound: SoundCall[];
 }
 
-/** Makes a program, running on the shared RAM (its image loaded, its BSS cleared). */
-export type ProgramFactory = (shared: Shared) => Program;
+/**
+ * Makes a program, running on the shared RAM (its image loaded, its BSS cleared). With `resume`,
+ * a program that supports it carries on from the RAM as it is (a saved game, src/flow/snapshot.ts)
+ * at that tick; others ignore it (the Console then refuses the save).
+ */
+export type ProgramFactory = (shared: Shared, resume?: { tick: number }) => Program;
 
 /** Draws a program's frames (made anew for each run of the program: its VRAM starts cleared). */
 export interface ProgramRenderer {
@@ -51,6 +65,8 @@ export interface ProgramRenderer {
   frame(p: Program): Frame;
   /** The 320x240 frame in display buffer `buffer`, as 15-bit pixels. */
   pixels(buffer: number): Uint16Array;
+  /** Its VRAM (1024 x 512 pixels), which a saved game keeps (src/flow/snapshot.ts). */
+  readonly vram?: Uint16Array;
 }
 
 /** A ported program: how to run it and how to draw it. */

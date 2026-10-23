@@ -27,6 +27,11 @@ export interface GameOptions {
    * boot program's loader and `start` do; `counter` and `seed` are then ignored.
    */
   shared?: { m: Mem; rng: Rng; cards?: MemoryCards };
+  /**
+   * With `shared`: carry on from the RAM as it is, after this many ticks (a saved game,
+   * src/flow/snapshot.ts), instead of loading and starting the program.
+   */
+  resume?: { tick: number };
   /** The memory cards (default: a formatted empty card in slot 1, slot 2 empty). */
   cards?: MemoryCards;
 }
@@ -75,6 +80,13 @@ export class Game {
 
   constructor(opts: GameOptions) {
     this.cards = opts.shared?.cards ?? opts.cards ?? new MemoryCards();
+    if (opts.shared && opts.resume) {
+      // A saved game: the program, its state and the card set-up are all in the RAM already.
+      this.rng = opts.shared.rng;
+      this.m = opts.shared.m;
+      this.tick = opts.resume.tick;
+      return;
+    }
     this.cards.init(); // system_init's card_init (0x800B5C94: InitCARD, StartCARD, _bu_init)
     if (opts.shared) {
       this.afterProgram = true;

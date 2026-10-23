@@ -5,7 +5,7 @@
 // it names next must be the original's. Each movie runs from power-on (every program before
 // SELECT is ported) and from SELECT's first tick, with the state block the original's SELECT
 // found (test/fixtures/select-starts.ts). Also the port's one deviation: Classic, VS and Edit
-// cannot be started.
+// cannot be started, and the browser's mode select (Puzzle, Option, Stats; Shared.browserMenu).
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -18,6 +18,8 @@ import { CARD_SIZE, formattedCard, MemoryBackend, MemoryCards } from '../src/flo
 import { PROGRAM_NAMES } from '../src/flow/program';
 import { FACTORIES } from '../src/flow/registry';
 import { SELECT_MODULE } from '../src/programs/select';
+import { SelectRenderer } from '../src/programs/select/render';
+import { STATS_LABEL, STATS_TEXT } from '../src/programs/select/stats';
 import { Select } from '../src/programs/select/select';
 import { loadMovie } from '../tools/movie';
 import { loadTrace, sameValue } from '../tools/trace';
@@ -170,5 +172,137 @@ describe('SELECT.EXE deviation: only Puzzle Mode starts', () => {
     expect(s.m.s32(A.NEXT_PARAM)).toBe(0);
     for (let i = 0; i < 80; i++) c.step(0);
     expect(s.m.s32(M_STEP)).toBe(4);
+  });
+});
+
+describe('SELECT.EXE in the browser: Puzzle, Option and Stats', () => {
+  const CROSS = 0x40, CIRCLE = 0x20, START = 0x800, SELECT_BUTTON = 0x100, RIGHT = 0x2000, LEFT = 0x8000, DOWN = 0x4000;
+  const M_STEP = 0x800b9094, M_SEL = 0x800b90a0;
+  const PUZZLE = 1, OPTION = 4, STATS = 0;
+  const image = (s: Select, n: number) => s.m.s32(A.obj(n) + A.O_IMAGE);
+
+  function browser() {
+    const c = new Console(FACTORIES, {
+      first: 'SELECT', seed: 0, ram: startRam('select-tour'), cards: cardsFor(formattedCard), browserMenu: true,
+    });
+    const s = () => c.program as Select;
+    const press = (pad: number, wait = 4) => {
+      c.step(pad);
+      for (let i = 0; i < wait; i++) c.step(0);
+    };
+    for (let i = 0; i < 80; i++) c.step(0);
+    expect(s().m.s32(M_STEP)).toBe(4);
+    return { c, s, press };
+  }
+
+  /** Opens Stats and confirms it: the ranking screen starts. */
+  function openStats() {
+    const r = browser();
+    r.press(LEFT);
+    expect(r.s().m.s32(M_SEL)).toBe(STATS);
+    r.press(CROSS, 30);
+    r.c.step(CROSS);
+    for (let i = 0; i < 90 && r.c.program.name === 'SELECT'; i++) r.c.step(0);
+    expect(r.c.program.name).toBe('RANKING');
+    return r;
+  }
+
+  it('shows Puzzle, Option and Stats in one centred row, with the cursor on Puzzle', () => {
+    const { s } = browser();
+    for (const tile of [2, 3]) for (const base of [95, 100, 105, 110]) expect(image(s(), base + tile)).toBe(0);
+    const xs = [PUZZLE, OPTION, STATS].map((t) => s().m.s32(A.obj(100 + t) + A.O_X) >> 16);
+    expect(xs).toEqual([8, 112, 216]);
+    for (const t of [OPTION, STATS]) expect(s().m.s32(A.obj(100 + t) + A.O_Y)).toBe(s().m.s32(A.obj(100 + PUZZLE) + A.O_Y));
+    // Stats has Classic's picture and its own name.
+    expect(image(s(), 100 + STATS)).toBe(s().m.s32(0x800b2800) + 0x10000);
+    expect(image(s(), 105 + STATS)).toBe(STATS_LABEL + 1 + 0x10000);
+    expect(s().m.s32(M_SEL)).toBe(PUZZLE);
+  });
+
+  it('uploads the Stats images after the program\'s own, which the renderer can draw', () => {
+    const c = new Console(FACTORIES, { first: 'SELECT', seed: 0, ram: startRam('select-tour'), cards: cardsFor(formattedCard), browserMenu: true });
+    c.step(0);
+    expect(c.program.uploads).toEqual([...Array.from({ length: 0xb1 }, (_, i) => i), STATS_LABEL, STATS_TEXT]);
+    const plain = new Console(FACTORIES, { first: 'SELECT', seed: 0, ram: startRam('select-tour'), cards: cardsFor(formattedCard) });
+    plain.step(0);
+    expect(plain.program.uploads).toHaveLength(0xb1);
+    // The two images (stats.ts) are the size of the ones they stand in for.
+    const r = new SelectRenderer(items);
+    expect(r.tims).toHaveLength(0xb1 + 2);
+    expect(r.templates[STATS_LABEL]).toMatchObject({ w: r.templates[21].w, h: r.templates[21].h });
+    expect(r.templates[STATS_TEXT]).toMatchObject({ w: r.templates[27].w, h: r.templates[27].h });
+  });
+
+  it('Left and Right go round the three; Up and Down do nothing', () => {
+    const { s, press } = browser();
+    const seen = [];
+    for (let i = 0; i < 3; i++) {
+      press(RIGHT);
+      seen.push(s().m.s32(M_SEL));
+    }
+    expect(seen).toEqual([OPTION, STATS, PUZZLE]);
+    press(LEFT);
+    expect(s().m.s32(M_SEL)).toBe(STATS);
+    press(DOWN);
+    expect(s().m.s32(M_SEL)).toBe(STATS);
+  });
+
+  it("each page ends where the original's does, and closes back to its tile", () => {
+    for (const sel of [PUZZLE, OPTION, STATS]) {
+      const { s, press } = browser();
+      while (s().m.s32(M_SEL) !== sel) press(RIGHT);
+      const tileX = s().m.s32(A.obj(100 + sel) + A.O_X);
+      press(CROSS, 30);
+      expect(s().m.s32(M_STEP)).toBe(6);
+      // The page's position before it snapped to the big picture (O_4C/O_50), as the original's.
+      const big = A.obj(118);
+      const z = 0x800b27b0 + 16 * sel;
+      expect(s().m.s32(big + A.O_4C)).toBe(s().m.s32(0x800b2814 + 8 * sel) + s().m.s32(z));
+      expect(s().m.s32(big + A.O_50)).toBe(s().m.s32(0x800b2814 + 8 * sel + 4) + s().m.s32(z + 4));
+      if (sel === STATS) {
+        expect(image(s(), 121)).toBe(STATS_TEXT + 1 + 0x10000);
+        expect(image(s(), 119)).toBe(0);
+      }
+      press(CIRCLE, 30);
+      expect(s().m.s32(M_STEP)).toBe(4);
+      expect(s().m.s32(A.obj(100 + sel) + A.O_X)).toBe(tileX);
+    }
+  });
+
+  it('Cross, Cross on Puzzle starts Puzzle Mode', () => {
+    const { c, s, press } = browser();
+    press(CROSS, 30);
+    c.step(CROSS);
+    for (let i = 0; i < 90 && !s().exited; i++) c.step(0);
+    expect(c.next).toBe('PAZLE');
+  });
+
+  it('Stats shows the ranking screen, then the mode select again', () => {
+    const { c } = openStats();
+    for (let i = 0; i < 1000 && c.program.name === 'RANKING'; i++) c.step(0);
+    expect(c.program.name).toBe('SELECT');
+    expect(c.started.slice(-3)).toEqual(['SELECT', 'RANKING', 'SELECT']);
+  });
+
+  for (const [button, name] of [[CROSS, 'Cross'], [CIRCLE, 'Circle'], [START, 'Start']] as const) {
+    it(`${name} leaves the ranking screen for the mode select`, () => {
+      const { c } = openStats();
+      for (let i = 0; i < 10; i++) c.step(0);
+      c.step(button);
+      expect(c.program.name).toBe('SELECT');
+      for (let i = 0; i < 80; i++) c.step(0);
+      expect((c.program as Select).m.s32(M_STEP)).toBe(4);
+    });
+  }
+
+  it('Start and Select held into the ranking screen still soft-reset to the title', () => {
+    const { c, press } = browser();
+    press(LEFT);
+    press(CROSS, 30);
+    c.step(CROSS);
+    // Held from the confirmation on, so Start is never a fresh press on the ranking screen.
+    for (let i = 0; i < 300 && c.program.name !== 'TITLE'; i++) c.step(SELECT_BUTTON | START);
+    expect(c.started.slice(-3)).toEqual(['SELECT', 'RANKING', 'TITLE']);
+    expect(c.shared.statsVisit).toBe(false);
   });
 });

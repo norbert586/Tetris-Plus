@@ -7,7 +7,7 @@ It is ported in `web/src/programs/select/`. The port matches the original on eve
 runs recorded from power-on (§8): every traced field, every `rand()` call, every image upload,
 every sound call, the ordering table's GPU packets (`ot`) and the drawn frame (`fb`). The CD
 commands it issues and the memory card it leaves are checked too. There is one deliberate
-deviation: Classic, VS and Edit are shown but cannot be started (§7).
+deviation: Classic, VS and Edit cannot be started; the browser hides their tiles (§7).
 
 Names: `re/symbols/SELECT.game.tsv`. Fields traced: `re/lua/fields/SELECT.lua` (mirrored by
 `web/src/programs/select/trace.ts`). State block S = 0x8003E668 (`web/src/core/addr.ts`).
@@ -213,6 +213,40 @@ the same way, but they cannot be started. The rule is in one function,
   sets param 2 (§1); this only guards the path.
 
 `web/test/select.test.ts` ("deviation") checks both paths, and that Puzzle still starts PAZLE.
+
+**The browser's mode select (`Shared.browserMenu`; decided 2026-10-23).** The shell starts the
+Console with `browserMenu`, and the mode select then shows three tiles in one row, centred under
+the title: **Puzzle, Option and Stats** (`COMPACT_ORDER`, `COMPACT_TILES`: x 8, 112 and 216, the
+original's top row, at y 88; the original's rows are at y 43 and 137). VS and Edit are not shown
+(their objects stay cleared). Without the flag (the tests) the five tiles behave as in §3 and the
+movies replay unchanged.
+
+- **Layout.** Each tile's name, shadow and cover keep their offsets from it, and its zoom is
+  corrected by how far it moved, so the zoom ends where the original's does and each page looks
+  the same. The cursor starts on Puzzle; Left and Right go round the three; Up and Down do
+  nothing.
+- **Stats** takes Classic's place (tile 0): Classic's picture, zoom and page, with its own name,
+  "STATS", and banner, "HIGH SCORES", instead of Classic's, and no "one player only" note. The two
+  images are made from letters SELECTE.BIN already has (`web/src/programs/select/stats.ts`): S
+  and A from "CLASSIC MODE" and T from "EDIT MODE"; the banner's letters from the mode banners.
+  Each is drawn on a copy of a label or banner with its letters cleared to the background, in the
+  same palette. They are items 177 and 178 after the 177 of SELECTE.BIN: `SelectRenderer` adds
+  them and SELECT uploads them after its own, over two images the browser's mode select never
+  shows (the VS name, with its identical CLUT, and the Classic banner). The builder checks every
+  assumption it relies on (clean letter cells, one background colour per row, the same palette)
+  and throws if one fails.
+- **Cross on Stats's page** runs the confirmation as for a mode, then names RANKING (7) with
+  param 0, phase 0, and sets `Shared.statsVisit`. RANKING shows the Classic and Puzzle rankings
+  as in the attract loop (`ranking.md`). The Console then brings the mode select back
+  (`web/src/flow/console.ts`): when RANKING ends (it names TIT_DEMO; the Console names SELECT
+  with param 0, phase 0 instead), or at once on a fresh Cross, Circle or Start (RANKING has no
+  input of its own). A soft reset still goes to TITLE (Start and Select held since before the
+  ranking screen started; a fresh Start leaves first). This is the placeholder for a stats screen
+  of the port's own.
+
+`web/test/select.test.ts` ("in the browser") checks the layout, the uploads, the cursor, every
+page's zoom and return, Puzzle starting PAZLE, and the Stats round trip (to the end, with each
+button, and the soft reset).
 
 ## 8. Verification
 

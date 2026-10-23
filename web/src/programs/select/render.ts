@@ -8,6 +8,7 @@ import { FrameRenderer } from '../../render/frame';
 import { OrderingTable, type Sprite } from '../../render/libgs';
 import { spriteTemplate, type Frame } from '../../render/renderer';
 import type { Select } from './select';
+import { statsImages } from './stats';
 
 const s16 = (v: number) => (v << 16) >> 16;
 
@@ -19,6 +20,8 @@ export class SelectRenderer extends FrameRenderer {
   constructor(items: Uint8Array[]) {
     super();
     this.tims = items.map(parseTim);
+    // The browser's Stats tile's name and banner, items 177 and 178 (stats.ts).
+    this.tims.push(...statsImages(this.tims));
     this.templates = this.tims.map(spriteTemplate);
   }
 
