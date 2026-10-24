@@ -7,7 +7,7 @@
     "test": "vitest run",
     "trace": "tsx tools/trace-check.ts",
     "dev": "vite",
-    "build": "vite build"
+    "build": "vite build --base=./"
   },
   "devDependencies": {
     "@types/node": "22.19.1",
