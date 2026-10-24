@@ -26,7 +26,7 @@ export interface GameOptions {
    * block as earlier programs left it. PAZLE.EXE's data is loaded and its BSS cleared, as the
    * boot program's loader and `start` do; `counter` and `seed` are then ignored.
    */
-  shared?: { m: Mem; rng: Rng; cards?: MemoryCards };
+  shared?: { m: Mem; rng: Rng; cards?: MemoryCards; browserSaving?: boolean };
   /**
    * With `shared`: carry on from the RAM as it is, after this many ticks (a saved game,
    * src/flow/snapshot.ts), instead of loading and starting the program.
@@ -66,6 +66,11 @@ export class Game {
   tick = 0;
   /** The memory cards (the save screen and the menu's Continue; card.ts). */
   readonly cards: MemoryCards;
+  /**
+   * The browser saves games itself (Shared.browserSaving): the save screen after a game shows
+   * only the password and EXIT (screens/after.ts).
+   */
+  readonly browserSaving: boolean;
   /** Set when the program leaves Puzzle Mode (exit flag). */
   get exited(): boolean {
     return this.m.s32(A.EXIT_FLAG) !== 0;
@@ -80,6 +85,7 @@ export class Game {
 
   constructor(opts: GameOptions) {
     this.cards = opts.shared?.cards ?? opts.cards ?? new MemoryCards();
+    this.browserSaving = opts.shared?.browserSaving ?? false;
     if (opts.shared && opts.resume) {
       // A saved game: the program, its state and the card set-up are all in the RAM already.
       this.rng = opts.shared.rng;

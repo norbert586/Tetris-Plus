@@ -185,3 +185,30 @@ ported from the decompiled code.
 **The renderer:** the slot list puts image 0 on objects (image field 0x10000). `objects_draw`
 then reads the template before the first, zeros in RAM (`state+0x3F050`): a 0×0 sprite, which
 still goes into the ordering table. `src/render/renderer.ts` does the same (`ZERO_TEMPLATE`).
+
+## 7. The browser: no card save screen; the records kept by themselves
+
+Decided 2026-10-24 (`Shared.browserSaving`, set by the shell): games are saved on the pause
+screen (`shell.md`), so the save screen after a game (screen 13) keeps the password and EXIT only.
+Substep 1 puts EXIT, highlighted, where SLOT 1 was (no "SAVE DATA?", cursor 2); substep 2 ignores
+Up and Down, and Cross goes on to substep 3, EXIT's path (screen 8). The card is not touched.
+The menu's Continue still loads a card's saved slots.
+
+On the console, that screen is where the records (best times, both rankings) reach the card. The
+browser writes them itself instead (`web/src/flow/records.ts`, `storeRecords`), whenever the
+records in RAM change:
+
+- The save file's intact copy (A, else B) gets the records merged in: each best time the lower of
+  the card's and the RAM's, each ranking the entries of both (the same entry once) by score, five.
+  The rest of the block (save slots, settings) stays the card's. Both copies and their checksums
+  are written, as the game writes them.
+- Without a save file, one is created as the save screen would: Puzzle Mode's header (`saveHeader`,
+  FUN_800B6858's title and icon) and the whole saved block from RAM. A file with no intact copy is
+  left alone.
+- The calls go through `MemoryCards.outsideGame`: the cards' new-card flags and the wait counter
+  are as before, so the programs see the card as they would have, and the shell doesn't hold the
+  picture for the writes.
+
+`web/test/records.test.ts`: a card written this way, powered on, gives SW_ON's state block exactly
+these records; other parts kept; merging; the card's flags and waits; no card, damaged file; and
+the browser's save screen on `egypt1-idle`.

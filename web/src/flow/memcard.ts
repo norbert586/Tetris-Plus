@@ -200,6 +200,22 @@ export class MemoryCards {
     this.fresh = this.images.map((c) => c !== null && !isFormatted(c));
   }
 
+  /**
+   * Runs card calls the browser makes for itself (flow/records.ts), not a program: they leave the
+   * cards' new-card flags and the wait counter (`vblanks`) as they were, so the programs see the
+   * cards as they would have.
+   */
+  outsideGame<T>(fn: () => T): T {
+    const fresh = [...this.fresh];
+    const vblanks = this.vblanks;
+    try {
+      return fn();
+    } finally {
+      fresh.forEach((f, i) => (this.fresh[i] = f));
+      this.vblanks = vblanks;
+    }
+  }
+
   /** The image in a slot (a copy), null if the slot is empty. */
   image(slot: number): Uint8Array | null {
     return this.images[slot] ? this.images[slot]!.slice() : null;

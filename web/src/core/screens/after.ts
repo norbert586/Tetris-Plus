@@ -472,8 +472,15 @@ const SAVE: ((g: Game) => void)[] = [
   (g) => {
     for (let n = 0x186; n < 0x1a4; n++) objectClear(g, n + g.ob);
     passwordShow(g, 0x13, 0x21, 2);
-    objectPut2(g, 0xd2, 0x4ca, 0x1f, 0x5e);
-    saveOptions(g, 0xd3);
+    if (g.browserSaving) {
+      // The browser: no "SAVE DATA?" and no card slots, EXIT alone where SLOT 1 was.
+      const m = g.m;
+      m.w32(g.pv(SAVE_CURSOR), 2);
+      objectPut2(g, 0xd3, m.s32(0x800e27b4 + 2 * 0x10), m.s32(0x800e27b8 + 2 * 0x10), m.s32(0x800e27bc));
+    } else {
+      objectPut2(g, 0xd2, 0x4ca, 0x1f, 0x5e);
+      saveOptions(g, 0xd3);
+    }
     g.m.add32(g.pv(A.SUBSTEP), 1);
   },
   // 2 (0x8009BEC8): Up/Down, Cross picks.
@@ -485,6 +492,8 @@ const SAVE: ((g: Game) => void)[] = [
       sePlay(g, 0);
       return;
     }
+    // The browser's screen has only EXIT.
+    if (g.browserSaving) return;
     if (pressed & 0x1000) {
       const c = v(g, SAVE_CURSOR) - 1;
       m.w32(g.pv(SAVE_CURSOR), c < 0 ? 2 : c);

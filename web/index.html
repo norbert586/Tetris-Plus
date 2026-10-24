@@ -44,6 +44,13 @@
       .panel .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0; }
       .panel .note { color: #9aa4e8; font-size: 12px; }
       .panel input[type=range] { vertical-align: middle; margin-right: 8px; }
+      .panel.stats { max-width: 640px; }
+      .panel.stats p { margin: 4px 0; }
+      .panel.stats .row span { background: #1c2670; border-radius: 3px; padding: 1px 8px; }
+      .panel.stats .row span.done { background: #2f7a32; }
+      .panel.stats td.num { text-align: right; font-variant-numeric: tabular-nums; }
+      .panel.stats table.times td, .panel.stats table.times th { padding: 0 6px; }
+      .panel.stats table.times tr:nth-child(even) td { background: rgba(91, 111, 214, .12); }
     </style>
   </head>
   <body>

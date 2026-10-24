@@ -30,10 +30,16 @@ export interface Shared {
    */
   browserMenu?: boolean;
   /**
-   * RANKING was opened from the browser's Stats tile: the Console brings the mode select back
-   * when it ends, or on Cross, Circle or Start (src/flow/console.ts).
+   * The browser saves games itself (pause and save, src/flow/snapshot.ts) and keeps the records
+   * on card 1 (src/flow/records.ts): Puzzle Mode's save screen after a game shows only the
+   * password and EXIT (docs/re/memcard.md §7).
    */
-  statsVisit?: boolean;
+  browserSaving?: boolean;
+  /**
+   * The browser's Stats tile was confirmed: the shell shows the stats (src/shell/stats.ts) and
+   * clears this when they close; the mode select waits for that.
+   */
+  statsOpen?: boolean;
 }
 
 export interface Program {

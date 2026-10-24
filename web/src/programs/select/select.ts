@@ -68,14 +68,13 @@ const PLAYERS_POS = 0x800b2954;
  * Classic's place (0: its picture and page, its own name and banner, stats.ts), in one row
  * centred under the title, in this order, at these tile positions (whole pixels). The names,
  * shadows and covers keep their offsets from the tile, and the zoom ends where the original's
- * does, so each page is the same. Stats opens the ranking screen (RANKING), which the Console
- * leaves for the mode select again (Shared.statsVisit).
+ * does, so each page is the same. Cross on Stats's page asks the shell to show the stats
+ * (Shared.statsOpen) and waits (step 10); when they close, the page closes as with Circle.
  */
 const COMPACT_ORDER = [1, 4, 0];
 const COMPACT_Y = 88;
 const COMPACT_TILES: Partial<Record<number, [number, number]>> = { 1: [8, COMPACT_Y], 4: [112, COMPACT_Y], 0: [216, COMPACT_Y] };
 const STATS = 0;
-const PRG_RANKING = 7;
 /** Sprite animations: pointers to { frame time, image, image, ..., 0xFFFE loop | 0xFFFF end }. */
 export const ANIMS = 0x800b2744;
 
@@ -554,7 +553,14 @@ export class Select implements Program {
         // FUN_80097B3C: Cross starts the mode, Circle goes back.
         const s = sel();
         const p = this.pressed();
-        if (p & 0x40 && (s >= 4 || Select.modeAvailable(s) || (this.compact && s === STATS))) {
+        if (p & 0x40 && this.compact && s === STATS) {
+          // The browser's Stats: its page stays while the shell shows the stats (step 10).
+          sePlay(this, 0);
+          this.shared.statsOpen = true;
+          m.w32(M_STEP, 10);
+          return;
+        }
+        if (p & 0x40 && (s >= 4 || Select.modeAvailable(s))) {
           const c = o(120);
           m.w32(c + A.O_ANIM, 2);
           const t = m.u32(ANIMS + 8);
@@ -567,24 +573,7 @@ export class Select implements Program {
           m.w32(M_WAIT, 0x4b);
           m.add32(M_STEP, 2);
         } else if (p & 0x20) {
-          const big = o(118);
-          const sh = o(s + 95);
-          m.w32(o(121) + A.O_IMAGE, 0);
-          m.w32(big + A.O_SCALE_X, 0x1000);
-          m.w32(big + A.O_SCALE_Y, 0x1000);
-          m.w32(big + A.O_IMAGE, m.s32(TILE_IMAGES + 4 * s) + 0x10000);
-          m.w32(big + A.O_X, m.s32(big + A.O_4C));
-          m.w32(big + A.O_Y, m.s32(big + A.O_50));
-          m.w32(sh + A.O_IMAGE, 0x10011);
-          m.w32(sh + A.O_SCALE_X, 0x1000);
-          m.w32(sh + A.O_SCALE_Y, 0x1000);
-          m.w32(sh + A.O_X, m.s32(sh + A.O_4C));
-          m.w32(sh + A.O_Y, m.s32(sh + A.O_50));
-          m.w32(o(119) + A.O_IMAGE, 0);
-          m.w32(o(119) + A.O_X, 0);
-          m.w32(o(119) + A.O_Y, 0);
-          sePlay(this, 5);
-          m.add32(M_STEP, 1);
+          this.closePage(s);
         }
         return;
       }
@@ -621,10 +610,7 @@ export class Select implements Program {
         // FUN_80097E74: off to the mode (program 9 + tile), or Option mode (state+0x4C + 1).
         m.w32(M_STEP, 0);
         const s = m.s32(M_SEL);
-        if (this.compact && s === STATS) {
-          this.shared.statsVisit = true;
-          this.exitTo(PRG_RANKING, 0, 0);
-        } else if (s < 4) {
+        if (s < 4) {
           this.leaveForMode(s, false);
         } else {
           m.w32(A.PHASE, 0);
@@ -633,9 +619,38 @@ export class Select implements Program {
         }
         return;
       }
+      case 10: {
+        // The browser's Stats: when the shell has closed them, the page closes as with Circle.
+        if (!this.shared.statsOpen) this.closePage(sel());
+        return;
+      }
       default:
         return;
     }
+  }
+
+  /** Step 6's Circle (FUN_80097B3C): the page goes, the tile shrinks back (step 7). */
+  private closePage(s: number): void {
+    const m = this.m;
+    const o = A.obj;
+    const big = o(118);
+    const sh = o(s + 95);
+    m.w32(o(121) + A.O_IMAGE, 0);
+    m.w32(big + A.O_SCALE_X, 0x1000);
+    m.w32(big + A.O_SCALE_Y, 0x1000);
+    m.w32(big + A.O_IMAGE, m.s32(TILE_IMAGES + 4 * s) + 0x10000);
+    m.w32(big + A.O_X, m.s32(big + A.O_4C));
+    m.w32(big + A.O_Y, m.s32(big + A.O_50));
+    m.w32(sh + A.O_IMAGE, 0x10011);
+    m.w32(sh + A.O_SCALE_X, 0x1000);
+    m.w32(sh + A.O_SCALE_Y, 0x1000);
+    m.w32(sh + A.O_X, m.s32(sh + A.O_4C));
+    m.w32(sh + A.O_Y, m.s32(sh + A.O_50));
+    m.w32(o(119) + A.O_IMAGE, 0);
+    m.w32(o(119) + A.O_X, 0);
+    m.w32(o(119) + A.O_Y, 0);
+    sePlay(this, 5);
+    m.w32(M_STEP, 7);
   }
 
   // ---- Option mode ----

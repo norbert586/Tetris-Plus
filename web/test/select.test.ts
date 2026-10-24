@@ -176,7 +176,7 @@ describe('SELECT.EXE deviation: only Puzzle Mode starts', () => {
 });
 
 describe('SELECT.EXE in the browser: Puzzle, Option and Stats', () => {
-  const CROSS = 0x40, CIRCLE = 0x20, START = 0x800, SELECT_BUTTON = 0x100, RIGHT = 0x2000, LEFT = 0x8000, DOWN = 0x4000;
+  const CROSS = 0x40, CIRCLE = 0x20, RIGHT = 0x2000, LEFT = 0x8000, DOWN = 0x4000;
   const M_STEP = 0x800b9094, M_SEL = 0x800b90a0;
   const PUZZLE = 1, OPTION = 4, STATS = 0;
   const image = (s: Select, n: number) => s.m.s32(A.obj(n) + A.O_IMAGE);
@@ -195,15 +195,15 @@ describe('SELECT.EXE in the browser: Puzzle, Option and Stats', () => {
     return { c, s, press };
   }
 
-  /** Opens Stats and confirms it: the ranking screen starts. */
+  /** Opens Stats's page and confirms it: the mode select asks for the stats and waits. */
   function openStats() {
     const r = browser();
     r.press(LEFT);
     expect(r.s().m.s32(M_SEL)).toBe(STATS);
     r.press(CROSS, 30);
-    r.c.step(CROSS);
-    for (let i = 0; i < 90 && r.c.program.name === 'SELECT'; i++) r.c.step(0);
-    expect(r.c.program.name).toBe('RANKING');
+    r.press(CROSS, 1);
+    expect(r.c.shared.statsOpen).toBe(true);
+    expect(r.s().m.s32(M_STEP)).toBe(10);
     return r;
   }
 
@@ -277,32 +277,18 @@ describe('SELECT.EXE in the browser: Puzzle, Option and Stats', () => {
     expect(c.next).toBe('PAZLE');
   });
 
-  it('Stats shows the ranking screen, then the mode select again', () => {
-    const { c } = openStats();
-    for (let i = 0; i < 1000 && c.program.name === 'RANKING'; i++) c.step(0);
-    expect(c.program.name).toBe('SELECT');
-    expect(c.started.slice(-3)).toEqual(['SELECT', 'RANKING', 'SELECT']);
-  });
-
-  for (const [button, name] of [[CROSS, 'Cross'], [CIRCLE, 'Circle'], [START, 'Start']] as const) {
-    it(`${name} leaves the ranking screen for the mode select`, () => {
-      const { c } = openStats();
-      for (let i = 0; i < 10; i++) c.step(0);
-      c.step(button);
-      expect(c.program.name).toBe('SELECT');
-      for (let i = 0; i < 80; i++) c.step(0);
-      expect((c.program as Select).m.s32(M_STEP)).toBe(4);
-    });
-  }
-
-  it('Start and Select held into the ranking screen still soft-reset to the title', () => {
-    const { c, press } = browser();
-    press(LEFT);
-    press(CROSS, 30);
-    c.step(CROSS);
-    // Held from the confirmation on, so Start is never a fresh press on the ranking screen.
-    for (let i = 0; i < 300 && c.program.name !== 'TITLE'; i++) c.step(SELECT_BUTTON | START);
-    expect(c.started.slice(-3)).toEqual(['SELECT', 'RANKING', 'TITLE']);
-    expect(c.shared.statsVisit).toBe(false);
+  it('Stats asks for the stats and waits; when they close, the page closes back to the tiles', () => {
+    const { c, s } = openStats();
+    // Nothing moves on while they are open, whatever is pressed.
+    for (let i = 0; i < 200; i++) c.step(i % 2 ? CROSS : CIRCLE);
+    expect(s().exited).toBe(false);
+    expect(s().m.s32(M_STEP)).toBe(10);
+    expect(c.shared.statsOpen).toBe(true);
+    c.shared.statsOpen = false;
+    for (let i = 0; i < 40; i++) c.step(0);
+    expect(s().m.s32(M_STEP)).toBe(4);
+    expect(s().m.s32(M_SEL)).toBe(STATS);
+    expect(image(s(), 100 + STATS)).toBe(s().m.s32(0x800b2800) + 0x10000);
+    expect(c.started).toEqual(['SELECT']);
   });
 });
