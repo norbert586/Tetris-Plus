@@ -4,6 +4,7 @@
 // them. The card itself is g.cards (src/flow/memcard.ts).
 import * as A from './addr';
 import type { Game } from './game';
+import type { Mem } from './mem';
 import { FCREAT, FREAD, FWRITE, IOE, ERROR, NEWCARD } from '../flow/memcard';
 
 /** The card slot each player uses (0 or 1); the save screen's cursor doubles as it. */
@@ -160,19 +161,28 @@ export function saveRead(g: Game): boolean {
 
 /** FUN_800B6858: the file header (title, icon) at 0x800F2AEC. */
 function buildHeader(g: Game): void {
-  const m = g.m;
+  g.m.bytes.set(saveHeader(g.m), HEADER & 0x1fffff);
+}
+
+/**
+ * The save file's header as FUN_800B6858 builds it, from PAZLE.EXE's data in `m` (its title and
+ * icon): 0x200 bytes.
+ */
+export function saveHeader(m: Mem): Uint8Array {
+  const h = new Uint8Array(0x200);
+  const at = (a: number, n: number) => m.bytes.subarray(a & 0x1fffff, (a & 0x1fffff) + n);
   // The magic should be "SC"; the code stores the low bytes of two string addresses instead.
-  m.w8(HEADER, 0x10);
-  m.w8(HEADER + 1, 0x14);
-  m.w8(HEADER + 2, 0x13); // icon: 3 frames
-  m.w8(HEADER + 3, 1);
-  copy(g, HEADER + 4, 0x800d5204, 0x40);
-  m.fill(HEADER + 0x44, 0x1c);
+  h[0] = 0x10;
+  h[1] = 0x14;
+  h[2] = 0x13; // icon: 3 frames
+  h[3] = 1;
+  h.set(at(0x800d5204, 0x40), 4);
   // FUN_800B691C: the icon's palette and its three frames.
-  copy(g, HEADER + 0x60, 0x800d4fc4 + 0x14, 0x20);
-  copy(g, HEADER + 0x80, 0x800d4fc4 + 0x40, 0x80);
-  copy(g, HEADER + 0x100, 0x800d5084 + 0x40, 0x80);
-  copy(g, HEADER + 0x180, 0x800d5144 + 0x40, 0x80);
+  h.set(at(0x800d4fc4 + 0x14, 0x20), 0x60);
+  h.set(at(0x800d4fc4 + 0x40, 0x80), 0x80);
+  h.set(at(0x800d5084 + 0x40, 0x80), 0x100);
+  h.set(at(0x800d5144 + 0x40, 0x80), 0x180);
+  return h;
 }
 
 function bufferBytes(g: Game): Uint8Array {

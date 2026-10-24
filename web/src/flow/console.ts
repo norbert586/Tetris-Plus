@@ -22,6 +22,8 @@ export interface ConsoleOptions {
   cards?: MemoryCards;
   /** The browser's mode select: Puzzle, Option and Stats (Shared.browserMenu). */
   browserMenu?: boolean;
+  /** Puzzle Mode's save screen without its card options (Shared.browserSaving). */
+  browserSaving?: boolean;
   /**
    * Resume this program from `ram` (a saved game, src/flow/snapshot.ts) at this tick, instead of
    * starting one: `seed` is the rand() seed it had. Only a program whose factory can resume (it
@@ -30,15 +32,9 @@ export interface ConsoleOptions {
   resume?: { program: ProgramName; tick: number };
 }
 
-/** The pad buttons that leave the ranking screen when it was opened from Stats: Start, Cross, Circle. */
-const STATS_LEAVE = 0x800 | 0x40 | 0x20;
-const PRG_SELECT = 8;
-
 export class Console {
   readonly shared: Shared;
   program: Program;
-  /** The last pad word (for the Stats visit's button presses). */
-  private lastPad = 0;
   /** Programs started so far, in order (for tests and the shell). */
   readonly started: ProgramName[] = [];
 
@@ -53,6 +49,7 @@ export class Console {
       rng: new Rng(opts.seed ?? 0),
       cards: opts.cards ?? new MemoryCards(),
       browserMenu: opts.browserMenu,
+      browserSaving: opts.browserSaving,
     };
     this.program = opts.resume ? this.resume(opts.resume.program, opts.resume.tick) : this.start(opts.first ?? 'SW_ON', !opts.ram);
   }
@@ -64,12 +61,6 @@ export class Console {
   /** One main-loop iteration; first starts the next program if the last one has exited. */
   step(pad: number): void {
     if (this.program.exited) this.startNext();
-    if (this.shared.statsVisit && this.program.name === 'RANKING' && this.program.tick > 0 && pad & ~this.lastPad & STATS_LEAVE) {
-      // Leaving the ranking screen opened from Stats with a button (it has no input of its own).
-      this.m.w32(A.EXIT_FLAG, 1);
-      this.startNext();
-    }
-    this.lastPad = pad;
     this.program.step(pad);
   }
 
@@ -79,17 +70,6 @@ export class Console {
    */
   startNext(seed?: number): void {
     if (seed !== undefined) this.shared.rng.seed = seed >>> 0;
-    if (this.shared.statsVisit && this.program.name === 'RANKING') {
-      // The ranking screen opened from Stats goes back to the mode select: at its end it names
-      // TIT_DEMO, and left with a button it still names itself. A soft reset still goes to TITLE.
-      this.shared.statsVisit = false;
-      if (this.next !== 'TITLE') {
-        this.m.w32(A.NEXT_PROGRAM, PRG_SELECT);
-        this.m.w32(A.NEXT_PARAM, 0);
-        this.m.w32(A.PHASE, 0);
-        this.m.w32(A.SUBPHASE, 0);
-      }
-    }
     this.program = this.start(this.next);
   }
 

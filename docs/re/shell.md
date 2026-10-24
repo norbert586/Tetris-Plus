@@ -77,6 +77,22 @@ that screen), and **Load** and **Delete** for the save. Saving again replaces th
   TIT_DEMO in `full-run`.
 - A save from a later port whose format changed is not offered (`SNAPSHOT_VERSION`).
 
+## Records and Stats (`web/src/flow/records.ts`, `stats.ts`)
+
+- **Records on the card.** After every tick (except during SW_ON, which loads them), the shell
+  compares the records in RAM (best times and both rankings, the saved block's first 0x154
+  bytes) with the last it saw; when they change (a stage cleared faster, a name entered), it
+  writes them into card 1's save file, merged with the card's, so a loaded save can't lower them
+  (`docs/re/memcard.md` §7). Loading a save also merges the card's records into its RAM, so the
+  stage's best time on screen is the real one.
+- **The Stats page**, from the mode select's Stats tile (`docs/re/select.md` §7): progress (stages
+  with a best time, of 100, and per zone), time played (in all and in Puzzle Mode), the Puzzle
+  ranking, and every stage's best time as the stage clock shows it. Plain HTML over the game, like
+  the settings. Up/Down scroll it; Cross, Circle, Start or Escape close it (the game gets no
+  buttons while it is open).
+- **Time played** is the shell's count of ticks run (none while paused), kept in `localStorage`
+  (`tetris-plus.playtime.v1`, saved every 600 ticks and when the page closes).
+
 ## Pause
 
 When the window loses focus or the tab is hidden, the game stops between ticks and the audio

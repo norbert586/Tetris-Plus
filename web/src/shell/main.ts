@@ -5,18 +5,22 @@
 // refresh rate. Escape opens the settings; the game pauses when the window loses focus.
 // Saving (src/flow/snapshot.ts): on Puzzle Mode's pause screen, Triangle saves the game; the
 // start screen offers to carry on from the save, and the settings panel loads or deletes it.
+// The records (best times, rankings) go to memory card 1 whenever they change (flow/records.ts),
+// and the mode select's Stats tile opens the Stats page (stats.ts).
 import { readPack } from '../assets/pack';
 import { AudioPlayer } from '../audio/player';
 import { Console } from '../flow/console';
 import { LocalStorageBackend, MemoryCards } from '../flow/memcard';
 import type { Program, ProgramName, ProgramRenderer } from '../flow/program';
 import { FACTORIES, PROGRAMS } from '../flow/registry';
+import { cardRecords, mergeRecords, ramRecords, readRecords, RECORDS, sameRecords, storeRecords } from '../flow/records';
 import { canSave, describeSnapshot, takeSnapshot, type Snapshot } from '../flow/snapshot';
 import { toRgba } from '../render/present';
 import { Input } from './input';
 import { keyName, SettingsPanel } from './panel';
 import { deleteSave, loadSave, savedWhen, storeSave } from './saves';
 import { BUTTON_BITS, loadSettings, type Settings } from './settings';
+import { PlayTime, StatsPanel } from './stats';
 
 /** NTSC progressive refresh (docs/RESEARCH_AND_PLAN.md §6). */
 const TICK_MS = 1000 / 59.826;
@@ -44,8 +48,12 @@ class Shell {
   private saved?: Snapshot;
   /** A gamepad button pressed on the start screen, acted on when it is released. */
   private gateButton?: number;
-  /** The last tick's pad word (for Triangle's fresh press). */
+  /** The last tick's pad word (for fresh presses: Triangle, the Stats page). */
   private lastPad = 0;
+  private readonly stats = new StatsPanel(() => this.closeStats());
+  private readonly playTime = new PlayTime();
+  /** The records in RAM as last seen (written to the card when they change); none during SW_ON. */
+  private recordsSeen?: Uint8Array;
   private readonly video = document.getElementById('logo') as HTMLVideoElement;
   private packs = new Map<string, Uint8Array[]>();
   private console?: Console;
@@ -87,6 +95,7 @@ class Shell {
       if (this.settings.pauseOnBlur && this.mode === 'run') this.pause();
     };
     addEventListener('blur', background);
+    addEventListener('pagehide', () => this.playTime.save());
     document.addEventListener('visibilitychange', () => document.hidden && background());
     this.screen.addEventListener('dblclick', () => this.toggleFullscreen());
     // With a save, the start screen's buttons choose (a click elsewhere doesn't start).
@@ -225,9 +234,11 @@ class Shell {
       first: first && PROGRAMS[first] ? first : undefined,
       // The memory card in slot 1 is kept in the browser (docs/re/memcard.md); slot 2 is empty.
       cards: new MemoryCards(new LocalStorageBackend()),
-      // The mode select shows Puzzle, Option and Stats.
+      // The mode select shows Puzzle, Option and Stats; games are saved on the pause screen.
       browserMenu: true,
+      browserSaving: true,
     });
+    this.recordsSeen = undefined;
     this.run();
   }
 
@@ -249,7 +260,14 @@ class Shell {
       resume: { program: s.program, tick: s.tick },
       cards: new MemoryCards(new LocalStorageBackend()),
       browserMenu: true,
+      browserSaving: true,
     });
+    // The save's RAM has the records of its moment: the card's may be better since.
+    const c = this.console;
+    const card = cardRecords(c.shared.cards!);
+    if (card) c.m.bytes.set(mergeRecords(card, ramRecords(c.m)), RECORDS & 0x1fffff);
+    this.recordsSeen = ramRecords(c.m);
+    this.stats.hide();
     this.newRenderer(this.console.program);
     this.renderer!.vram!.set(s.vram);
     // The frame on screen when it was saved (Puzzle Mode draws tick t into buffer t & 1).
@@ -326,12 +344,19 @@ class Shell {
     this.last = now;
     try {
       while (this.acc >= TICK_MS) {
-        const pad = this.input.read();
+        const read = this.input.read();
+        const pressed = read & ~this.lastPad;
+        this.lastPad = read;
+        // While the Stats page is open the game sees no buttons (the mode select waits for it).
+        if (this.stats.open) this.stats.pad(pressed);
+        const pad = this.stats.open ? 0 : read;
         // Triangle on Puzzle Mode's pause screen saves (the game itself ignores it there).
-        if (pad & ~this.lastPad & BUTTON_BITS.TRIANGLE && canSave(c)) this.save();
-        this.lastPad = pad;
+        if (pad & pressed & BUTTON_BITS.TRIANGLE && canSave(c)) this.save();
         c.step(pad);
         const p = c.program;
+        this.playTime.tick(p.name);
+        this.watchRecords(c);
+        if (c.shared.statsOpen && !this.stats.open) this.openStats(c);
         if (p !== this.rendererFor) this.newRenderer(p);
         this.buffer = this.renderer!.frame(p).buffer;
         // Vblanks the original spent waiting inside this tick (memory card calls, VSync(n)):
@@ -347,6 +372,35 @@ class Shell {
     this.showFrame();
     this.updateHint();
     requestAnimationFrame((t) => this.frame(t));
+  }
+
+  /** Writes the records to card 1 when they change (not during SW_ON, which loads them). */
+  private watchRecords(c: Console): void {
+    if (c.program.name === 'SW_ON') {
+      this.recordsSeen = undefined;
+      return;
+    }
+    if (!this.recordsSeen) {
+      this.recordsSeen = ramRecords(c.m);
+      return;
+    }
+    if (sameRecords(c.m, this.recordsSeen)) return;
+    this.recordsSeen = ramRecords(c.m);
+    const r = storeRecords(c.shared.cards!, c.m);
+    if (r === 'failed' || r === 'damaged') console.warn(`records not written to card 1: ${r}`);
+  }
+
+  /** The Stats page: the card's records with the game's, and the time played. */
+  private openStats(c: Console): void {
+    const cards = c.shared.cards!;
+    const card = cardRecords(cards);
+    this.playTime.save();
+    this.stats.show(readRecords(card ? mergeRecords(card, ramRecords(c.m)) : ramRecords(c.m)), this.playTime, cards.image(0) !== null);
+  }
+
+  private closeStats(): void {
+    this.stats.hide();
+    if (this.console) this.console.shared.statsOpen = false;
   }
 
   private showFrame(): void {
@@ -421,6 +475,10 @@ class Shell {
     if (this.panel.open) return false;
     if (code === 'Enter' && e.altKey) {
       this.toggleFullscreen();
+      return true;
+    }
+    if (code === 'Escape' && this.stats.open) {
+      this.closeStats();
       return true;
     }
     if (code === 'Escape' && this.mode !== 'gate' && this.mode !== 'logo') {

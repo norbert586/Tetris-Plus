@@ -235,18 +235,14 @@ movies replay unchanged.
   shows (the VS name, with its identical CLUT, and the Classic banner). The builder checks every
   assumption it relies on (clean letter cells, one background colour per row, the same palette)
   and throws if one fails.
-- **Cross on Stats's page** runs the confirmation as for a mode, then names RANKING (7) with
-  param 0, phase 0, and sets `Shared.statsVisit`. RANKING shows the Classic and Puzzle rankings
-  as in the attract loop (`ranking.md`). The Console then brings the mode select back
-  (`web/src/flow/console.ts`): when RANKING ends (it names TIT_DEMO; the Console names SELECT
-  with param 0, phase 0 instead), or at once on a fresh Cross, Circle or Start (RANKING has no
-  input of its own). A soft reset still goes to TITLE (Start and Select held since before the
-  ranking screen started; a fresh Start leaves first). This is the placeholder for a stats screen
-  of the port's own.
+- **Cross on Stats's page** plays effect 0, sets `Shared.statsOpen` and goes to step 10 (the
+  port's), which waits: the shell shows the Stats page (`docs/re/shell.md`) and feeds the game no
+  buttons while it is open. When the shell clears the flag, step 10 closes the page as Circle does
+  on step 6 (`Select.closePage`: effect 5, step 7, the tile shrinks back), so the cursor is back
+  on Stats. SELECT doesn't exit.
 
 `web/test/select.test.ts` ("in the browser") checks the layout, the uploads, the cursor, every
-page's zoom and return, Puzzle starting PAZLE, and the Stats round trip (to the end, with each
-button, and the soft reset).
+page's zoom and return, Puzzle starting PAZLE, and Stats waiting for the shell, then closing.
 
 ## 8. Verification
 

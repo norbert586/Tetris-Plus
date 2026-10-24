@@ -461,9 +461,13 @@ start of each session. If a later session asks you to approve a tool server call
 - Menus: **decided (2026-10-23): original title and mode-select screens; the mode select shows
   Puzzle, Option and Stats, centred** (the modes the port can't start are hidden; Stats shows
   the ranking screen until the port has its own; see `docs/re/select.md` §7).
-- Saving: **decided (2026-10-23): pause and save.** One browser save of the whole game, made on
-  Puzzle Mode's pause screen and resumed from the start screen (`docs/re/shell.md`). The game's
-  own memory-card saves stay as they are.
+- Saving: **decided (2026-10-23): pause and save, manual only (2026-10-24).** One browser save
+  of the whole game, made on Puzzle Mode's pause screen and resumed from the start screen
+  (`docs/re/shell.md`). **Decided (2026-10-24): the save screen after a game loses its card
+  options** (only the password and EXIT); the records (best times, rankings) are written to card
+  1 by the browser whenever they change (`docs/re/memcard.md` §7).
+- Stats: **decided (2026-10-24): a basic Stats page** (progress, best times, Puzzle ranking, time
+  played) from the mode select's Stats tile (`docs/re/shell.md`).
 - Display defaults: **pixel-perfect integer scaling, 4:3, CRT filter off but available**.
 - Loading pauses and slowdown: **don't reproduce loading pauses; reproduce gameplay timing exactly**.
 - Platforms: **decided: desktop web browsers only, with keyboard and gamepad. No touch controls.**
